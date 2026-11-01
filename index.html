@@ -369,8 +369,10 @@ const SB_URL='https://cetbspgxsqbaousqrara.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNldGJzcGd4c3FiYW91c3FyYXJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1MjI4MjUsImV4cCI6MjEwNjA5ODgyNX0._I_3CBRQMlFGalyRY4_Ne7TsKbj3F-nOdsI2HBEWrqk';
 const MAIL='@vyro.app';
 // Adresse du relais vidéo (Worker Cloudflare), sans « / » à la fin. Laisse vide tant qu'il n'est pas installé.
-const MEDIA_URL='';
-const MAX_VIDEO=20*1024*1024;
+// Ex : 'https://vyro-media.moncompte.workers.dev'. Vide = le bouton + crée seulement des publications test.
+const MEDIA_URL='https://vyro-media.abdou9747w.workers.dev';
+const MAX_VIDEO=20*1024*1024; // 20 Mo : limite de lecture des fichiers par les bots Telegram
+let tok=''; // jeton de connexion, transmis au relais pour vérifier le droit de voir chaque vidéo
 const sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
 
 /* ---------- helpers ---------- */
@@ -468,12 +470,14 @@ $('#aForm').onsubmit=async e=>{
 async function boot(){
  applyTheme();
  if(!sb){show('auth');$('#aErr').textContent='Impossible de charger Supabase. Vérifie ta connexion internet.';return}
+ sb.auth.onAuthStateChange((ev,s)=>{tok=s?s.access_token:''});
  const {data}=await sb.auth.getSession();
  if(data&&data.session)await enter();else show('auth');
 }
 async function enter(){
  const {data:{session}}=await sb.auth.getSession();
  if(!session){show('auth');return}
+ tok=session.access_token;
  const {data:p}=await sb.from('vyro_profiles').select('*').eq('id',session.user.id).maybeSingle();
  if(!p){await sb.auth.signOut();show('auth');$('#aErr').textContent='Ce compte n’existe pas sur VYRO.';return}
  me=p;
@@ -638,8 +642,9 @@ function scene(i){
 /* ---------- vidéos ---------- */
 const VCOLS='id,user_id,caption,tags,likes_count,comments_count,saves_count,created_at,tg_file_id,tg_thumb_id,author:vyro_profiles(username,display_name)';
 const mapPost=v=>({id:v.id,uid:v.user_id,user:(v.author&&v.author.username)||'?',cap:v.caption,tags:v.tags,likes:v.likes_count,comments:v.comments_count,saves:v.saves_count,fid:v.tg_file_id,tid:v.tg_thumb_id,mine:v.user_id===me.id});
-const vurl=id=>MEDIA_URL+'/v/'+encodeURIComponent(id);
-const turl=id=>MEDIA_URL+'/t/'+encodeURIComponent(id);
+// le relais vérifie à chaque lecture que ce compte a le droit de voir la vidéo (comptes privés inclus)
+const vurl=id=>MEDIA_URL+'/media/'+encodeURIComponent(id)+'?t='+encodeURIComponent(tok);
+const turl=id=>MEDIA_URL+'/thumb/'+encodeURIComponent(id)+'?t='+encodeURIComponent(tok);
 function play(v){const r=v.play();if(r&&r.catch)r.catch(()=>{v.muted=true;v.play().catch(()=>{});toast('Touche l’écran pour activer le son')})}
 function syncPlay(){
  const f=$('#feed');if(!f)return;
@@ -656,7 +661,7 @@ async function loadFeed(){
 }
 function postHTML(p){
  const lk=liked.has(p.id),sv=saved.has(p.id),fl=following.has(p.uid),h=hue(p.user);
- const media=(p.fid&&MEDIA_URL)?`<video src="${vurl(p.fid)}" ${p.tid?`poster="${turl(p.tid)}"`:''} loop playsinline preload="metadata"></video>`:scene(sceneIdx(p.id));
+ const media=(p.fid&&MEDIA_URL)?`<video src="${vurl(p.id)}" ${p.tid?`poster="${turl(p.id)}"`:''} loop playsinline preload="metadata"></video>`:scene(sceneIdx(p.id));
  return `<article class="post" data-id="${p.id}"><div class="media">${media}</div><div class="shade"></div><div class="bigplay">${I('play','fill')}</div>
  <div class="rail"><div class="rav"><div class="ravc" style="background:linear-gradient(135deg,hsl(${h} 80% 60%),hsl(${(h+50)%360} 70% 32%))">${esc(p.user[0].toUpperCase())}</div>${p.mine?'':`<button class="fol ${fl?'done':''}" data-a="follow" aria-label="Suivre">${I(fl?'check':'plus')}</button>`}</div>
   <button class="rbtn ${lk?'lk':''}" data-a="like">${I('heart')}<span>${fmt(p.likes)}</span></button>
@@ -801,7 +806,7 @@ async function loadProfileData(){
 }
 function renderGrid(){
  const l=G[gtab];
- $('#grid').innerHTML=l.map(x=>`<div class="th">${(x.t&&MEDIA_URL)?`<img src="${turl(x.t)}" alt="" loading="lazy">`:scene(sceneIdx(x.id))}<span>${I('play','fill')}${x.c}</span></div>`).join('')||'<p class="emptyg">Rien ici pour l’instant</p>';
+ $('#grid').innerHTML=l.map(x=>`<div class="th">${(x.t&&MEDIA_URL)?`<img src="${turl(x.id)}" alt="" loading="lazy" onerror="this.remove()">`:scene(sceneIdx(x.id))}<span>${I('play','fill')}${x.c}</span></div>`).join('')||'<p class="emptyg">Rien ici pour l’instant</p>';
 }
 $('#ptabs').onclick=e=>{const b=e.target.closest('[data-g]');if(!b)return;gtab=b.dataset.g;$$('#ptabs button').forEach(x=>x.classList.toggle('cur',x===b));renderGrid()};
 $('#grid').onclick=e=>{if(e.target.closest('.th'))tab('videos')};
