@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#07030f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>VYRO — Chat • Vidéos • Communauté</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--bg:#06020d;--card:rgba(255,255,255,.05);--card2:rgba(255,255,255,.09);--line:rgba(168,85,247,.28);--text:#fff;--muted:#a99cc4;--acl:#d8b4fe;--nav:rgba(14,7,28,.88);--sheet:#150a2e;--inp:rgba(255,255,255,.07);--sw:rgba(255,255,255,.16)}
+[data-theme=light]{--bg:#f6f1ff;--card:rgba(124,58,237,.06);--card2:rgba(124,58,237,.12);--line:rgba(124,58,237,.28);--text:#1b0f33;--muted:#6f5f8f;--acl:#7c3aed;--nav:rgba(255,255,255,.92);--sheet:#fff;--inp:rgba(124,58,237,.08);--sw:rgba(0,0,0,.18)}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font:16px/1.3 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.ic{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
+.ic.fill{fill:currentColor}
+.ico{display:inline-flex}
+.gold{color:#fbbf24}
+.muted,.mut{color:var(--muted)}
+#app{position:relative;max-width:480px;height:100dvh;margin:0 auto;overflow:hidden;
+ background:radial-gradient(120% 55% at 0% 0%,rgba(124,58,237,.38),transparent 60%),radial-gradient(100% 50% at 100% 100%,rgba(168,85,247,.28),transparent 60%),var(--bg)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0;visibility:hidden;transform:translateX(14px);transition:opacity .2s,transform .2s,visibility .2s}
+.screen.on{opacity:1;visibility:visible;transform:none}
+.top{display:flex;align-items:center;gap:8px;padding:calc(env(safe-area-inset-top) + 14px) 16px 8px}
+.top h1{font-size:22px;font-weight:700;flex:1;text-align:center}
+.logo{display:flex;align-items:center;gap:8px}
+.logo span{font-weight:800;font-size:26px;letter-spacing:.06em;text-shadow:0 0 16px rgba(168,85,247,.8)}
+.sp{flex:1}
+.ib{width:44px;height:44px;border-radius:50%;border:0;background:none;display:grid;place-items:center;color:var(--text)}
+.ib.bd{background:var(--card);border:1px solid var(--line)}
+.plus{width:42px;height:42px;border-radius:50%;border:0;color:#fff;background:linear-gradient(135deg,#a855f7,#6d28d9);display:grid;place-items:center;box-shadow:0 0 18px rgba(168,85,247,.7)}
+.scroll{flex:1;overflow-y:auto;padding:6px 16px 112px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.sbar{margin:6px 16px 12px;display:flex;align-items:center;gap:10px;padding:0 16px;height:50px;border-radius:16px;background:var(--card);border:1px solid var(--line);color:var(--muted)}
+.sbar input{flex:1;background:none;border:0;outline:0;color:var(--text);min-width:0}
+.chips{display:flex;gap:10px;padding:0 16px 8px;overflow-x:auto;scrollbar-width:none}
+.chip{display:flex;align-items:center;gap:8px;padding:9px 18px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:15px;white-space:nowrap}
+.chip em{font-style:normal;font-size:12px;min-width:22px;height:22px;border-radius:11px;display:grid;place-items:center;background:var(--card2);padding:0 6px}
+.chip.cur{background:linear-gradient(135deg,#9333ea,#7c3aed);border-color:transparent;color:#fff;box-shadow:0 0 18px rgba(147,51,234,.6)}
+.chip.cur em{background:rgba(255,255,255,.25)}
+.chat{display:flex;align-items:center;gap:14px;padding:12px 4px;border-bottom:1px solid var(--card2);cursor:pointer}
+.chat:active{background:var(--card)}
+.av{position:relative;flex:none;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#fff;border:2px solid rgba(168,85,247,.75);box-shadow:0 0 14px rgba(168,85,247,.4)}
+.dot{position:absolute;right:0;bottom:2px;width:14px;height:14px;border-radius:50%;background:#22c55e;border:2.5px solid var(--bg)}
+.cm{flex:1;min-width:0}
+.r1,.r2{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.r1 b{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tm{font-size:13px;color:var(--muted)}
+.tm.hot{color:var(--acl)}
+.lm{color:var(--muted);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.bdg{min-width:24px;height:24px;border-radius:12px;background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;font-size:13px;font-weight:700;display:grid;place-items:center;padding:0 7px;box-shadow:0 0 12px rgba(168,85,247,.6)}
+.empty{text-align:center;color:var(--muted);padding:40px 0}
+.fab{position:absolute;right:18px;bottom:104px;width:62px;height:62px;border-radius:50%;border:0;color:#fff;background:linear-gradient(135deg,#a855f7,#6d28d9);display:grid;place-items:center;box-shadow:0 0 26px rgba(168,85,247,.75);z-index:5}
+.fab .ic{width:28px;height:28px}
+/* nav */
+#nav{position:absolute;left:14px;right:14px;bottom:calc(env(safe-area-inset-bottom) + 14px);height:70px;border-radius:26px;background:var(--nav);border:1px solid var(--line);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);display:flex;box-shadow:0 0 26px rgba(124,58,237,.35);z-index:20;transition:transform .25s,opacity .25s}
+#nav.vid{--nav:rgba(10,5,20,.72);--muted:#cdc2e6}
+#nav.hide{transform:translateY(130px);opacity:0;pointer-events:none}
+#nav button{flex:1;background:none;border:0;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:13px;position:relative}
+#nav button.cur{color:var(--acl)}
+#nav.vid button.cur{color:#d8b4fe}
+#nav button.cur .ic{filter:drop-shadow(0 0 8px rgba(168,85,247,.95))}
+#nav button.cur::after{content:"";position:absolute;bottom:7px;width:34px;height:3px;border-radius:3px;background:linear-gradient(90deg,#c084fc,#7c3aed);box-shadow:0 0 10px #a855f7}
+/* videos */
+#s-videos{background:#000;color:#fff}
+.vtop{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:22px;padding:calc(env(safe-area-inset-top) + 16px) 18px 34px;background:linear-gradient(#000b,transparent)}
+.vtab{background:none;border:0;color:rgba(255,255,255,.65);font-size:18px;font-weight:600;padding:4px 0 8px;position:relative}
+.vtab.cur{color:#fff}
+.vtab.cur::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:3px;background:linear-gradient(90deg,#c084fc,#7c3aed);box-shadow:0 0 10px #a855f7}
+.vplus{position:absolute;right:16px;top:calc(env(safe-area-inset-top) + 74px);z-index:6;width:50px;height:50px}
+.feed{position:absolute;inset:0;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none}
+.feed::-webkit-scrollbar{display:none}
+.post{position:relative;height:100%;scroll-snap-align:start;scroll-snap-stop:always;overflow:hidden}
+.media,.media svg,.media video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+.shade{position:absolute;inset:0;background:linear-gradient(transparent 50%,rgba(0,0,0,.78))}
+.bigplay{position:absolute;inset:0;display:grid;place-items:center;opacity:0;pointer-events:none;transition:opacity .15s}
+.bigplay .ic{width:84px;height:84px;color:rgba(255,255,255,.85)}
+.post.paused .bigplay{opacity:1}
+.rail{position:absolute;right:10px;bottom:150px;display:flex;flex-direction:column;align-items:center;gap:18px;z-index:3}
+.rav{position:relative;width:54px;height:54px;margin-bottom:12px}
+.ravc{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:22px;border:2px solid #fff;color:#fff}
+.fol{position:absolute;left:50%;bottom:-11px;margin-left:-11px;width:22px;height:22px;border-radius:50%;border:0;background:#ec4899;color:#fff;display:grid;place-items:center}
+.fol.done{background:#7c3aed}
+.fol .ic{width:14px;height:14px;stroke-width:3}
+.rbtn{background:none;border:0;color:#fff;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:13px;font-weight:600;text-shadow:0 1px 6px #000}
+.rbtn .ic{width:36px;height:36px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6))}
+.rbtn.lk .ic{color:#ff2d75;fill:#ff2d75}
+.rbtn.sv .ic{color:#c084fc;fill:#c084fc}
+.meta{position:absolute;left:16px;right:84px;bottom:108px;z-index:3;text-shadow:0 1px 8px #000}
+.meta .u{display:flex;align-items:center;gap:6px;font-weight:700;font-size:18px}
+.vf{width:18px;height:18px}
+.meta p{margin-top:6px;font-size:15px}
+.meta .tg{color:#d8b4fe}
+.meta .sd{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:14px;opacity:.95}
+.meta .sd .ic{width:16px;height:16px}
+.vempty{position:absolute;inset:0;display:grid;place-content:center;text-align:center;padding:40px;color:#cdc2e6;gap:10px}
+.burst{position:absolute;width:90px;height:90px;margin:-45px 0 0 -45px;color:#ff2d75;fill:#ff2d75;stroke:#ff2d75;animation:bst .8s ease-out forwards;pointer-events:none;z-index:4}
+@keyframes bst{0%{transform:scale(.4);opacity:1}40%{transform:scale(1.15);opacity:1}100%{transform:scale(1.5) translateY(-30px);opacity:0}}
+/* profile */
+.phead{display:flex;align-items:center;gap:18px;padding:6px 4px 14px}
+.pav{position:relative;width:104px;height:104px;border-radius:50%;display:grid;place-items:center;font-size:50px;background:radial-gradient(circle at 30% 25%,#7c3aed,#1a0640);border:3px solid #a855f7;box-shadow:0 0 22px rgba(168,85,247,.7)}
+.pav .dot{width:20px;height:20px;right:4px;bottom:6px}
+.pname{font-size:25px;font-weight:700;display:flex;align-items:center;gap:8px}
+.pname .ic{width:26px;height:26px}
+.stats{display:flex;padding:10px 0 14px}
+.stats>div{flex:1;text-align:center;display:flex;flex-direction:column;gap:2px;border-left:1px solid var(--card2)}
+.stats>div:first-child{border:0}
+.stats b{font-size:22px}
+.stats span{color:var(--muted);font-size:14px}
+.pbio{white-space:pre-line;padding:4px 4px 14px;font-size:15px}
+.cta{width:100%;height:52px;border-radius:16px;border:0;color:#fff;font-weight:600;font-size:16px;display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,#9333ea,#7c3aed);box-shadow:0 0 22px rgba(147,51,234,.5)}
+.cta .ic{width:20px;height:20px}
+.ptabs{display:flex;margin:18px 0 12px;border-bottom:1px solid var(--card2)}
+.ptabs button{flex:1;background:none;border:0;padding:10px 0 12px;color:var(--muted);font-size:16px;position:relative}
+.ptabs button.cur{color:var(--text);font-weight:600}
+.ptabs button.cur::after{content:"";position:absolute;left:25%;right:25%;bottom:-1px;height:3px;border-radius:3px;background:linear-gradient(90deg,#c084fc,#7c3aed);box-shadow:0 0 10px #a855f7}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.th{position:relative;aspect-ratio:4/3;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#000;cursor:pointer}
+.th svg,.th video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.th span{position:absolute;left:8px;bottom:6px;display:flex;align-items:center;gap:4px;font-size:13px;font-weight:600;color:#fff;text-shadow:0 1px 5px #000}
+.th span .ic{width:14px;height:14px}
+.emptyg{grid-column:1/-1;text-align:center;color:var(--muted);padding:30px 0}
+/* settings & lists */
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;overflow:hidden;margin-bottom:6px}
+.row{display:flex;align-items:center;gap:14px;padding:14px 16px;border-bottom:1px solid var(--card2);cursor:pointer}
+.row:last-child{border:0}
+.row .ri{color:#a855f7;display:inline-flex}
+.row .ri .ic{width:28px;height:28px}
+.row.sm .ri .ic{width:24px;height:24px}
+.rt{flex:1;min-width:0}
+.rt b{display:block;font-weight:600;font-size:16px}
+.rt small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.row.sm .rt b{font-weight:500;font-size:15px}
+.sec{display:flex;align-items:center;gap:10px;color:#c084fc;font-size:20px;font-weight:600;margin:20px 4px 10px}
+.sec .ic{width:24px;height:24px}
+.me{display:flex;align-items:center;gap:14px;padding:16px;border-radius:24px;background:var(--card);border:1px solid var(--line);margin-bottom:14px}
+.me .pav{width:76px;height:76px;font-size:34px;border-width:2px}
+.me .pav .dot{width:16px;height:16px}
+.me .nm{font-size:22px;font-weight:700;display:flex;align-items:center;gap:6px}
+.me .nm .ic{width:22px;height:22px}
+.me .bio1{color:#c084fc;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.btn-o{margin-left:auto;height:42px;padding:0 16px;border-radius:21px;background:none;border:1.5px solid #a855f7;color:#d8b4fe;display:flex;align-items:center;gap:8px;font-size:15px}
+.btn-o .ic{width:18px;height:18px}
+.prem{display:flex;align-items:center;gap:14px;padding:16px;border-radius:20px;border:1.5px solid #a855f7;background:linear-gradient(135deg,rgba(147,51,234,.35),rgba(76,29,149,.25));box-shadow:0 0 22px rgba(168,85,247,.35);cursor:pointer}
+.prem .ic.cr{width:44px;height:44px;color:#fbbf24}
+.prem b{font-size:19px;display:block;color:var(--text)}
+.prem small{color:var(--muted);font-size:14px}
+.sw{position:relative;width:52px;height:30px;flex:none}
+.sw input{display:none}
+.sw i{position:absolute;inset:0;border-radius:99px;background:var(--sw);transition:.2s}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.2s}
+.sw input:checked+i{background:linear-gradient(135deg,#a855f7,#7c3aed);box-shadow:0 0 14px rgba(168,85,247,.6)}
+.sw input:checked+i::after{transform:translateX(22px)}
+.sel{background:none;border:0;outline:0;color:var(--muted);font-size:13px;max-width:116px;text-align:right}
+.sel option{background:#150a2e;color:#fff}
+.lang{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:15px}
+/* thread */
+.thead{display:flex;align-items:center;gap:12px;padding:calc(env(safe-area-inset-top) + 12px) 12px 10px;border-bottom:1px solid var(--card2)}
+.thead b{display:block;font-size:17px}
+.thead small{color:#22c55e;font-size:13px}
+.tmsgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;scrollbar-width:none}
+.b{max-width:78%;padding:10px 14px 6px;border-radius:18px;font-size:15px;line-height:1.35;display:flex;flex-direction:column;gap:2px;word-break:break-word}
+.b small{align-self:flex-end;font-size:11px;opacity:.65}
+.b.me2{align-self:flex-end;background:linear-gradient(135deg,#9333ea,#7c3aed);color:#fff;border-bottom-right-radius:6px;box-shadow:0 0 14px rgba(147,51,234,.4)}
+.b.th2{align-self:flex-start;background:var(--card2);border-bottom-left-radius:6px}
+.tform{display:flex;gap:10px;padding:10px 12px calc(env(safe-area-inset-bottom) + 12px);border-top:1px solid var(--card2)}
+.tform input{flex:1;height:48px;border-radius:24px;border:1px solid var(--line);background:var(--inp);padding:0 18px;outline:0;color:var(--text);min-width:0}
+.tform button{width:48px;height:48px;border-radius:50%;border:0;color:#fff;background:linear-gradient(135deg,#a855f7,#6d28d9);display:grid;place-items:center;box-shadow:0 0 16px rgba(168,85,247,.6)}
+/* sheet & toast */
+#bd{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.2s;z-index:40}
+#bd.on{opacity:1;pointer-events:auto}
+#sh{position:absolute;left:0;right:0;bottom:0;max-height:80%;overflow:auto;background:var(--sheet);color:var(--text);border-top:1px solid var(--line);border-radius:26px 26px 0 0;padding:12px 20px calc(env(safe-area-inset-bottom) + 22px);transform:translateY(105%);transition:transform .25s;z-index:41;box-shadow:0 -10px 40px rgba(124,58,237,.35)}
+#sh.on{transform:none}
+#sh h3{font-size:19px;text-align:center;margin:6px 0 14px}
+#sh .grab{width:44px;height:5px;border-radius:3px;background:var(--card2);margin:0 auto 6px}
+.fld{display:block;margin-bottom:14px;font-size:14px;color:var(--muted)}
+.fld input,.fld textarea{display:block;width:100%;margin-top:6px;border-radius:14px;border:1px solid var(--line);background:var(--inp);padding:12px 14px;outline:0;color:var(--text);resize:none}
+.opt{display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid var(--card2);font-size:16px;cursor:pointer}
+.opt span{flex:1}
+.opt .ic{color:#a855f7}
+.cmt{display:flex;gap:12px;padding:10px 0}
+.cmt .av{width:38px;height:38px;font-size:15px;border-width:1.5px}
+.cmt b{font-size:14px;display:block}
+.cmt p{font-size:15px;margin-top:2px}
+.cform{display:flex;gap:10px;margin-top:10px;position:sticky;bottom:-8px;background:var(--sheet);padding-top:8px}
+.cform input{flex:1;height:46px;border-radius:23px;border:1px solid var(--line);background:var(--inp);padding:0 16px;outline:0;color:var(--text);min-width:0}
+.cform button{width:46px;height:46px;border-radius:50%;border:0;color:#fff;background:linear-gradient(135deg,#a855f7,#6d28d9);display:grid;place-items:center}
+#toast{position:absolute;left:50%;bottom:104px;transform:translate(-50%,20px);background:rgba(30,12,60,.95);color:#fff;border:1px solid var(--line);padding:11px 18px;border-radius:14px;font-size:14px;max-width:86%;text-align:center;opacity:0;pointer-events:none;transition:.25s;z-index:60;box-shadow:0 0 22px rgba(168,85,247,.5)}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+/* auth */
+.auth{flex:1;overflow-y:auto;display:flex;flex-direction:column;justify-content:center;padding:calc(env(safe-area-inset-top) + 24px) 24px 32px}
+.alogo{text-align:center;margin-bottom:26px}
+.alogo svg{filter:drop-shadow(0 0 18px rgba(168,85,247,.8))}
+.alogo h1{font-size:40px;letter-spacing:.08em;margin-top:6px;text-shadow:0 0 20px rgba(168,85,247,.8)}
+.alogo p{color:var(--acl);margin-top:4px}
+.atabs{display:flex;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:4px;margin-bottom:18px}
+.atabs button{flex:1;height:42px;border:0;border-radius:12px;background:none;color:var(--muted);font-weight:600}
+.atabs button.cur{background:linear-gradient(135deg,#9333ea,#7c3aed);color:#fff;box-shadow:0 0 16px rgba(147,51,234,.5)}
+.aerr{min-height:20px;color:#fb7185;font-size:14px;margin:-4px 0 12px}
+.cta:disabled{opacity:.6}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:3px;margin-bottom:14px}
+.seg button{flex:1;height:38px;border:0;border-radius:11px;background:none;color:var(--muted);font-weight:600}
+.seg button.cur{background:linear-gradient(135deg,#9333ea,#7c3aed);color:#fff}
+.urow{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--card2);cursor:pointer}
+.urow .av{width:42px;height:42px;font-size:17px}
+.urow b{display:block;font-size:15px}
+.urow small{color:var(--muted)}
+.urow.sel{background:var(--card)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:var(--card2);font-size:14px;margin:0 6px 6px 0}
+.sname{font-size:12px;color:var(--acl);font-weight:600}
+.prog{height:8px;border-radius:4px;background:var(--card2);overflow:hidden;margin:4px 0 14px}.prog[hidden]{display:none}.prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,#c084fc,#7c3aed);transition:width .2s}
+.th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d8b4fe"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+<symbol id="i-chatplus" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M12 8v6M9 11h6"/></symbol>
+<symbol id="i-bookmark" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-userplus" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+<symbol id="i-bars" viewBox="0 0 24 24"><path d="M12 20V10M18 20V4M6 20v-4"/></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+<symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></symbol>
+<symbol id="i-gift" viewBox="0 0 24 24"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></symbol>
+<symbol id="i-crown" viewBox="0 0 24 24"><path d="M3 18h18l1-11-5.5 4.5L12 4 7.5 11.5 2 7z"/><rect x="3" y="19.5" width="18" height="2" rx="1"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></symbol>
+<symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+</svg>
+
+<div id="app">
+
+<!-- AUTH -->
+<section class="screen" id="s-auth">
+ <div class="auth">
+  <div class="alogo"><span data-logo="84"></span><h1>VYRO</h1><p>Chat • Vidéos • Communauté</p></div>
+  <div class="atabs" id="aTabs"><button class="cur" data-m="login" type="button">Connexion</button><button data-m="signup" type="button">Inscription</button></div>
+  <form id="aForm">
+   <label class="fld">Pseudo<input id="aUser" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" placeholder="ex : bee_dev"></label>
+   <label class="fld">Mot de passe<input id="aPass" type="password" autocomplete="current-password" maxlength="72" placeholder="6 caractères minimum"></label>
+   <p id="aErr" class="aerr"></p>
+   <button class="cta" id="aGo" type="submit">Se connecter</button>
+  </form>
+  <p class="muted" style="text-align:center;font-size:13px;margin-top:18px">Pseudo : lettres minuscules, chiffres et _ (3 à 20 caractères)</p>
+ </div>
+</section>
+
+<!-- CHAT -->
+<section class="screen" id="s-chat">
+ <div class="top"><div class="logo"><span data-logo="40"></span><span>VYRO</span></div><span class="sp"></span>
+  <button class="ib" id="bSearch" aria-label="Rechercher"><span class="ico" data-i="search"></span></button>
+  <button class="plus" id="bNew" aria-label="Nouvelle conversation"><span class="ico" data-i="plus"></span></button></div>
+ <div class="sbar"><span class="ico" data-i="search"></span><input id="q" placeholder="Rechercher une conversation…" autocomplete="off"></div>
+ <div class="chips" id="chips"></div>
+ <div class="scroll" id="chatList"></div>
+ <button class="fab" id="fab" aria-label="Nouveau message"><span class="ico" data-i="chatplus"></span></button>
+</section>
+
+<!-- THREAD -->
+<section class="screen" id="s-thread">
+ <div class="thead"><button class="ib" data-go="back" aria-label="Retour"><span class="ico" data-i="back"></span></button><div id="tAv"></div><div><b id="tName"></b><small id="tSt"></small></div></div>
+ <div class="tmsgs" id="tMsgs"></div>
+ <form class="tform" id="tForm"><input id="tIn" placeholder="Écris un message…" autocomplete="off"><button type="submit" aria-label="Envoyer"><span class="ico" data-i="send"></span></button></form>
+</section>
+
+<!-- VIDEOS -->
+<section class="screen" id="s-videos">
+ <div class="vtop"><button class="vtab cur" data-v="fy">Pour toi</button><button class="vtab" data-v="ab">Abonnements</button><span class="sp"></span>
+  <button class="ib" id="vSearch" aria-label="Rechercher" style="color:#fff"><span class="ico" data-i="search"></span></button></div>
+ <button class="plus vplus upl" aria-label="Ajouter une vidéo"><span class="ico" data-i="plus"></span></button>
+ <div class="feed" id="feed"></div>
+</section>
+
+<!-- PROFILE -->
+<section class="screen" id="s-profile">
+ <div class="top"><span class="sp"></span><button class="ib" data-go="settings" aria-label="Paramètres"><span class="ico" data-i="gear"></span></button></div>
+ <div class="scroll">
+  <div class="phead"><div class="pav"><span data-ini></span></div>
+   <div><div class="pname"><span data-name></span></div><div class="muted" data-handle></div></div></div>
+  <div class="stats"><div><b id="stLikes">0</b><span>J'aime</span></div><div><b id="stFollowers">0</b><span>Abonnés</span></div><div><b id="stFollowing">0</b><span>Abonnements</span></div></div>
+  <p class="pbio" data-bio></p>
+  <button class="cta" id="bEdit"><span class="ico" data-i="pencil"></span>Modifier mon profil</button>
+  <div class="ptabs" id="ptabs"><button class="cur" data-g="vid">Vidéos</button><button data-g="like">J'aime</button><button data-g="fav">Favoris</button></div>
+  <div class="grid" id="grid"></div>
+ </div>
+ <button class="fab upl" aria-label="Ajouter une vidéo"><span class="ico" data-i="plus"></span></button>
+</section>
+
+<!-- SETTINGS -->
+<section class="screen" id="s-settings">
+ <div class="top"><button class="ib bd" data-go="back" aria-label="Retour"><span class="ico" data-i="back"></span></button><h1>Paramètres</h1><span class="ico" data-i="gear" style="color:#a855f7;width:44px;justify-content:center"></span></div>
+ <div class="scroll">
+  <div class="me"><div class="pav"><span data-ini></span></div>
+   <div style="min-width:0"><div class="nm"><span data-name></span></div><div class="muted" data-handle></div><div class="bio1" data-bio1></div></div>
+   <button class="btn-o" data-edit><span class="ico" data-i="pencil"></span>Modifier</button></div>
+  <div class="prem" data-go="soon"><span class="ico" data-i="crown" data-fill data-cls="cr"></span><div class="rt"><b>Passer à VYRO Premium</b><small>Débloquez plus de fonctionnalités !</small></div><span class="ico mut" data-i="chev"></span></div>
+  <div class="sec"><span class="ico" data-i="user"></span>Compte</div>
+  <div class="card">
+   <div class="row" data-go="edit"><span class="ri" data-i="user"></span><div class="rt"><b>Informations du compte</b><small>Nom, pseudo, bio…</small></div><span class="ico mut" data-i="chev"></span></div>
+   <div class="row" data-go="privacy"><span class="ri" data-i="lock"></span><div class="rt"><b>Confidentialité</b><small>Qui peut voir vos activités ?</small></div><span class="ico mut" data-i="chev"></span></div>
+   <div class="row" data-go="soon"><span class="ri" data-i="shield"></span><div class="rt"><b>Sécurité</b><small>Mot de passe, vérification…</small></div><span class="ico mut" data-i="chev"></span></div>
+   <div class="row" data-go="soon"><span class="ri" data-i="userplus"></span><div class="rt"><b>Mes abonnements</b><small>Gérer mes abonnements et abonnés</small></div><span class="ico mut" data-i="chev"></span></div>
+   <div class="row" data-go="soon"><span class="ri" data-i="db"></span><div class="rt"><b>Mon portefeuille</b><small>Mes pièces et cadeaux</small></div><span class="ico mut" data-i="chev"></span></div>
+  </div>
+  <div class="sec"><span class="ico" data-i="bars"></span>Préférences</div>
+  <div class="card">
+   <div class="row" data-go="notifs"><span class="ri" data-i="bell"></span><div class="rt"><b>Notifications</b><small>Gérer mes notifications</small></div><span class="ico mut" data-i="chev"></span></div>
+   <div class="row" data-go="appearance"><span class="ri" data-i="moon"></span><div class="rt"><b>Apparence</b><small id="thSub">Thème sombre / clair</small></div><span class="ico mut" data-i="chev"></span></div>
+   <div class="row" data-go="lang"><span class="ri" data-i="globe"></span><div class="rt"><b>Langue</b></div><span class="lang">Français<span class="ico" data-i="down" data-sm></span></span></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+   <div class="row" data-go="logout"><span class="ri" data-i="back"></span><div class="rt"><b>Se déconnecter</b></div></div>
+  </div>
+ </div>
+</section>
+
+<!-- PRIVACY -->
+<section class="screen" id="s-privacy">
+ <div class="top"><button class="ib bd" data-go="back" aria-label="Retour"><span class="ico" data-i="back"></span></button><h1>Confidentialité</h1><span class="ico" data-i="lock" style="color:#a855f7;width:44px;justify-content:center"></span></div>
+ <div class="scroll" id="privBody"></div>
+</section>
+
+<!-- NOTIFS -->
+<section class="screen" id="s-notifs">
+ <div class="top"><button class="ib bd" data-go="back" aria-label="Retour"><span class="ico" data-i="back"></span></button><h1>Notifications</h1><span class="ico" data-i="bell" style="color:#a855f7;width:44px;justify-content:center"></span></div>
+ <div class="scroll" id="notifBody"></div>
+</section>
+
+<nav id="nav">
+ <button data-t="chat" class="cur"><span class="ico" data-i="chat"></span>Chat</button>
+ <button data-t="videos"><span class="ico" data-i="play"></span>Vidéos</button>
+ <button data-t="profile"><span class="ico" data-i="user"></span>Compte</button>
+</nav>
+
+<div id="bd"></div>
+<div id="sh"></div>
+<div id="toast"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(()=>{
+/* ---------- config Supabase ---------- */
+const SB_URL='https://cetbspgxsqbaousqrara.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNldGJzcGd4c3FiYW91c3FyYXJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1MjI4MjUsImV4cCI6MjEwNjA5ODgyNX0._I_3CBRQMlFGalyRY4_Ne7TsKbj3F-nOdsI2HBEWrqk';
+const MAIL='@vyro.app';
+// Adresse du relais vidéo (Worker Cloudflare), sans « / » à la fin. Laisse vide tant qu'il n'est pas installé.
+const MEDIA_URL='';
+const MAX_VIDEO=20*1024*1024;
+const sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const I=(n,c='')=>`<svg class="ic ${c}"><use href="#i-${n}"/></svg>`;
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1000?(n/1000).toFixed(1)+'K':String(n);
+const p2=n=>String(n).padStart(2,'0');
+const hm=d=>p2(d.getHours())+':'+p2(d.getMinutes());
+const tfmt=iso=>{const d=new Date(iso),n=new Date();if(d.toDateString()===n.toDateString())return hm(d);const y=new Date(n);y.setDate(n.getDate()-1);if(d.toDateString()===y.toDateString())return 'Hier';return p2(d.getDate())+'/'+p2(d.getMonth()+1)};
+const hue=s=>[...String(s)].reduce((a,c)=>a+c.charCodeAt(0),0)*37%360;
+const logo=s=>`<svg width="${s}" height="${s}" viewBox="0 0 48 48"><path d="M12 9.5c0-2.4 2.6-3.9 4.7-2.6l23 14.1c2 1.2 2 4.1 0 5.3l-23 14.1c-2.1 1.3-4.7-.2-4.7-2.6z" fill="url(#lg)"/><path d="M20 17.5c0-1 1.1-1.6 2-1.1l11 6.5c.9.5.9 1.7 0 2.2l-11 6.5c-.9.5-2-.1-2-1.1z" fill="#fff" opacity=".92"/></svg>`;
+let toastT;
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),2600)}
+const ERR={invalid_username:'Pseudo invalide : 3 à 20 caractères (minuscules, chiffres, _).',invalid_password:'Mot de passe : 6 caractères minimum.',username_taken:'Ce pseudo est déjà pris.',server_error:'Erreur du serveur, réessaie dans un instant.',dm_closed:'Cette personne n’accepte pas de messages.',dm_followers_only:'Cette personne n’accepte que les messages de ses abonnés.',name_required:'Donne un nom au groupe.',too_many_members:'Un groupe est limité à 50 membres.'};
+const errMsg=e=>{const m=(e&&e.message)||'';for(const k in ERR)if(m.includes(k))return ERR[k];return 'Une erreur est survenue. Vérifie ta connexion.'};
+
+/* ---------- état ---------- */
+const THEME_KEY='vyro_theme';
+const S={theme:'dark',
+ priv:{private:false,dm:'all',comments:'all',download:true,activity:true,joined:true},
+ notif:{messages:true,likes:true,followers:true,comments:true,mentions:true,gifts:true,updates:true}};
+try{S.theme=localStorage.getItem(THEME_KEY)||'dark'}catch(e){}
+let me=null,chats=[],cur=null,posts=[],tabV='fy',filter='all',q='',gtab='vid',chan=null;
+const following=new Set(),liked=new Set(),saved=new Set();
+function applyTheme(){document.documentElement.dataset.theme=S.theme;$('meta[name=theme-color]').content=S.theme==='dark'?'#07030f':'#f6f1ff';$('#thSub').textContent=S.theme==='dark'?'Thème sombre':'Thème clair'}
+function applyNames(){
+ if(!me)return;
+ const nm=me.display_name||me.username;
+ $$('[data-name]').forEach(e=>e.textContent=nm);
+ $$('[data-handle]').forEach(e=>e.textContent='@'+me.username);
+ $$('[data-ini]').forEach(e=>e.textContent=nm[0].toUpperCase());
+ $$('[data-bio]').forEach(e=>e.textContent=me.bio||'');
+ $$('[data-bio1]').forEach(e=>e.textContent=(me.bio||'').split('\n')[0]);
+}
+
+/* ---------- icônes statiques ---------- */
+$$('[data-i]').forEach(el=>{el.innerHTML=I(el.dataset.i,(el.hasAttribute('data-fill')?'fill ':'')+(el.dataset.cls||''))});
+$$('[data-sm]').forEach(el=>el.firstChild.style.cssText='width:18px;height:18px');
+$$('[data-logo]').forEach(el=>el.innerHTML=logo(+el.dataset.logo));
+
+/* ---------- navigation ---------- */
+let stack=['auth'],curScreen='auth';
+const TABOF={chat:'chat',thread:'chat',videos:'videos',profile:'profile',settings:'profile',privacy:'profile',notifs:'profile'};
+function show(n){
+ curScreen=n;
+ $$('.screen').forEach(s=>s.classList.toggle('on',s.id==='s-'+n));
+ $$('#nav button').forEach(b=>b.classList.toggle('cur',b.dataset.t===TABOF[n]));
+ $('#nav').classList.toggle('hide',n==='thread'||n==='auth');
+ $('#nav').classList.toggle('vid',n==='videos');
+ syncPlay();
+}
+const push=n=>{stack.push(n);show(n)};
+const back=()=>{if(stack.length>1)stack.pop();show(stack[stack.length-1])};
+function tab(n){
+ stack=[n];show(n);
+ if(!me)return;
+ if(n==='chat')loadChats();
+ if(n==='videos')loadFeed();
+ if(n==='profile')loadProfileData();
+}
+$$('#nav button').forEach(b=>b.onclick=()=>tab(b.dataset.t));
+
+/* ---------- sheets ---------- */
+function openSheet(title,html){$('#sh').oninput=null;$('#sh').onclick=null;$('#sh').innerHTML=`<div class="grab"></div><h3>${title}</h3>${html}`;$('#bd').classList.add('on');$('#sh').classList.add('on');return $('#sh')}
+function closeSheet(){$('#bd').classList.remove('on');$('#sh').classList.remove('on')}
+$('#bd').onclick=closeSheet;
+
+/* ---------- authentification ---------- */
+let amode='login';
+$('#aTabs').onclick=e=>{const b=e.target.closest('[data-m]');if(!b)return;amode=b.dataset.m;
+ $$('#aTabs button').forEach(x=>x.classList.toggle('cur',x===b));
+ $('#aGo').textContent=amode==='login'?'Se connecter':'Créer mon compte';
+ $('#aPass').autocomplete=amode==='login'?'current-password':'new-password';$('#aErr').textContent=''};
+$('#aForm').onsubmit=async e=>{
+ e.preventDefault();
+ const err=$('#aErr'),btn=$('#aGo');err.textContent='';
+ if(!sb){err.textContent='Impossible de charger Supabase. Vérifie ta connexion internet.';return}
+ const u=$('#aUser').value.trim().toLowerCase(),pw=$('#aPass').value;
+ if(!/^[a-z0-9_]{3,20}$/.test(u)){err.textContent=ERR.invalid_username;return}
+ if(pw.length<6){err.textContent=ERR.invalid_password;return}
+ btn.disabled=true;const old=btn.textContent;btn.textContent='Patiente…';
+ try{
+  if(amode==='signup'){
+   const r=await fetch(SB_URL+'/functions/v1/vyro-signup',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+SB_KEY},body:JSON.stringify({username:u,password:pw})});
+   const j=await r.json().catch(()=>({}));
+   if(!r.ok){err.textContent=ERR[j.error]||ERR.server_error;return}
+  }
+  const {error}=await sb.auth.signInWithPassword({email:u+MAIL,password:pw});
+  if(error){err.textContent=/invalid/i.test(error.message)?'Pseudo ou mot de passe incorrect.':'Connexion impossible : '+error.message;return}
+  await enter();
+ }catch(x){err.textContent='Erreur réseau. Vérifie ta connexion.'}
+ finally{btn.disabled=false;btn.textContent=old}
+};
+async function boot(){
+ applyTheme();
+ if(!sb){show('auth');$('#aErr').textContent='Impossible de charger Supabase. Vérifie ta connexion internet.';return}
+ const {data}=await sb.auth.getSession();
+ if(data&&data.session)await enter();else show('auth');
+}
+async function enter(){
+ const {data:{session}}=await sb.auth.getSession();
+ if(!session){show('auth');return}
+ const {data:p}=await sb.from('vyro_profiles').select('*').eq('id',session.user.id).maybeSingle();
+ if(!p){await sb.auth.signOut();show('auth');$('#aErr').textContent='Ce compte n’existe pas sur VYRO.';return}
+ me=p;
+ const st=p.settings||{};
+ if(st.priv)Object.assign(S.priv,st.priv);
+ if(st.notif)Object.assign(S.notif,st.notif);
+ S.priv.private=!!p.is_private;
+ applyNames();renderPrivacy();renderNotifs();
+ await Promise.all([loadFollows(),loadMarks()]);
+ subscribe();
+ tab('chat');
+}
+async function logout(){try{await sb.auth.signOut()}catch(e){}location.reload()}
+
+/* ---------- suivis / likes / favoris ---------- */
+async function loadFollows(){
+ const {data}=await sb.from('vyro_follows').select('following_id').eq('follower_id',me.id);
+ following.clear();(data||[]).forEach(r=>following.add(r.following_id));
+}
+async function loadMarks(){
+ const [l,s]=await Promise.all([sb.from('vyro_likes').select('video_id').eq('user_id',me.id),sb.from('vyro_saves').select('video_id').eq('user_id',me.id)]);
+ liked.clear();saved.clear();
+ (l.data||[]).forEach(r=>liked.add(r.video_id));(s.data||[]).forEach(r=>saved.add(r.video_id));
+}
+
+/* ---------- chat : liste ---------- */
+const av=(c,size=58)=>`<div class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size*.4)}px;background:linear-gradient(135deg,hsl(${c.h} 80% 62%),hsl(${(c.h+50)%360} 70% 30%))">${esc(c.type==='group'?'👥':(c.name||'?')[0].toUpperCase())}</div>`;
+async function loadChats(){
+ const {data,error}=await sb.rpc('vyro_my_chats');
+ if(error){toast('Impossible de charger les conversations');return}
+ chats=(data||[]).map(c=>{const name=c.type==='group'?(c.name||'Groupe'):(c.peer_name||c.peer_username||'Utilisateur');
+  return {id:c.id,type:c.type==='group'?'group':'friend',name,h:hue(c.peer_username||name),last:c.last_message||'Nouvelle conversation',at:c.last_message_at,unread:Number(c.unread)||0}});
+ renderChats();
+}
+function renderChats(){
+ const cnt=t=>chats.filter(c=>t==='all'||c.type===t).length;
+ $('#chips').innerHTML=[['all','Toutes'],['group','Groupes'],['friend','Amis']].map(([k,l])=>`<button class="chip ${filter===k?'cur':''}" data-f="${k}">${l}<em>${cnt(k)}</em></button>`).join('');
+ const list=chats.filter(c=>(filter==='all'||c.type===filter)&&c.name.toLowerCase().includes(q));
+ $('#chatList').innerHTML=list.map(c=>`<div class="chat" data-id="${c.id}">${av(c)}<div class="cm"><div class="r1"><b>${esc(c.name)}</b><span class="tm ${c.unread?'hot':''}">${tfmt(c.at)}</span></div><div class="r2"><span class="lm">${esc(c.last)}</span>${c.unread?`<span class="bdg">${c.unread}</span>`:''}</div></div></div>`).join('')||`<p class="empty">${chats.length?'Aucune conversation trouvée':'Aucune conversation pour l’instant.<br>Appuie sur + pour écrire à quelqu’un.'}</p>`;
+}
+$('#chips').onclick=e=>{const b=e.target.closest('[data-f]');if(b){filter=b.dataset.f;renderChats()}};
+$('#q').oninput=e=>{q=e.target.value.trim().toLowerCase();renderChats()};
+$('#bSearch').onclick=()=>$('#q').focus();
+$('#chatList').onclick=e=>{const r=e.target.closest('.chat');if(r)openThread(r.dataset.id)};
+
+/* ---------- chat : conversation ---------- */
+let names={};
+async function openThread(id){
+ cur=chats.find(c=>c.id===id);if(!cur)return;
+ cur.unread=0;cur.msgs=[];names={};
+ $('#tAv').innerHTML=av(cur,44);$('#tName').textContent=cur.name;
+ $('#tSt').textContent=cur.type==='group'?'Groupe':'';
+ renderMsgs();renderChats();push('thread');
+ const [ms,mem]=await Promise.all([
+  sb.from('vyro_messages').select('id,sender_id,body,created_at').eq('conversation_id',id).order('created_at',{ascending:false}).limit(100),
+  sb.from('vyro_members').select('user_id,profile:vyro_profiles(username,display_name)').eq('conversation_id',id)]);
+ if(!cur||cur.id!==id)return;
+ cur.msgs=(ms.data||[]).reverse();
+ (mem.data||[]).forEach(m=>{names[m.user_id]=(m.profile&&(m.profile.display_name||m.profile.username))||'?'});
+ renderMsgs();
+ sb.rpc('vyro_mark_read',{p_conv:id});
+}
+function renderMsgs(){
+ const s=$('#tMsgs');
+ s.innerHTML=cur.msgs.map(m=>{const mine=m.sender_id===me.id;
+  return `<div class="b ${mine?'me2':'th2'}">${(!mine&&cur.type==='group')?`<span class="sname">${esc(names[m.sender_id]||'')}</span>`:''}<span>${esc(m.body)}</span><small>${hm(new Date(m.created_at))}</small></div>`}).join('')
+  ||'<p class="empty">Dis bonjour 👋</p>';
+ s.scrollTop=s.scrollHeight;
+}
+function bump(c,body,at){c.last=body;c.at=at;chats.sort((a,b)=>new Date(b.at)-new Date(a.at))}
+$('#tForm').onsubmit=async e=>{
+ e.preventDefault();
+ const t=$('#tIn').value.trim();if(!t||!cur)return;
+ const c=cur;$('#tIn').value='';
+ const {data,error}=await sb.from('vyro_messages').insert({conversation_id:c.id,sender_id:me.id,body:t}).select('id,sender_id,body,created_at').single();
+ if(error){toast('Message non envoyé');$('#tIn').value=t;return}
+ if(c.msgs&&!c.msgs.some(x=>x.id===data.id))c.msgs.push(data);
+ bump(c,t,data.created_at);
+ if(cur===c)renderMsgs();
+ renderChats();
+};
+/* temps réel */
+function subscribe(){
+ if(chan)sb.removeChannel(chan);
+ chan=sb.channel('vyro-messages').on('postgres_changes',{event:'INSERT',schema:'public',table:'vyro_messages'},onMsg).subscribe();
+}
+async function onMsg(pl){
+ const m=pl.new;if(!m)return;
+ let c=chats.find(x=>x.id===m.conversation_id);
+ if(!c){await loadChats();c=chats.find(x=>x.id===m.conversation_id);if(!c)return}
+ const mineMsg=m.sender_id===me.id;
+ const open=curScreen==='thread'&&cur&&cur.id===c.id;
+ if(open){
+  if(!cur.msgs.some(x=>x.id===m.id)){cur.msgs.push(m);renderMsgs()}
+  if(!mineMsg)sb.rpc('vyro_mark_read',{p_conv:c.id});
+ }else if(!mineMsg){c.unread++;toast('Nouveau message : '+c.name)}
+ bump(c,m.body,m.created_at);renderChats();
+}
+
+/* ---------- nouvelle conversation / groupe ---------- */
+function newChatSheet(){
+ let mode='direct',timer,results=[];const picked=new Map();
+ const draw=()=>{
+  $('#sh').innerHTML=`<div class="grab"></div><h3>${mode==='group'?'Nouveau groupe':'Nouveau message'}</h3><div class="seg"><button data-m="direct" class="${mode==='direct'?'cur':''}">Message</button><button data-m="group" class="${mode==='group'?'cur':''}">Groupe</button></div>
+  ${mode==='group'?`<label class="fld">Nom du groupe<input id="gName" maxlength="40" placeholder="ex : Team Game"></label><div id="gPicked">${[...picked.values()].map(u=>`<span class="pill">@${esc(u.username)}</span>`).join('')}</div>`:''}
+  <label class="fld">Chercher un pseudo<input id="uQ" autocomplete="off" autocapitalize="none" placeholder="ex : bee_dev"></label>
+  <div id="uRes"></div>
+  ${mode==='group'?`<button class="cta" id="gGo" style="margin-top:12px">Créer le groupe (${picked.size})</button>`:''}`;
+  drawRes();
+ };
+ const drawRes=()=>{
+  const el=$('#uRes');if(!el)return;
+  el.innerHTML=results.map(u=>`<div class="urow ${picked.has(u.id)?'sel':''}" data-u="${u.id}">${av({name:u.display_name||u.username,h:hue(u.username)},42)}<div><b>${esc(u.display_name||u.username)}</b><small>@${esc(u.username)}</small></div></div>`).join('')||'<p class="empty" style="padding:16px 0">Tape un pseudo pour chercher</p>';
+ };
+ openSheet('Nouveau message','');draw();
+ const sh=$('#sh');
+ sh.oninput=e=>{if(e.target.id!=='uQ')return;clearTimeout(timer);const v=e.target.value.trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
+  timer=setTimeout(async()=>{
+   if(!v){results=[];drawRes();return}
+   const {data}=await sb.from('vyro_profiles').select('id,username,display_name').ilike('username','%'+v.replace(/_/g,'\\_')+'%').neq('id',me.id).limit(15);
+   results=data||[];drawRes();
+  },250)};
+ sh.onclick=async e=>{
+  const sg=e.target.closest('.seg [data-m]');
+  if(sg){mode=sg.dataset.m;picked.clear();results=[];draw();return}
+  const row=e.target.closest('[data-u]');
+  if(row){const u=results.find(x=>x.id===row.dataset.u);if(!u)return;
+   if(mode==='direct'){
+    const {data,error}=await sb.rpc('vyro_start_direct',{p_other:u.id});
+    if(error){toast(errMsg(error));return}
+    closeSheet();await loadChats();openThread(data);
+   }else{
+    picked.has(u.id)?picked.delete(u.id):picked.set(u.id,u);
+    const keep=$('#gName')?$('#gName').value:'',kq=$('#uQ').value;draw();$('#gName').value=keep;$('#uQ').value=kq;
+   }
+   return}
+  if(e.target.id==='gGo'){
+   const {data,error}=await sb.rpc('vyro_create_group',{p_name:$('#gName').value,p_members:[...picked.keys()]});
+   if(error){toast(errMsg(error));return}
+   closeSheet();await loadChats();openThread(data);
+  }
+ };
+}
+$('#bNew').onclick=$('#fab').onclick=newChatSheet;
+
+/* ---------- visuels (scènes générées) ---------- */
+let sid=0;
+const rnd=seed=>{let s=seed*9301+49297;return()=>((s=(s*9301+49297)%233280)/233280)};
+const sceneIdx=id=>[...String(id)].reduce((a,c)=>a+c.charCodeAt(0),0)%4;
+function scene(i){
+ i=((i%4)+4)%4;const k=++sid,r=rnd(i+3);
+ const c=[['#12032e','#7a1fa2','#ff4f93'],['#04061a','#10125a','#5b21b6'],['#0a0122','#3b0a6e','#d946ef'],['#080216','#2e0a5e','#a21caf']][i];
+ let stars='';for(let n=0;n<34;n++)stars+=`<circle cx="${(r()*400).toFixed(0)}" cy="${(r()*360).toFixed(0)}" r="${(r()*1.6+.4).toFixed(1)}" fill="#fff" opacity="${(r()*.7+.2).toFixed(2)}"/>`;
+ let art='';
+ if(i===0)art=`<circle cx="200" cy="400" r="130" fill="url(#g${k}s)"/><polygon points="0,560 80,450 150,540 250,420 330,520 400,470 400,700 0,700" fill="#1d0645"/><polygon points="0,620 100,540 190,610 300,520 400,600 400,700 0,700" fill="#0b0220"/>`;
+ if(i===1)art=`<g filter="url(#f${k})"><path d="M-20 300C80 150 160 380 260 220S400 160 440 260L440 380C300 330 200 450 100 360S0 400-20 380Z" fill="#22d3ee" opacity=".55"/><path d="M-20 380C100 260 180 440 280 300S400 260 440 340L440 460C320 420 220 520 120 440S20 480-20 460Z" fill="#a855f7" opacity=".65"/></g><polygon points="0,600 70,500 130,570 210,470 290,560 350,500 400,570 400,700 0,700" fill="#03030c"/>`;
+ if(i===2){art=`<circle cx="300" cy="190" r="52" fill="url(#g${k}m)"/>`;for(let n=0;n<10;n++){const h=140+r()*280,x=n*40,y=700-h;art+=`<rect x="${x}" y="${y.toFixed(0)}" width="36" height="${h.toFixed(0)}" fill="#0a0220"/>`;for(let wy=y+12;wy<680;wy+=22)for(let wx=x+6;wx<x+30;wx+=12)if(r()>.62)art+=`<rect x="${wx}" y="${wy.toFixed(0)}" width="6" height="9" fill="#f0abfc" opacity=".85"/>`}}
+ if(i===3){art=`<circle cx="250" cy="260" r="170" fill="url(#g${k}m)" opacity=".9"/>`;for(let x=-20;x<420;x+=38){const h=520+r()*70;art+=`<polygon points="${x},700 ${x+19},${h.toFixed(0)} ${x+38},700" fill="#08011a"/>`}for(let x=-5;x<420;x+=46){const h=580+r()*60;art+=`<polygon points="${x},700 ${x+23},${h.toFixed(0)} ${x+46},700" fill="#04000c"/>`}}
+ return `<svg viewBox="0 0 400 700" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c[0]}"/><stop offset=".6" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[2]}"/></linearGradient><linearGradient id="g${k}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe29a"/><stop offset="1" stop-color="#ff3d8b"/></linearGradient><radialGradient id="g${k}m"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#e9d5ff"/><stop offset="1" stop-color="#a855f7" stop-opacity="0"/></radialGradient><filter id="f${k}"><feGaussianBlur stdDeviation="22"/></filter></defs><rect width="400" height="700" fill="url(#g${k})"/>${stars}${art}</svg>`;
+}
+
+/* ---------- vidéos ---------- */
+const VCOLS='id,user_id,caption,tags,likes_count,comments_count,saves_count,created_at,tg_file_id,tg_thumb_id,author:vyro_profiles(username,display_name)';
+const mapPost=v=>({id:v.id,uid:v.user_id,user:(v.author&&v.author.username)||'?',cap:v.caption,tags:v.tags,likes:v.likes_count,comments:v.comments_count,saves:v.saves_count,fid:v.tg_file_id,tid:v.tg_thumb_id,mine:v.user_id===me.id});
+const vurl=id=>MEDIA_URL+'/v/'+encodeURIComponent(id);
+const turl=id=>MEDIA_URL+'/t/'+encodeURIComponent(id);
+function play(v){const r=v.play();if(r&&r.catch)r.catch(()=>{v.muted=true;v.play().catch(()=>{});toast('Touche l’écran pour activer le son')})}
+function syncPlay(){
+ const f=$('#feed');if(!f)return;
+ const i=Math.round(f.scrollTop/(f.clientHeight||1));
+ $$('#feed .post').forEach((el,k)=>{const v=el.querySelector('video');if(!v)return;
+  if(k===i&&curScreen==='videos'&&!el.classList.contains('paused'))play(v);else v.pause()});
+}
+async function loadFeed(){
+ let qy=sb.from('vyro_videos').select(VCOLS).order('created_at',{ascending:false}).limit(30);
+ if(tabV==='ab')qy=qy.in('user_id',[...following,me.id]);
+ const {data,error}=await qy;
+ if(error){toast('Impossible de charger les vidéos');return}
+ posts=(data||[]).map(mapPost);renderFeed();
+}
+function postHTML(p){
+ const lk=liked.has(p.id),sv=saved.has(p.id),fl=following.has(p.uid),h=hue(p.user);
+ const media=(p.fid&&MEDIA_URL)?`<video src="${vurl(p.fid)}" ${p.tid?`poster="${turl(p.tid)}"`:''} loop playsinline preload="metadata"></video>`:scene(sceneIdx(p.id));
+ return `<article class="post" data-id="${p.id}"><div class="media">${media}</div><div class="shade"></div><div class="bigplay">${I('play','fill')}</div>
+ <div class="rail"><div class="rav"><div class="ravc" style="background:linear-gradient(135deg,hsl(${h} 80% 60%),hsl(${(h+50)%360} 70% 32%))">${esc(p.user[0].toUpperCase())}</div>${p.mine?'':`<button class="fol ${fl?'done':''}" data-a="follow" aria-label="Suivre">${I(fl?'check':'plus')}</button>`}</div>
+  <button class="rbtn ${lk?'lk':''}" data-a="like">${I('heart')}<span>${fmt(p.likes)}</span></button>
+  <button class="rbtn" data-a="comment">${I('chat')}<span>${fmt(p.comments)}</span></button>
+  <button class="rbtn ${sv?'sv':''}" data-a="save">${I('bookmark')}<span>${fmt(p.saves)}</span></button>
+  <button class="rbtn" data-a="share">${I('share')}<span>Partager</span></button></div>
+ <div class="meta"><div class="u">@${esc(p.user)}</div>
+  <p>${esc(p.cap)} <span class="tg">${esc(p.tags||'')}</span></p><div class="sd">${I('music')}Son original - ${esc(p.user)}</div></div></article>`;
+}
+function renderFeed(){
+ $('#feed').innerHTML=posts.map(postHTML).join('')||`<div class="vempty"><b style="font-size:20px">Rien ici pour l'instant</b><span>${tabV==='ab'?'Abonne-toi à des créateurs depuis « Pour toi » pour voir leurs vidéos ici.':'Sois le premier à publier avec le bouton +'}</span></div>`;
+ $('#feed').scrollTop=0;syncPlay();
+}
+let scT;$('#feed').addEventListener('scroll',()=>{clearTimeout(scT);scT=setTimeout(syncPlay,90)});
+$$('.vtab').forEach(b=>b.onclick=()=>{tabV=b.dataset.v;$$('.vtab').forEach(x=>x.classList.toggle('cur',x===b));loadFeed()});
+$('#vSearch').onclick=()=>toast('Recherche de vidéos : bientôt disponible');
+function upd(p){const el=$(`#feed .post[data-id="${p.id}"]`);if(!el)return;
+ const b=el.querySelectorAll('.rbtn');
+ b[0].classList.toggle('lk',liked.has(p.id));b[0].lastChild.textContent=fmt(p.likes);
+ b[1].lastChild.textContent=fmt(p.comments);
+ b[2].classList.toggle('sv',saved.has(p.id));b[2].lastChild.textContent=fmt(p.saves)}
+async function toggleMark(p,set,table,field,label){
+ const was=set.has(p.id);
+ was?set.delete(p.id):set.add(p.id);p[field]+=was?-1:1;upd(p);
+ const {error}=was?await sb.from(table).delete().eq('user_id',me.id).eq('video_id',p.id):await sb.from(table).insert({user_id:me.id,video_id:p.id});
+ if(error){was?set.add(p.id):set.delete(p.id);p[field]+=was?1:-1;upd(p);toast(label+' impossible')}
+}
+const like=p=>toggleMark(p,liked,'vyro_likes','likes','J’aime');
+const save2=p=>toggleMark(p,saved,'vyro_saves','saves','Enregistrement');
+async function toggleFollow(p,btn){
+ const was=following.has(p.uid);
+ was?following.delete(p.uid):following.add(p.uid);
+ const {error}=was?await sb.from('vyro_follows').delete().eq('follower_id',me.id).eq('following_id',p.uid):await sb.from('vyro_follows').insert({follower_id:me.id,following_id:p.uid});
+ if(error){was?following.add(p.uid):following.delete(p.uid);toast('Action impossible');return}
+ $$('#feed .post').forEach(el=>{const x=posts.find(y=>String(y.id)===el.dataset.id);if(x&&x.uid===p.uid){const f=el.querySelector('.fol');if(f){f.classList.toggle('done',!was);f.innerHTML=I(!was?'check':'plus')}}});
+ toast(was?'Désabonné de @'+p.user:'Abonné à @'+p.user);
+}
+let lastTap=0;
+$('#feed').addEventListener('click',e=>{
+ const post=e.target.closest('.post');if(!post)return;const p=posts.find(x=>String(x.id)===post.dataset.id);if(!p)return;
+ const b=e.target.closest('[data-a]');
+ if(b){const a=b.dataset.a;
+  if(a==='like')like(p);
+  else if(a==='save')save2(p);
+  else if(a==='comment')openComments(p);
+  else if(a==='share'){if(navigator.share)navigator.share({title:'VYRO',text:p.cap,url:location.href}).catch(()=>{});else toast('Partage : bientôt disponible')}
+  else if(a==='follow')toggleFollow(p,b);
+  return}
+ const now=Date.now();
+ if(now-lastTap<320){if(!liked.has(p.id))like(p);
+  const r=post.getBoundingClientRect(),h=document.createElement('div');h.className='burst';h.style.left=(e.clientX-r.left)+'px';h.style.top=(e.clientY-r.top)+'px';h.innerHTML=I('heart');post.appendChild(h);setTimeout(()=>h.remove(),850);
+  lastTap=0;return}
+ lastTap=now;
+ const v=post.querySelector('video');
+ if(v)setTimeout(()=>{ // un seul toucher : pause / lecture (ou activer le son)
+  if(lastTap!==now)return;
+  if(v.muted){v.muted=false;return}
+  if(v.paused){post.classList.remove('paused');play(v)}else{post.classList.add('paused');v.pause()}
+ },330);
+});
+async function openComments(p){
+ const draw=l=>l.map(c=>`<div class="cmt">${av({name:c.u,h:hue(c.u)},38)}<div><b>@${esc(c.u)}</b><p>${esc(c.t)}</p></div></div>`).join('')||'<p class="empty" style="padding:20px 0">Aucun commentaire. Lance la discussion !</p>';
+ openSheet('Commentaires',`<div id="cList"><p class="empty" style="padding:20px 0">Chargement…</p></div><form class="cform" id="cForm"><input id="cIn" maxlength="500" placeholder="Ajouter un commentaire…" autocomplete="off"><button type="submit" aria-label="Envoyer">${I('send')}</button></form>`);
+ const {data}=await sb.from('vyro_comments').select('id,body,author:vyro_profiles(username)').eq('video_id',p.id).order('created_at').limit(100);
+ let list=(data||[]).map(c=>({u:(c.author&&c.author.username)||'?',t:c.body}));
+ if($('#cList'))$('#cList').innerHTML=draw(list);
+ $('#cForm').onsubmit=async e=>{e.preventDefault();const t=$('#cIn').value.trim();if(!t)return;
+  const {error}=await sb.from('vyro_comments').insert({video_id:p.id,user_id:me.id,body:t});
+  if(error){toast('Commentaire non envoyé');return}
+  list.push({u:me.username,t});p.comments++;$('#cList').innerHTML=draw(list);$('#cIn').value='';upd(p)};
+}
+
+/* ---------- publier une vidéo ---------- */
+function uploadSheet(){
+ const real=!!MEDIA_URL;
+ openSheet('Nouvelle publication',`${real?`<label class="fld">Vidéo<input id="vFile" type="file" accept="video/*"></label><div id="vInfo" class="muted" style="font-size:13px;margin:-6px 0 12px"></div>`:''}
+ <label class="fld">Légende<textarea id="vCap" rows="3" maxlength="300" placeholder="Décris ta vidéo…"></textarea></label>
+ <label class="fld">Hashtags<input id="vTags" maxlength="100" placeholder="#VYRO #Anime"></label>
+ <div class="prog" id="vProg" hidden><i></i></div>
+ <button class="cta" id="vGo">${real?'Publier':'Publier (test, sans vidéo)'}</button>
+ <p class="muted" style="font-size:13px;margin-top:12px">${real?'Vidéo de 20 Mo maximum (environ une minute).':'L’envoi de vraies vidéos n’est pas encore activé : cette publication test affiche un visuel de démonstration, ce qui permet d’essayer likes, commentaires et abonnements.'}</p>`);
+ let file=null,dur=0;
+ if(real){
+  $('#vFile').onchange=e=>{
+   file=null;dur=0;const f=e.target.files[0],info=$('#vInfo');info.style.color='';
+   if(!f)return;
+   if(!String(f.type).startsWith('video/')){info.textContent='Ce fichier n’est pas une vidéo.';info.style.color='#fb7185';e.target.value='';return}
+   if(f.size>MAX_VIDEO){info.textContent='Vidéo trop lourde ('+(f.size/1048576).toFixed(1)+' Mo). Maximum : 20 Mo. Choisis une vidéo plus courte.';info.style.color='#fb7185';e.target.value='';return}
+   file=f;info.textContent=(f.size/1048576).toFixed(1)+' Mo';
+   const t=document.createElement('video'),u=URL.createObjectURL(f);t.preload='metadata';
+   t.onloadedmetadata=()=>{dur=Math.round(t.duration)||0;info.textContent=(dur?dur+' s · ':'')+(f.size/1048576).toFixed(1)+' Mo';URL.revokeObjectURL(u)};
+   t.onerror=()=>URL.revokeObjectURL(u);t.src=u;
+  };
+ }
+ $('#vGo').onclick=async()=>{
+  const caption=$('#vCap').value.trim(),tags=$('#vTags').value.trim(),btn=$('#vGo');
+  if(!caption){toast('Ajoute une légende');return}
+  let extra={};
+  if(real){
+   if(!file){toast('Choisis une vidéo');return}
+   btn.disabled=true;btn.textContent='Envoi en cours…';
+   const bar=$('#vProg');bar.hidden=false;
+   try{
+    const {data:{session}}=await sb.auth.getSession();
+    const r=await sendVideo(file,dur,session.access_token,pc=>{bar.firstChild.style.width=pc+'%'});
+    extra={tg_file_id:r.file_id,tg_thumb_id:r.thumb_id||null,duration:r.duration||dur||null};
+   }catch(x){
+    btn.disabled=false;btn.textContent='Publier';bar.hidden=true;
+    toast(x&&x.message==='too_large'?'Vidéo trop lourde (20 Mo max)':x&&x.message==='unauthorized'?'Session expirée : reconnecte-toi':'Envoi impossible, réessaie');return}
+  }
+  const {error}=await sb.from('vyro_videos').insert(Object.assign({user_id:me.id,caption,tags},extra));
+  if(error){btn.disabled=false;btn.textContent=real?'Publier':'Publier (test, sans vidéo)';toast('Publication impossible');return}
+  closeSheet();toast('Publié ✅');tabV='fy';$$('.vtab').forEach(x=>x.classList.toggle('cur',x.dataset.v==='fy'));tab('videos');
+ };
+}
+function sendVideo(file,dur,token,onProg){
+ return new Promise((ok,ko)=>{
+  const fd=new FormData();fd.append('video',file,file.name||'video.mp4');fd.append('duration',String(dur||0));
+  const x=new XMLHttpRequest();x.open('POST',MEDIA_URL+'/upload');x.setRequestHeader('Authorization','Bearer '+token);
+  x.upload.onprogress=e=>{if(e.lengthComputable)onProg(Math.round(e.loaded/e.total*100))};
+  x.onerror=()=>ko(new Error('network'));
+  x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}
+   if(x.status===200&&j.file_id)ok(j);else ko(new Error(j.error||'upload_failed'))};
+  x.send(fd);
+ });
+}
+$$('.upl').forEach(b=>b.onclick=uploadSheet);
+
+/* ---------- profil ---------- */
+const G={vid:[],like:[],fav:[]};
+async function loadProfileData(){
+ const cnt=f=>sb.from('vyro_follows').select('*',{count:'exact',head:true}).eq(f,me.id);
+ const [a,b,c,d,e]=await Promise.all([cnt('following_id'),cnt('follower_id'),
+  sb.from('vyro_videos').select('id,likes_count,tg_thumb_id').eq('user_id',me.id).order('created_at',{ascending:false}).limit(60),
+  sb.from('vyro_likes').select('video:vyro_videos(id,likes_count,tg_thumb_id)').eq('user_id',me.id).order('created_at',{ascending:false}).limit(60),
+  sb.from('vyro_saves').select('video:vyro_videos(id,likes_count,tg_thumb_id)').eq('user_id',me.id).order('created_at',{ascending:false}).limit(60)]);
+ $('#stFollowers').textContent=fmt(a.count||0);$('#stFollowing').textContent=fmt(b.count||0);
+ const mine=c.data||[];$('#stLikes').textContent=fmt(mine.reduce((s,v)=>s+v.likes_count,0));
+ const m=v=>({id:v.id,c:fmt(v.likes_count),t:v.tg_thumb_id});
+ G.vid=mine.map(m);G.like=(d.data||[]).filter(x=>x.video).map(x=>m(x.video));G.fav=(e.data||[]).filter(x=>x.video).map(x=>m(x.video));
+ renderGrid();
+}
+function renderGrid(){
+ const l=G[gtab];
+ $('#grid').innerHTML=l.map(x=>`<div class="th">${(x.t&&MEDIA_URL)?`<img src="${turl(x.t)}" alt="" loading="lazy">`:scene(sceneIdx(x.id))}<span>${I('play','fill')}${x.c}</span></div>`).join('')||'<p class="emptyg">Rien ici pour l’instant</p>';
+}
+$('#ptabs').onclick=e=>{const b=e.target.closest('[data-g]');if(!b)return;gtab=b.dataset.g;$$('#ptabs button').forEach(x=>x.classList.toggle('cur',x===b));renderGrid()};
+$('#grid').onclick=e=>{if(e.target.closest('.th'))tab('videos')};
+function editProfile(){
+ openSheet('Modifier mon profil',`<label class="fld">Pseudo (ne peut pas être changé)<input value="@${esc(me.username)}" disabled></label><label class="fld">Nom affiché<input id="eName" maxlength="30" value="${esc(me.display_name)}"></label><label class="fld">Bio<textarea id="eBio" rows="3" maxlength="150">${esc(me.bio)}</textarea></label><button class="cta" id="eSave">Enregistrer</button>`);
+ $('#eSave').onclick=async()=>{
+  const display_name=$('#eName').value.trim()||me.username,bio=$('#eBio').value.trim();
+  const {error}=await sb.from('vyro_profiles').update({display_name,bio}).eq('id',me.id);
+  if(error){toast('Enregistrement impossible');return}
+  me.display_name=display_name;me.bio=bio;applyNames();closeSheet();toast('Profil mis à jour ✅');
+ };
+}
+$('#bEdit').onclick=editProfile;$('[data-edit]').onclick=editProfile;
+
+/* ---------- réglages ---------- */
+let stT;
+function saveRemote(){
+ clearTimeout(stT);
+ stT=setTimeout(async()=>{if(!me)return;
+  const {error}=await sb.from('vyro_profiles').update({settings:{priv:S.priv,notif:S.notif},is_private:!!S.priv.private}).eq('id',me.id);
+  if(error)toast('Réglages non enregistrés')},600);
+}
+const sw=(sc,k,v)=>`<label class="sw"><input type="checkbox" data-s="${sc}" data-k="${k}" ${v?'checked':''}><i></i></label>`;
+const sel=(sc,k,v)=>`<select class="sel" data-s="${sc}" data-k="${k}">${[['all','Tout le monde'],['followers','Abonnés'],['none','Personne']].map(([a,b])=>`<option value="${a}" ${v===a?'selected':''}>${b}</option>`).join('')}</select>`;
+const row=(ic,t,sub,right)=>`<div class="row sm"><span class="ri">${I(ic)}</span><div class="rt"><b>${t}</b>${sub?`<small>${sub}</small>`:''}</div>${right}</div>`;
+function renderPrivacy(){
+ const p=S.priv;
+ $('#privBody').innerHTML=`<div class="sec">${I('shield')}Vie privée</div><div class="card">
+ ${row('eye','Compte privé','Seuls vos abonnés peuvent voir vos vidéos et votre profil.',sw('priv','private',p.private))}
+ ${row('users','Qui peut vous envoyer un message ?','',sel('priv','dm',p.dm))}
+ ${row('at','Qui peut commenter vos vidéos ?','',sel('priv','comments',p.comments))}
+ ${row('download','Autoriser le téléchargement de mes vidéos','',sw('priv','download',p.download))}</div>
+ <div class="sec">${I('bars')}Visibilité</div><div class="card">
+ ${row('heart','Afficher mon activité','(likes, vues…)',sw('priv','activity',p.activity))}
+ ${row('cal','Afficher ma date d’inscription','',sw('priv','joined',p.joined))}</div>`;
+}
+const NK=['messages','likes','followers','comments','mentions','gifts'];
+function renderNotifs(){
+ const n=S.notif,all=NK.every(k=>n[k]);
+ $('#notifBody').innerHTML=`<div class="card">${row('bell','Tout activer / désactiver','',sw('notif','all',all))}</div>
+ <div class="card" style="margin-top:12px">
+ ${row('chat','Nouveaux messages','',sw('notif','messages',n.messages))}
+ ${row('heart','Likes sur mes vidéos','',sw('notif','likes',n.likes))}
+ ${row('userplus','Nouveaux abonnés','',sw('notif','followers',n.followers))}
+ ${row('chat','Commentaires','',sw('notif','comments',n.comments))}
+ ${row('at','Mentions (@)','',sw('notif','mentions',n.mentions))}
+ ${row('gift','Cadeaux et pièces','',sw('notif','gifts',n.gifts))}</div>
+ <div class="sec">${I('gear')}Notifications système</div><div class="card">
+ ${row('download','Mises à jour de l’application','',sw('notif','updates',n.updates))}</div>
+ <p class="muted" style="font-size:13px;padding:10px 6px">Les réglages sont enregistrés. Les notifications push arriveront plus tard.</p>`;
+}
+document.addEventListener('change',e=>{
+ const el=e.target,sc=el.dataset&&el.dataset.s;if(!sc)return;
+ const k=el.dataset.k,v=el.type==='checkbox'?el.checked:el.value;
+ if(k==='all'){NK.forEach(x=>S.notif[x]=v);renderNotifs()}else{S[sc][k]=v;if(sc==='notif')renderNotifs()}
+ saveRemote();
+});
+function sheetTheme(){
+ const o=(v,ic,t)=>`<div class="opt" data-th="${v}">${I(ic)}<span>${t}</span>${S.theme===v?I('check'):''}</div>`;
+ openSheet('Apparence',o('dark','moon','Thème sombre')+o('light','sun','Thème clair'));
+ $$('#sh [data-th]').forEach(x=>x.onclick=()=>{S.theme=x.dataset.th;try{localStorage.setItem(THEME_KEY,S.theme)}catch(e){}applyTheme();closeSheet()});
+}
+function sheetLang(){
+ openSheet('Langue',`<div class="opt">${I('globe')}<span>Français</span>${I('check')}</div><div class="opt" style="opacity:.5"><span>English — bientôt</span></div>`);
+}
+function go(w){
+ if(['settings','privacy','notifs'].includes(w))push(w);
+ else if(w==='appearance')sheetTheme();
+ else if(w==='lang')sheetLang();
+ else if(w==='edit')editProfile();
+ else if(w==='logout')logout();
+ else if(w==='back')back();
+ else toast('Bientôt disponible 🚧');
+}
+document.addEventListener('click',e=>{const t=e.target.closest('[data-go]');if(t)go(t.dataset.go)});
+
+/* ---------- démarrage ---------- */
+boot();
+})();
+
+</script>
+</body>
+</html>
