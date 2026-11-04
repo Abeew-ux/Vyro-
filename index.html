@@ -271,6 +271,42 @@ button{cursor:pointer}
 .pvb{height:52px;padding:0 16px;border-radius:16px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;display:flex;align-items:center;gap:6px;font-size:15px}
 .pvb .ic{width:20px;height:20px}
 .pvs{flex:1}
+.stories{display:flex;gap:14px;overflow-x:auto;padding:6px 16px 12px;scrollbar-width:none;min-height:96px}
+.stories::-webkit-scrollbar{display:none}
+.st{flex:none;width:68px;display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:0;color:var(--text);font-size:12px;padding:0}
+.st small{max-width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st .ring{padding:3px;border-radius:50%;background:linear-gradient(135deg,#d8b4fe,#9333ea 50%,#f472b6);display:block}
+.st.seen .ring{background:var(--line)}
+.st.none .ring{background:none;border:2px dashed var(--line);padding:2px}
+.st .av{border:3px solid var(--bg);box-shadow:none}
+.avw{position:relative;display:block}
+.st .pl{position:absolute;right:-3px;bottom:-3px;width:22px;height:22px;border-radius:50%;background:#9333ea;color:#fff;display:grid;place-items:center;border:2px solid var(--bg)}
+.st .pl .ic{width:12px;height:12px}
+.sthint{align-self:center;font-size:13px;color:var(--muted);max-width:190px;line-height:1.3}
+.av img,.pav img{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover}
+.avedit{display:flex;align-items:center;gap:16px;margin-bottom:14px}
+.avedit .pav{width:76px;height:76px;font-size:34px;border-width:2px;flex:none}
+.avedit>div:last-child{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.avedit .lnk{background:none;border:0;color:#fb7185;font-size:13px;padding:0}
+.cta.alt{background:var(--card);border:1px solid var(--line);color:var(--text);box-shadow:none}
+label.cta{display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
+.pvb.sq{width:52px;padding:0;justify-content:center;flex:none}
+.pvb.hi{background:linear-gradient(135deg,#ec4899,#8b5cf6);border:0}
+.pvs{flex:1;justify-content:center;padding:0 10px;font-size:14px}
+#s-story{background:#000;color:#fff}
+.svbox{position:absolute;inset:0;display:grid;place-items:center}
+.svbox img,.svbox video{max-width:100%;max-height:100%;object-fit:contain}
+.svmsg{position:absolute;left:0;right:0;top:50%;text-align:center;padding:0 24px;color:rgba(255,255,255,.8);font-size:14px;z-index:2;pointer-events:none}
+.svtap{position:absolute;top:84px;bottom:0;z-index:2;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.svtap.l{left:0;width:35%}.svtap.r{right:0;width:65%}
+.svtop{position:absolute;top:0;left:0;right:0;height:130px;background:linear-gradient(rgba(0,0,0,.6),transparent);z-index:2;pointer-events:none}
+.svbars{position:absolute;top:calc(env(safe-area-inset-top) + 8px);left:10px;right:10px;display:flex;gap:4px;z-index:3}
+.svbars i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden}
+.svbars b{display:block;height:100%;width:0;background:#fff}
+.svbars .done b{width:100%}
+.svhead{position:absolute;top:calc(env(safe-area-inset-top) + 20px);left:12px;right:12px;display:flex;align-items:center;gap:10px;z-index:4}
+.svhead small{display:block;font-size:12px;color:rgba(255,255,255,.75)}
+.svhead .av{border-width:2px}
 </style>
 </head>
 <body>
@@ -341,7 +377,8 @@ button{cursor:pointer}
   <button class="ib" id="bSearch" aria-label="Rechercher"><span class="ico" data-i="search"></span></button>
   <button class="ib" data-go="cam" aria-label="Caméra"><span class="ico" data-i="camera"></span></button>
   <button class="plus" id="bNew" aria-label="Nouvelle conversation"><span class="ico" data-i="plus"></span></button></div>
- <div class="sbar"><span class="ico" data-i="search"></span><input id="q" placeholder="Rechercher une conversation…" autocomplete="off"></div>
+ <div class="stories" id="stories"></div>
+ <div class="sbar" hidden><span class="ico" data-i="search"></span><input id="q" placeholder="Rechercher une conversation…" autocomplete="off"></div>
  <div class="chips" id="chips"></div>
  <div class="scroll" id="chatList"></div>
  <button class="fab" id="fab" aria-label="Nouveau message"><span class="ico" data-i="chatplus"></span></button>
@@ -374,7 +411,17 @@ button{cursor:pointer}
   <p class="camtip">Appuie : photo · Maintiens : vidéo</p></div>
  <div class="camstkp" id="camStkP"><div class="stkt" id="camStkT"></div><div class="stkg" id="camStkG"></div></div>
  <div class="campv" id="camPv"><div class="pvbox" id="pvBox"></div>
-  <div class="pvbar"><button type="button" id="pvRetake" class="pvb"><span class="ico" data-i="back"></span>Refaire</button><button type="button" id="pvSave" class="cta pvs"><span class="ico" data-i="download"></span>Enregistrer</button><button type="button" id="pvShare" class="pvb" hidden><span class="ico" data-i="share"></span>Partager</button></div></div>
+  <div class="pvbar"><button type="button" id="pvRetake" class="pvb sq" aria-label="Refaire"><span class="ico" data-i="back"></span></button><button type="button" id="pvSave" class="pvb pvs"><span class="ico" data-i="download"></span>Enregistrer</button><button type="button" id="pvStory" class="pvb pvs hi"><span class="ico" data-i="plus"></span>Ma story</button><button type="button" id="pvShare" class="pvb sq" hidden aria-label="Partager"><span class="ico" data-i="share"></span></button></div></div>
+</section>
+
+<!-- STORY -->
+<section class="screen" id="s-story">
+ <div class="svbox" id="svBox"></div>
+ <div class="svmsg" id="svMsg"></div>
+ <div class="svtap l" id="svL"></div><div class="svtap r" id="svR"></div>
+ <div class="svtop"></div>
+ <div class="svbars" id="svBars"></div>
+ <div class="svhead"><span id="svAv"></span><div><b id="svName"></b><small id="svTime"></small></div><span class="sp"></span><button class="cb" id="svDel" type="button" hidden aria-label="Supprimer"><span class="ico" data-i="trash"></span></button><button class="cb" id="svX" type="button" aria-label="Fermer"><span class="ico" data-i="x"></span></button></div>
 </section>
 
 <!-- VIDEOS -->
@@ -498,6 +545,9 @@ function applyNames(){
  $$('[data-ini]').forEach(e=>e.textContent=nm[0].toUpperCase());
  $$('[data-bio]').forEach(e=>e.textContent=me.bio||'');
  $$('[data-bio1]').forEach(e=>e.textContent=(me.bio||'').split('\n')[0]);
+ $$('.pav').forEach(p=>{let i=p.querySelector('img');
+  if(me.avatar_url&&MEDIA_URL){if(!i){i=document.createElement('img');i.alt='';i.onerror=()=>i.remove();p.appendChild(i)}const u=aurl(me.id,me.avatar_url);if(i.getAttribute('src')!==u)i.src=u}
+  else if(i)i.remove()});
 }
 
 /* ---------- icônes statiques ---------- */
@@ -507,13 +557,15 @@ $$('[data-logo]').forEach(el=>el.innerHTML=logo(+el.dataset.logo));
 
 /* ---------- navigation ---------- */
 let stack=['auth'],curScreen='auth';
-const TABOF={cam:'chat',chat:'chat',thread:'chat',videos:'videos',profile:'profile',settings:'profile',privacy:'profile',notifs:'profile'};
+const TABOF={story:'chat',cam:'chat',chat:'chat',thread:'chat',videos:'videos',profile:'profile',settings:'profile',privacy:'profile',notifs:'profile'};
 function show(n){
  if(n!=='cam'&&camOn)stopCam();
+ if(n!=='story')stopStory();
  curScreen=n;
+ if(n==='chat')renderStories();
  $$('.screen').forEach(s=>s.classList.toggle('on',s.id==='s-'+n));
  $$('#nav button').forEach(b=>b.classList.toggle('cur',b.dataset.t===TABOF[n]));
- $('#nav').classList.toggle('hide',n==='thread'||n==='auth'||n==='cam');
+ $('#nav').classList.toggle('hide',n==='thread'||n==='auth'||n==='cam'||n==='story');
  $('#nav').classList.toggle('vid',n==='videos');
  syncPlay();
 }
@@ -522,7 +574,7 @@ const back=()=>{if(stack.length>1)stack.pop();show(stack[stack.length-1])};
 function tab(n){
  stack=[n];show(n);
  if(!me)return;
- if(n==='chat')loadChats();
+ if(n==='chat'){loadChats();loadStories()}
  if(n==='videos')loadFeed();
  if(n==='profile')loadProfileData();
 }
@@ -596,12 +648,13 @@ async function loadMarks(){
 }
 
 /* ---------- chat : liste ---------- */
-const av=(c,size=58)=>`<div class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size*.4)}px;background:linear-gradient(135deg,hsl(${c.h} 80% 62%),hsl(${(c.h+50)%360} 70% 30%))">${esc(c.type==='group'?'👥':(c.name||'?')[0].toUpperCase())}</div>`;
+const aurl=(uid,a)=>MEDIA_URL+'/avatar/'+uid+'?t='+encodeURIComponent(tok)+'&v='+encodeURIComponent(String(a).slice(-10));
+const av=(c,size=58)=>`<div class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size*.4)}px;background:linear-gradient(135deg,hsl(${c.h} 80% 62%),hsl(${(c.h+50)%360} 70% 30%))">${esc(c.type==='group'?'👥':(c.name||'?')[0].toUpperCase())}${(c.avatar&&c.uid&&MEDIA_URL)?`<img src="${aurl(c.uid,c.avatar)}" alt="" onerror="this.remove()">`:''}</div>`;
 async function loadChats(){
  const {data,error}=await sb.rpc('vyro_my_chats');
  if(error){toast('Impossible de charger les conversations');return}
  chats=(data||[]).map(c=>{const name=c.type==='group'?(c.name||'Groupe'):(c.peer_name||c.peer_username||'Utilisateur');
-  return {id:c.id,type:c.type==='group'?'group':'friend',name,h:hue(c.peer_username||name),last:prev(c.last_message)||'Nouvelle conversation',at:c.last_message_at,unread:Number(c.unread)||0}});
+  return {id:c.id,type:c.type==='group'?'group':'friend',name,uid:c.type==='group'?null:c.peer_id,avatar:c.type==='group'?null:c.peer_avatar,h:hue(c.peer_username||name),last:prev(c.last_message)||'Nouvelle conversation',at:c.last_message_at,unread:Number(c.unread)||0}});
  renderChats();
 }
 function renderChats(){
@@ -612,7 +665,8 @@ function renderChats(){
 }
 $('#chips').onclick=e=>{const b=e.target.closest('[data-f]');if(b){filter=b.dataset.f;renderChats()}};
 $('#q').oninput=e=>{q=e.target.value.trim().toLowerCase();renderChats()};
-$('#bSearch').onclick=()=>$('#q').focus();
+$('#bSearch').onclick=()=>{$('.sbar').hidden=false;$('#stories').hidden=true;$('#q').focus()};
+$('#q').onblur=()=>{if(!$('#q').value){$('.sbar').hidden=true;$('#stories').hidden=false}};
 $('#chatList').onclick=e=>{const r=e.target.closest('.chat');if(r)openThread(r.dataset.id)};
 
 /* ---------- chat : conversation ---------- */
@@ -689,14 +743,14 @@ function newChatSheet(){
  };
  const drawRes=()=>{
   const el=$('#uRes');if(!el)return;
-  el.innerHTML=results.map(u=>`<div class="urow ${picked.has(u.id)?'sel':''}" data-u="${u.id}">${av({name:u.display_name||u.username,h:hue(u.username)},42)}<div><b>${esc(u.display_name||u.username)}</b><small>@${esc(u.username)}</small></div></div>`).join('')||'<p class="empty" style="padding:16px 0">Tape un pseudo pour chercher</p>';
+  el.innerHTML=results.map(u=>`<div class="urow ${picked.has(u.id)?'sel':''}" data-u="${u.id}">${av({name:u.display_name||u.username,h:hue(u.username),uid:u.id,avatar:u.avatar_url},42)}<div><b>${esc(u.display_name||u.username)}</b><small>@${esc(u.username)}</small></div></div>`).join('')||'<p class="empty" style="padding:16px 0">Tape un pseudo pour chercher</p>';
  };
  openSheet('Nouveau message','');draw();
  const sh=$('#sh');
  sh.oninput=e=>{if(e.target.id!=='uQ')return;clearTimeout(timer);const v=e.target.value.trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
   timer=setTimeout(async()=>{
    if(!v){results=[];drawRes();return}
-   const {data}=await sb.from('vyro_profiles').select('id,username,display_name').ilike('username','%'+v.replace(/_/g,'\\_')+'%').neq('id',me.id).limit(15);
+   const {data}=await sb.from('vyro_profiles').select('id,username,display_name,avatar_url').ilike('username','%'+v.replace(/_/g,'\\_')+'%').neq('id',me.id).limit(15);
    results=data||[];drawRes();
   },250)};
  sh.onclick=async e=>{
@@ -932,7 +986,24 @@ function renderGrid(){
 $('#ptabs').onclick=e=>{const b=e.target.closest('[data-g]');if(!b)return;gtab=b.dataset.g;$$('#ptabs button').forEach(x=>x.classList.toggle('cur',x===b));renderGrid()};
 $('#grid').onclick=e=>{if(e.target.closest('.th'))tab('videos')};
 function editProfile(){
- openSheet('Modifier mon profil',`<label class="fld">Pseudo (ne peut pas être changé)<input value="@${esc(me.username)}" disabled></label><label class="fld">Nom affiché<input id="eName" maxlength="30" value="${esc(me.display_name)}"></label><label class="fld">Bio<textarea id="eBio" rows="3" maxlength="150">${esc(me.bio)}</textarea></label><button class="cta" id="eSave">Enregistrer</button>`);
+ openSheet('Modifier mon profil',`${MEDIA_URL?`<div class="avedit"><div class="pav"><span data-ini></span></div><div><label class="btn-o" for="eFile">Changer la photo</label><input id="eFile" type="file" accept="image/*" hidden>${me.avatar_url?'<button class="lnk" id="eDel" type="button">Retirer la photo</button>':''}<small class="muted" id="eInfo"></small></div></div>`:''}<label class="fld">Pseudo (ne peut pas être changé)<input value="@${esc(me.username)}" disabled></label><label class="fld">Nom affiché<input id="eName" maxlength="30" value="${esc(me.display_name)}"></label><label class="fld">Bio<textarea id="eBio" rows="3" maxlength="150">${esc(me.bio)}</textarea></label><button class="cta" id="eSave">Enregistrer</button>`);
+ applyNames();
+ if($('#eFile'))$('#eFile').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;const info=$('#eInfo');
+  if(!String(f.type).startsWith('image/')){info.textContent='Ce fichier n’est pas une image.';return}
+  info.textContent='Envoi…';
+  try{
+   const b=await squareJpeg(f,512),{data:{session}}=await sb.auth.getSession(),r=await sendImage(b,session.access_token);
+   const {error}=await sb.from('vyro_profiles').update({avatar_url:'tg:'+r.file_id}).eq('id',me.id);
+   if(error)throw error;
+   me.avatar_url='tg:'+r.file_id;applyNames();info.textContent='Photo mise à jour ✅';
+  }catch(x){info.textContent='Envoi impossible, réessaie.'}
+ };
+ if($('#eDel'))$('#eDel').onclick=async()=>{
+  const {error}=await sb.from('vyro_profiles').update({avatar_url:null}).eq('id',me.id);
+  if(error){toast('Impossible de retirer la photo');return}
+  me.avatar_url=null;applyNames();closeSheet();toast('Photo retirée');
+ };
  $('#eSave').onclick=async()=>{
   const display_name=$('#eName').value.trim()||me.username,bio=$('#eBio').value.trim();
   const {error}=await sb.from('vyro_profiles').update({display_name,bio}).eq('id',me.id);
@@ -1426,9 +1497,9 @@ function startRec(){
  recChunks=[];
  rec.ondataavailable=e=>{if(e.data&&e.data.size)recChunks.push(e.data)};
  rec.onstop=()=>{
-  const type=(rec&&rec.mimeType)||mt||'video/webm',b=new Blob(recChunks,{type});rec=null;recChunks=[];
+  const type=(rec&&rec.mimeType)||mt||'video/webm',b=new Blob(recChunks,{type}),dur=Math.max(1,Math.round((performance.now()-recT0)/1000));rec=null;recChunks=[];
   if(b.size<1000){toast('Vidéo trop courte');return}
-  showPreview('video',b);
+  showPreview('video',b,dur);
  };
  try{rec.start(250)}catch(e){toast('Enregistrement impossible');rec=null;return false}
  recT0=performance.now();return true;
@@ -1454,9 +1525,9 @@ function capFile(){
  const nm=`vyro_${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}_${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}.${ext}`;
  return new File([cap.blob],nm,{type:cap.blob.type.split(';')[0]});
 }
-function showPreview(type,blob){
+function showPreview(type,blob,dur){
  if(cap)URL.revokeObjectURL(cap.url);
- cap={type,blob,url:URL.createObjectURL(blob)};
+ cap={type,blob,dur:dur||0,url:URL.createObjectURL(blob)};
  $('#pvBox').innerHTML=type==='image'?`<img src="${cap.url}" alt="">`:`<video src="${cap.url}" autoplay loop playsinline controls></video>`;
  const v=$('#pvBox video');if(v){const p=v.play();if(p&&p.catch)p.catch(()=>{})}
  $('#camPv').classList.add('on');
@@ -1481,6 +1552,194 @@ $('#pvSave').onclick=()=>saveCap(false);
 $('#pvShare').onclick=()=>saveCap(true);
 $('#pvRetake').onclick=()=>closePreview(false);
 
+
+/* ---------- photo de profil : outils d'images ---------- */
+async function loadBmp(file){
+ try{return await createImageBitmap(file,{imageOrientation:'from-image'})}catch(e){}
+ return new Promise((ok,ko)=>{const im=new Image(),u=URL.createObjectURL(file);im.onload=()=>{URL.revokeObjectURL(u);ok(im)};im.onerror=()=>{URL.revokeObjectURL(u);ko(new Error('image'))};im.src=u});
+}
+const toJpeg=(c,q)=>new Promise((ok,ko)=>c.toBlob(b=>b?ok(b):ko(new Error('encode')),'image/jpeg',q));
+async function squareJpeg(file,n){
+ const b=await loadBmp(file),w=b.width||b.naturalWidth,h=b.height||b.naturalHeight,s=Math.min(w,h),c=document.createElement('canvas');
+ c.width=c.height=n;c.getContext('2d').drawImage(b,(w-s)/2,(h-s)/2,s,s,0,0,n,n);
+ return toJpeg(c,.88);
+}
+async function fitJpeg(file,mw,mh){
+ const b=await loadBmp(file),w=b.width||b.naturalWidth,h=b.height||b.naturalHeight,k=Math.min(1,mw/w,mh/h),c=document.createElement('canvas');
+ c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(b,0,0,c.width,c.height);
+ return toJpeg(c,.9);
+}
+function sendImage(blob,token,onProg){
+ return new Promise((ok,ko)=>{
+  const fd=new FormData();fd.append('image',blob,'photo.jpg');
+  const x=new XMLHttpRequest();x.open('POST',MEDIA_URL+'/upload');x.setRequestHeader('Authorization','Bearer '+token);
+  if(onProg)x.upload.onprogress=e=>{if(e.lengthComputable)onProg(Math.round(e.loaded/e.total*100))};
+  x.onerror=()=>ko(new Error('network'));
+  x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}if(x.status===200&&j.file_id)ok(j);else ko(new Error(j.error||'upload_failed'))};
+  x.send(fd);
+ });
+}
+const vidDur=f=>new Promise(ok=>{const v=document.createElement('video'),u=URL.createObjectURL(f);v.preload='metadata';v.onloadedmetadata=()=>{ok(Math.round(v.duration)||0);URL.revokeObjectURL(u)};v.onerror=()=>{ok(0);URL.revokeObjectURL(u)};v.src=u});
+
+/* ---------- stories ---------- */
+let stories=[];
+const seen=new Set();
+try{JSON.parse(localStorage.getItem('vyro_seen')||'[]').slice(-400).forEach(x=>seen.add(x))}catch(e){}
+const saveSeen=()=>{try{localStorage.setItem('vyro_seen',JSON.stringify([...seen].slice(-400)))}catch(e){}};
+const surl=id=>MEDIA_URL+'/story/'+id+'?t='+encodeURIComponent(tok);
+const ago=iso=>{const m=Math.max(0,Math.round((Date.now()-new Date(iso))/60000));return m<1?'à l’instant':m<60?'il y a '+m+' min':'il y a '+Math.floor(m/60)+' h'};
+const unseen=g=>g.items.some(i=>!seen.has(i.id));
+async function loadStories(){
+ if(!me||!MEDIA_URL)return;
+ const {data,error}=await sb.from('vyro_stories').select('id,user_id,kind,duration,created_at,profile:vyro_profiles(username,display_name,avatar_url)').order('created_at',{ascending:true}).limit(300);
+ if(error)return;
+ const m=new Map();
+ (data||[]).forEach(s=>{let g=m.get(s.user_id);if(!g){const p=s.profile||{};g={uid:s.user_id,name:p.display_name||p.username||'?',avatar:p.avatar_url,items:[]};m.set(s.user_id,g)}g.items.push({id:s.id,kind:s.kind,dur:s.duration,at:s.created_at})});
+ stories=[...m.values()];renderStories();
+}
+function storyOrder(){
+ const mine=stories.find(g=>g.uid===me.id),rest=stories.filter(g=>g.uid!==me.id);
+ rest.sort((a,b)=>(unseen(b)-unseen(a))||(new Date(b.items[b.items.length-1].at)-new Date(a.items[a.items.length-1].at)));
+ return (mine?[mine]:[]).concat(rest);
+}
+function renderStories(){
+ const el=$('#stories');if(!el||!me)return;
+ const order=storyOrder(),mine=order.find(g=>g.uid===me.id),others=order.filter(g=>g.uid!==me.id);
+ const myAv=av({name:me.display_name||me.username,h:hue(me.username),uid:me.id,avatar:me.avatar_url},58);
+ el.innerHTML=`<button class="st ${mine?(unseen(mine)?'':'seen'):'none'}" data-u="${me.id}"><span class="ring"><span class="avw">${myAv}<span class="pl" data-add>${I('plus')}</span></span></span><small>Ma story</small></button>`
+  +others.map(g=>`<button class="st ${unseen(g)?'':'seen'}" data-u="${g.uid}"><span class="ring">${av({name:g.name,h:hue(g.name),uid:g.uid,avatar:g.avatar},58)}</span><small>${esc(g.name)}</small></button>`).join('')
+  +(others.length?'':'<p class="sthint">Les stories de tes contacts et abonnements apparaîtront ici.</p>');
+}
+$('#stories').onclick=e=>{
+ const b=e.target.closest('.st');if(!b)return;
+ const mine=b.dataset.u===me.id;
+ if(mine&&(e.target.closest('[data-add]')||!stories.some(g=>g.uid===me.id)))addStorySheet();
+ else openStories(b.dataset.u);
+};
+setInterval(()=>{if(curScreen==='chat'&&me)loadStories()},90000);
+
+/* visionneuse */
+const sv={list:[],gi:0,ii:0,raf:0,paused:false};
+function openStories(uid){
+ const order=storyOrder(),gi=order.findIndex(g=>g.uid===uid);if(gi<0)return;
+ sv.list=order;sv.gi=gi;
+ const first=order[gi].items.findIndex(i=>!seen.has(i.id));sv.ii=first<0?0:first;
+ push('story');playStory();
+}
+function stopStory(){
+ cancelAnimationFrame(sv.raf);sv.raf=0;
+ const v=$('#svBox video');if(v){try{v.pause();v.removeAttribute('src');v.load()}catch(e){}}
+}
+function playStory(){
+ stopStory();
+ const g=sv.list[sv.gi];if(!g){back();return}
+ const it=g.items[sv.ii];if(!it){nextStory();return}
+ seen.add(it.id);saveSeen();
+ $('#svAv').innerHTML=av({name:g.name,h:hue(g.name),uid:g.uid,avatar:g.avatar},38);
+ $('#svName').textContent=g.uid===me.id?'Ma story':g.name;$('#svTime').textContent=ago(it.at);
+ $('#svDel').hidden=g.uid!==me.id;
+ $('#svBars').innerHTML=g.items.map((_,i)=>`<i class="${i<sv.ii?'done':''}"><b></b></i>`).join('');
+ $('#svMsg').textContent='';
+ const box=$('#svBox'),bar=$('#svBars').children[sv.ii].firstChild;
+ sv.paused=false;
+ let v=null,ready=false,el=0,last=performance.now();
+ if(it.kind==='image'){
+  box.innerHTML='<img alt="">';const im=box.firstChild;
+  im.onload=()=>{ready=true};
+  im.onerror=()=>{$('#svMsg').textContent='Impossible de charger cette story.';ready=true};
+  im.src=surl(it.id);
+ }else{
+  box.innerHTML='<video playsinline autoplay></video>';v=box.firstChild;
+  v.onended=nextStory;
+  v.onerror=()=>{$('#svMsg').textContent='Impossible de charger cette vidéo.';v=null;ready=true};
+  v.src=surl(it.id);
+  const p=v.play();if(p&&p.catch)p.catch(()=>{v.muted=true;v.play().catch(()=>{})});
+ }
+ const nx=g.items[sv.ii+1];if(nx&&nx.kind==='image'){const pr=new Image();pr.src=surl(nx.id)}
+ const tick=now=>{
+  sv.raf=requestAnimationFrame(tick);
+  const dt=now-last;last=now;let p;
+  if(v){const d=isFinite(v.duration)&&v.duration>0?v.duration:(it.dur||15);p=v.currentTime/d}
+  else{if(ready&&!sv.paused)el+=dt;p=el/5000}
+  bar.style.width=Math.min(100,p*100)+'%';
+  if(p>=1)nextStory();
+ };
+ sv.raf=requestAnimationFrame(tick);
+}
+function nextStory(){
+ const g=sv.list[sv.gi];if(!g){back();return}
+ if(sv.ii<g.items.length-1)sv.ii++;
+ else{sv.gi++;sv.ii=0;if(sv.gi>=sv.list.length){back();return}}
+ playStory();
+}
+function prevStory(){if(sv.ii>0)sv.ii--;else if(sv.gi>0){sv.gi--;sv.ii=0}playStory()}
+let svHold=0,svHeld=false;
+const svPause=on=>{sv.paused=on;const v=$('#svBox video');if(v){if(on)v.pause();else v.play().catch(()=>{})}};
+for(const [id,side] of [['#svL','l'],['#svR','r']]){
+ const t=$(id);
+ t.addEventListener('pointerdown',e=>{svHeld=false;clearTimeout(svHold);svHold=setTimeout(()=>{svHeld=true;svPause(true)},220)});
+ t.addEventListener('pointerup',()=>{clearTimeout(svHold);if(svHeld){svHeld=false;svPause(false);return}side==='l'?prevStory():nextStory()});
+ t.addEventListener('pointercancel',()=>{clearTimeout(svHold);if(svHeld){svHeld=false;svPause(false)}});
+ t.addEventListener('contextmenu',e=>e.preventDefault());
+}
+$('#svX').onclick=()=>back();
+$('#svDel').onclick=async()=>{
+ const g=sv.list[sv.gi],it=g&&g.items[sv.ii];if(!it||g.uid!==me.id)return;
+ svPause(true);
+ if(!confirm('Supprimer cette story ?')){svPause(false);return}
+ const {error}=await sb.from('vyro_stories').delete().eq('id',it.id);
+ if(error){toast('Suppression impossible');svPause(false);return}
+ g.items.splice(sv.ii,1);
+ if(!g.items.length){stories=stories.filter(x=>x!==g);renderStories();back();toast('Story supprimée');return}
+ if(sv.ii>=g.items.length)sv.ii=g.items.length-1;
+ renderStories();
+ playStory();
+};
+
+/* publication */
+async function publishStory(blob,kind,dur,onProg){
+ const {data:{session}}=await sb.auth.getSession();
+ if(!session)throw new Error('unauthorized');
+ const r=kind==='image'?await sendImage(blob,session.access_token,onProg):await sendVideo(blob,dur,session.access_token,onProg||(()=>{}));
+ const {error}=await sb.from('vyro_stories').insert({user_id:me.id,kind,tg_file_id:r.file_id,duration:kind==='video'?(r.duration||dur||null):null});
+ if(error)throw error;
+ await loadStories();
+}
+function addStorySheet(){
+ openSheet('Ajouter à ma story',`<button class="cta" id="aCam" type="button">${I('camera')}Prendre une photo ou une vidéo</button>
+ <label class="cta alt" for="aFile" style="margin-top:10px">${I('plus')}Choisir dans la galerie</label><input id="aFile" type="file" accept="image/*,video/*" hidden>
+ <div class="prog" id="aProg" hidden><i></i></div><p class="muted" id="aInfo" style="font-size:13px;margin-top:12px">Ta story reste visible 24 h pour tes abonnés et tes contacts.</p>`);
+ $('#aCam').onclick=()=>{closeSheet();openCam()};
+ $('#aFile').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;const info=$('#aInfo'),bar=$('#aProg');
+  try{
+   let blob,kind,dur=0;
+   if(String(f.type).startsWith('image/')){kind='image';blob=await fitJpeg(f,1080,1920)}
+   else if(String(f.type).startsWith('video/')){
+    if(f.size>MAX_VIDEO){info.textContent='Vidéo trop lourde ('+(f.size/1048576).toFixed(1)+' Mo). Maximum : 20 Mo.';return}
+    dur=await vidDur(f);if(dur>60){info.textContent='Vidéo trop longue : 60 secondes maximum.';return}
+    kind='video';blob=f;
+   }else{info.textContent='Choisis une photo ou une vidéo.';return}
+   bar.hidden=false;info.textContent='Publication…';
+   await publishStory(blob,kind,dur,pc=>{bar.firstChild.style.width=pc+'%'});
+   closeSheet();toast('Story publiée ✅');
+  }catch(x){bar.hidden=true;info.textContent=x&&x.message==='too_large'?'Fichier trop lourd.':x&&x.message==='unauthorized'?'Session expirée : reconnecte-toi.':'Publication impossible, réessaie.'}
+ };
+}
+$('#pvStory').onclick=async()=>{
+ if(!cap)return;
+ const b=$('#pvStory'),old=b.innerHTML;b.disabled=true;b.textContent='Envoi…';
+ try{
+  let blob=cap.blob;const kind=cap.type;
+  if(kind==='video'){
+   blob=new File([blob],'story.'+(blob.type.includes('mp4')?'mp4':'webm'),{type:blob.type.split(';')[0]});
+   if(blob.size>MAX_VIDEO)throw new Error('too_large');
+  }
+  await publishStory(blob,kind,cap.dur||0);
+  toast('Story publiée ✅');closePreview(true);back();
+ }catch(x){toast(x&&x.message==='too_large'?'Vidéo trop lourde pour une story (20 Mo max)':'Publication impossible, réessaie')}
+ finally{b.disabled=false;b.innerHTML=old}
+};
 /*@@MOD-END*/
 /* ---------- démarrage ---------- */
 boot();
