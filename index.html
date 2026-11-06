@@ -589,6 +589,7 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
 .call.ringing #cLocal,.call.calling #cLocal{display:none}
 .vplus{right:auto;left:14px}
 @media (max-height:720px){.rail{bottom:112px;gap:8px}.rail .ib,.rail .rb{transform:scale(.88)}}
+.tk.dl{opacity:.7}
 </style>
 </head>
 <body>
@@ -948,6 +949,7 @@ async function enter(){
  S.priv.private=!!p.is_private;
  applyNames();renderPrivacy();renderNotifs();
  await Promise.all([loadFollows(),loadMarks(),loadBlocks()]);
+ await localInit();
  subscribe();initExtras();
  tab('chat');
 }
@@ -968,6 +970,201 @@ async function loadMarks(){
  (l.data||[]).forEach(r=>liked.add(r.video_id));(s.data||[]).forEach(r=>saved.add(r.video_id));
 }
 
+/* ---------- messages stockés sur le téléphone (comme WhatsApp) ---------- */
+const LDB={
+ db:null,M:{msgs:new Map(),rx:new Map(),blobs:new Map(),meta:new Map()},
+ async init(uid){
+  this.db=null;
+  try{
+   if(!window.indexedDB)throw 0;
+   this.db=await new Promise((ok,ko)=>{const r=indexedDB.open('vyro_'+uid,1);
+    r.onupgradeneeded=()=>{const d=r.result;
+     d.createObjectStore('msgs',{keyPath:'id'}).createIndex('c','conversation_id');
+     d.createObjectStore('rx',{keyPath:'k'}).createIndex('c','conversation_id');
+     d.createObjectStore('blobs');d.createObjectStore('meta')};
+    r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error);r.onblocked=()=>ko(new Error('blocked'))});
+   await this.set('meta','probe',Date.now());
+   try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+  }catch(e){this.db=null}
+ },
+ run(s,fn){return new Promise((ok,ko)=>{const tx=this.db.transaction(s,'readwrite');tx.oncomplete=()=>ok();tx.onerror=tx.onabort=()=>ko(tx.error||new Error('idb'));fn(tx.objectStore(s))})},
+ get(s,k){if(!this.db)return Promise.resolve(this.M[s].get(k));return new Promise((ok,ko)=>{const r=this.db.transaction(s).objectStore(s).get(k);r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error)})},
+ all(s,conv){
+  if(!this.db){const a=[...this.M[s].values()];return Promise.resolve(conv?a.filter(x=>x.conversation_id===conv):a)}
+  return new Promise((ok,ko)=>{const st=this.db.transaction(s).objectStore(s);const r=conv?st.index('c').getAll(conv):st.getAll();r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error)})},
+ put(s,arr){if(!this.db){arr.forEach(x=>this.M[s].set(s==='rx'?x.k:x.id,x));return Promise.resolve()}return this.run(s,st=>{arr.forEach(x=>st.put(x))})},
+ set(s,k,v){if(!this.db){this.M[s].set(k,v);return Promise.resolve()}return this.run(s,st=>{st.put(v,k)})},
+ del(s,keys){if(!keys.length)return Promise.resolve();if(!this.db){keys.forEach(k=>this.M[s].delete(k));return Promise.resolve()}return this.run(s,st=>{keys.forEach(k=>st.delete(k))})}
+};
+const RX_RE=/^\[rx:(\d+):([^\s\[\]:]{1,16})\]$/,DEL_RE=/^\[del:(\d+)\]$/;
+const isCtl=b=>RX_RE.test(b)||DEL_RE.test(b);
+let RD={},PEND={};const BU=new Map(),inflight=new Set();
+async function localInit(){
+ await LDB.init(me.id);
+ RD=(await LDB.get('meta','rd').catch(()=>null))||{};PEND=(await LDB.get('meta','pend').catch(()=>null))||{};
+}
+const saveRD=()=>LDB.set('meta','rd',RD).catch(()=>{});
+const savePend=()=>LDB.set('meta','pend',PEND).catch(()=>{});
+const mu=id=>BU.get(id)||murl(id);
+async function prepBlobs(list){
+ for(const m of list){const x=MED_RE.exec(m.body);
+  if(x&&!BU.has(x[2])){try{const b=await LDB.get('blobs',x[2]);if(b)BU.set(x[2],URL.createObjectURL(b))}catch(e){}}}
+}
+async function fetchChatBlob(id){
+ if(!MEDIA_URL)return null;
+ try{
+  const ac=new AbortController(),t=setTimeout(()=>ac.abort(),90000);
+  const r=await fetch(murl(id),{signal:ac.signal});clearTimeout(t);
+  if(!r.ok)return null;
+  const b=await r.blob();return b.size?b:null;
+ }catch(e){return null}
+}
+async function dropMsgs(list){
+ if(!list.length)return;
+ const ids=list.map(m=>m.id),bl=[];
+ list.forEach(m=>{const x=MED_RE.exec(m.body);if(x){bl.push(x[2]);const u=BU.get(x[2]);if(u){try{URL.revokeObjectURL(u)}catch(e){}BU.delete(x[2])}}});
+ await LDB.del('msgs',ids);await LDB.del('blobs',bl);
+ const rx=(await LDB.all('rx')).filter(r=>ids.includes(r.message_id)).map(r=>r.k);
+ await LDB.del('rx',rx);
+ ids.forEach(id=>delete PEND[id]);savePend();
+}
+async function purgeLocal(){
+ const dead=[],all=await LDB.all('msgs');
+ const lim={};chats.forEach(c=>{if(c.ttl)lim[c.id]=Date.now()-c.ttl*3600e3});
+ const old=Date.now()-31*864e5;
+ all.forEach(m=>{if(m.ctl?m.ts<old:(lim[m.conversation_id]&&m.ts<lim[m.conversation_id]))dead.push(m)});
+ if(dead.length)await dropMsgs(dead);
+}
+async function refreshMeta(){
+ const all=await LDB.all('msgs'),by={};
+ all.forEach(m=>{if(!m.ctl)(by[m.conversation_id]=by[m.conversation_id]||[]).push(m)});
+ chats.forEach(c=>{
+  const a=(by[c.id]||[]).sort((x,y)=>x.ts-y.ts||x.id-y.id),l=a[a.length-1],rd=RD[c.id]||0;
+  if(l){c.last=prev(l.body);c.at=l.created_at}else c.last='Nouvelle conversation';
+  c.unread=a.filter(m=>m.sender_id!==me.id&&m.ts>rd&&!SYS_RE.test(m.body)&&!(c.type!=='group'&&blocks.has(m.sender_id))).length;
+ });
+ chats.sort((a,b)=>new Date(b.at)-new Date(a.at));
+}
+async function applyCtl(m){
+ let x=RX_RE.exec(m.body);
+ if(x){
+  const mid=+x[1],e=x[2],k=mid+':'+m.sender_id;
+  if(e==='-')await LDB.del('rx',[k]);
+  else await LDB.put('rx',[{k,message_id:mid,user_id:m.sender_id,conversation_id:m.conversation_id,emoji:e}]);
+  if(cur&&cur.id===m.conversation_id){const o=cur.reacts[mid]=cur.reacts[mid]||{};if(e==='-')delete o[m.sender_id];else o[m.sender_id]=e;renderMsgs()}
+  return;
+ }
+ x=DEL_RE.exec(m.body);
+ if(x){
+  const mid=+x[1],t=await LDB.get('msgs',mid);
+  if(t&&t.sender_id===m.sender_id&&t.conversation_id===m.conversation_id)await dropMsgs([t]);
+  if(cur&&cur.id===m.conversation_id&&cur.msgs.some(y=>y.id===mid)){cur.msgs=cur.msgs.filter(y=>y.id!==mid);renderMsgs()}
+  await refreshMeta();renderChats();
+ }
+}
+async function ingest(rows,o){
+ o=o||{};
+ rows=(rows||[]).filter(r=>r&&r.id&&!inflight.has(r.id));
+ if(!rows.length)return;
+ rows.sort((a,b)=>a.id-b.id);rows.forEach(r=>inflight.add(r.id));
+ try{
+  const known=await Promise.all(rows.map(r=>LDB.get('msgs',r.id)));
+  const ack=[],store=[];
+  for(let i=0;i<rows.length;i++){
+   const r=rows[i];
+   if(known[i]){if(o.sync&&LDB.db)ack.push(r.id);continue}
+   const m={id:r.id,conversation_id:r.conversation_id,sender_id:r.sender_id,body:r.body,created_at:r.created_at,reply_to:r.reply_to||null,ts:Date.parse(r.created_at)||Date.now()};
+   const md=MED_RE.exec(r.body);
+   if(md){
+    const have=BU.has(md[2])||await LDB.get('blobs',md[2]);
+    if(!have){
+     const b=await fetchChatBlob(md[2]);
+     if(b)await LDB.set('blobs',md[2],b);
+     else if(LDB.db)continue; /* on réessaiera : le message reste sur le serveur */
+    }
+   }
+   if(isCtl(r.body))m.ctl=1;
+   else if(m.sender_id===me.id)PEND[m.id]=o.own?Date.now():0;
+   store.push(m);
+  }
+  if(store.length){await LDB.put('msgs',store);savePend()}
+  store.forEach(m=>ack.push(m.id));
+  if(LDB.db&&ack.length)sb.rpc('vyro_ack',{p_ids:ack}).then(()=>{},()=>{});
+  const ui=[];
+  for(const m of store){if(m.ctl)await applyCtl(m);else ui.push(m)}
+  if(ui.length)await uiIngest(ui,o);
+ }finally{rows.forEach(r=>inflight.delete(r.id))}
+}
+async function uiIngest(list,o){
+ let reloaded=false;
+ if(list.some(m=>!chats.some(c=>c.id===m.conversation_id))){await loadChats();reloaded=true}
+ for(const m of list){
+  const c=chats.find(x=>x.id===m.conversation_id);if(!c)continue;
+  const mine=m.sender_id===me.id;
+  const inThread=curScreen==='thread'&&cur&&cur.id===c.id,open=inThread&&!document.hidden;
+  const sy=SYS_RE.exec(m.body);
+  if(sy){c.ttl=+sy[1];if(cur&&cur.id===c.id){cur.ttl=c.ttl;setStatus()}}
+  if(inThread){
+   await prepBlobs([m]);
+   if(!cur.msgs.some(x=>x.id===m.id)){cur.msgs.push(m);cur.msgs.sort((a,b)=>a.ts-b.ts||a.id-b.id);if(!mine){typing=null;setStatus()}renderMsgs()}
+   if(!mine&&open)markRead();
+  }
+  if(!mine&&!sy&&!(c.type!=='group'&&blocks.has(m.sender_id))&&!open){if(!reloaded)c.unread++;if(o.live)notifyMsg(c,m)}
+  if(!reloaded&&(!c.at||new Date(m.created_at)>=new Date(c.at)||c.last==='Nouvelle conversation'))bump(c,m.body,m.created_at);
+ }
+ renderChats();
+}
+function markRead(){
+ const c=cur;if(!c)return;
+ const t=c.msgs.reduce((a,m)=>Math.max(a,m.ts||0),RD[c.id]||0);
+ RD[c.id]=t;saveRD();c.unread=0;{const cc=chats.find(x=>x.id===c.id);if(cc)cc.unread=0}renderChats();
+ sb.rpc('vyro_mark_read',{p_conv:c.id});
+}
+async function postMsg(cid,body,reply){
+ const row={conversation_id:cid,sender_id:me.id,body};if(reply)row.reply_to=reply;
+ const {data,error}=await sb.from('vyro_messages').insert(row).select('id,conversation_id,sender_id,body,created_at,reply_to').single();
+ if(error)return {error};
+ await ingest([data],{own:true});
+ return {data};
+}
+async function markDelivered(ids){
+ const ms=(await Promise.all(ids.map(id=>LDB.get('msgs',id)))).filter(Boolean);
+ ms.forEach(m=>{m.dlv=1});
+ if(ms.length)await LDB.put('msgs',ms);
+ ids.forEach(id=>delete PEND[id]);savePend();
+ if(cur){let ch=false;cur.msgs.forEach(m=>{if(ids.includes(m.id)&&!m.dlv){m.dlv=1;ch=true}});if(ch)renderMsgs()}
+}
+let syncing=false,syncAgain=false;
+async function syncInbox(){
+ if(!me)return;
+ if(syncing){syncAgain=true;return}
+ syncing=true;
+ try{
+  do{
+   syncAgain=false;
+   for(let n=0;n<6;n++){
+    const {data,error}=await sb.rpc('vyro_inbox',{p_limit:300});
+    if(error)break;
+    const rows=data||[];
+    await ingest(rows,{sync:true});
+    if(rows.length<300)break;
+   }
+   const ids=Object.keys(PEND).map(Number).filter(id=>Date.now()-PEND[id]>15000);
+   for(let i=0;i<ids.length;i+=150){
+    const ch=ids.slice(i,i+150);
+    const {data,error}=await sb.from('vyro_messages').select('id').in('id',ch);
+    if(error)continue;
+    const on=new Set((data||[]).map(r=>r.id)),dl=ch.filter(id=>!on.has(id));
+    if(dl.length)await markDelivered(dl);
+   }
+  }while(syncAgain);
+ }catch(e){}
+ finally{syncing=false}
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncInbox()});
+window.addEventListener('online',()=>syncInbox());
+setInterval(()=>{if(!document.hidden&&me)syncInbox()},45000);
+
 /* ---------- chat : liste ---------- */
 const aurl=(uid,a)=>MEDIA_URL+'/avatar/'+uid+'?t='+encodeURIComponent(tok)+'&v='+encodeURIComponent(String(a).slice(-10));
 const av=(c,size=58)=>`<div class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size*.4)}px;background:linear-gradient(135deg,hsl(${c.h} 80% 62%),hsl(${(c.h+50)%360} 70% 30%))">${esc(c.type==='group'?'👥':(c.name||'?')[0].toUpperCase())}${(c.avatar&&c.uid&&MEDIA_URL)?`<img src="${aurl(c.uid,c.avatar)}" alt="" onerror="this.remove()">`:''}</div>`;
@@ -976,9 +1173,17 @@ async function loadChats(){
  const {data,error}=await sb.rpc('vyro_my_chats');
  if(error){toast('Impossible de charger les conversations');return}
  chats=(data||[]).map(c=>{const name=c.type==='group'?(c.name||'Groupe'):(c.peer_name||c.peer_username||'Utilisateur');
-  return {id:c.id,type:c.type==='group'?'group':'friend',name,uid:c.type==='group'?null:c.peer_id,avatar:c.type==='group'?null:c.peer_avatar,h:hue(c.peer_username||name),last:prev(c.last_message)||'Nouvelle conversation',at:c.last_message_at,unread:Number(c.unread)||0,ttl:c.ttl_hours||0}});
+  return {id:c.id,type:c.type==='group'?'group':'friend',name,uid:c.type==='group'?null:c.peer_id,avatar:c.type==='group'?null:c.peer_avatar,h:hue(c.peer_username||name),last:'Nouvelle conversation',at:c.last_message_at||c.created_at||new Date(0).toISOString(),unread:0,ttl:c.ttl_hours||0}});
+ if(cur){const n=chats.find(x=>x.id===cur.id);if(n){n.msgs=cur.msgs;n.reacts=cur.reacts;n.reply=cur.reply;cur=n}}
+ try{
+  if(chats.some(c=>RD[c.id]==null)){
+   const {data:mm}=await sb.from('vyro_members').select('conversation_id,last_read_at').eq('user_id',me.id);
+   (mm||[]).forEach(r=>{if(RD[r.conversation_id]==null)RD[r.conversation_id]=Date.parse(r.last_read_at)||0});saveRD();
+  }
+  await purgeLocal();await refreshMeta();
+ }catch(e){}
  renderChats();
- if(!purged){purged=true;sb.rpc('vyro_purge_expired')}
+ if(!purged){purged=true;sb.rpc('vyro_purge_expired');syncInbox()}
 }
 function renderChats(){
  const cnt=t=>chats.filter(c=>t==='all'||c.type===t).length;
@@ -1019,29 +1224,27 @@ async function openThread(id){
  $('#tAv').innerHTML=av(cur,44);$('#tName').textContent=cur.name;setStatus();setReply(null);
  $('#tIn').value='';syncSend();
  renderMsgs();renderChats();push('thread');joinTyping(id);
- const [ms,mem]=await Promise.all([
-  sb.from('vyro_messages').select('id,sender_id,body,created_at,reply_to').eq('conversation_id',id).order('created_at',{ascending:false}).limit(100),
-  sb.from('vyro_members').select('user_id,last_read_at,profile:vyro_profiles(username,display_name)').eq('conversation_id',id)]);
+ const mp=sb.from('vyro_members').select('user_id,last_read_at,profile:vyro_profiles(username,display_name)').eq('conversation_id',id);
+ let loc=[],rxs=[];
+ try{await purgeLocal();[loc,rxs]=await Promise.all([LDB.all('msgs',id),LDB.all('rx',id)])}catch(e){}
+ loc=loc.filter(m=>!m.ctl).sort((a,b)=>a.ts-b.ts||a.id-b.id).slice(-400);
  if(!cur||cur.id!==id)return;
- cur.msgs=(ms.data||[]).reverse();
+ cur.msgs=loc;cur.reacts={};rxs.forEach(r=>{(cur.reacts[r.message_id]=cur.reacts[r.message_id]||{})[r.user_id]=r.emoji});
+ await prepBlobs(loc);
+ if(!cur||cur.id!==id)return;
+ renderMsgs();markRead();
+ const mem=await mp;
+ if(!cur||cur.id!==id)return;
  (mem.data||[]).forEach(m=>{names[m.user_id]=(m.profile&&(m.profile.display_name||m.profile.username))||'?';
   if(m.user_id!==me.id&&cur.type!=='group')peerRead=Date.parse(m.last_read_at)||0});
  renderMsgs();
- loadReacts(id);
- sb.rpc('vyro_mark_read',{p_conv:id});
+ syncInbox();
 }
 function leaveThread(){
  if(tchan){try{sb.removeChannel(tchan)}catch(e){}tchan=null}
  clearTimeout(typT);typing=null;
  if(vr)stopVoice(false);
  document.querySelectorAll('#tMsgs video,#tMsgs audio').forEach(v=>{try{v.pause()}catch(e){}});
-}
-async function loadReacts(id){
- const ids=(cur&&cur.msgs||[]).map(m=>m.id);if(!ids.length)return;
- const {data}=await sb.from('vyro_reactions').select('message_id,user_id,emoji').in('message_id',ids);
- if(!cur||cur.id!==id)return;
- cur.reacts={};(data||[]).forEach(r=>{(cur.reacts[r.message_id]=cur.reacts[r.message_id]||{})[r.user_id]=r.emoji});
- renderMsgs();
 }
 function msgHTML(m,i,arr){
  const mine=m.sender_id===me.id,d=new Date(m.created_at);let h='';
@@ -1059,11 +1262,11 @@ function msgHTML(m,i,arr){
  let body;
  if(sk)body=`<div class="stkbig">${stkHTML(sk.k,sk.key)}</div>`;
  else if(md&&MEDIA_URL){
-  if(md[1]==='image')body=`<img class="cimg" data-full="${murl(md[2])}" src="${murl(md[2])}" alt="Photo" loading="lazy">`;
-  else if(md[1]==='video')body=`<video class="cvid" src="${murl(md[2])}" controls playsinline preload="metadata"></video>`;
-  else body=`<audio class="caud" src="${murl(md[2])}" controls preload="metadata"></audio>`;
+  if(md[1]==='image')body=`<img class="cimg" data-full="${mu(md[2])}" src="${mu(md[2])}" alt="Photo" loading="lazy">`;
+  else if(md[1]==='video')body=`<video class="cvid" src="${mu(md[2])}" controls playsinline preload="metadata"></video>`;
+  else body=`<audio class="caud" src="${mu(md[2])}" controls preload="metadata"></audio>`;
  }else body=`<span>${esc(m.body)}</span>`;
- const rd=!mine||cur.type==='group'?'':(d.getTime()<=peerRead?'<i class="tk rd">✓✓</i>':'<i class="tk">✓</i>');
+ const rd=!mine?'':(cur.type!=='group'&&d.getTime()<=peerRead?'<i class="tk rd">✓✓</i>':m.dlv?'<i class="tk dl">✓✓</i>':'<i class="tk">✓</i>');
  const rs=cur.reacts&&cur.reacts[m.id],g={};
  if(rs)for(const u in rs){const e=rs[u];(g[e]=g[e]||{n:0,me:false}).n++;if(u===me.id)g[e].me=true}
  const rx=Object.keys(g).length?`<div class="rx">${Object.entries(g).map(([e,v])=>`<button type="button" data-rx="${e}" class="${v.me?'me':''}">${e}${v.n>1?'<i>'+v.n+'</i>':''}</button>`).join('')}</div>`:'';
@@ -1095,15 +1298,10 @@ $('#tMsgs').addEventListener('load',e=>{if(e.target.tagName==='IMG'&&stick){cons
 function bump(c,body,at){c.last=prev(body);c.at=at;chats.sort((a,b)=>new Date(b.at)-new Date(a.at))}
 async function sendBody(t,c){
  c=c||cur;if(!t||!c)return false;
- const row={conversation_id:c.id,sender_id:me.id,body:t};
- if(c.reply)row.reply_to=c.reply.id;
- const {data,error}=await sb.from('vyro_messages').insert(row).select('id,sender_id,body,created_at,reply_to').single();
- if(error){toast(error.code==='42501'?'Tu ne peux pas écrire à cette personne.':'Message non envoyé');return false}
- if(c.msgs&&!c.msgs.some(x=>x.id===data.id))c.msgs.push(data);
+ const r=await postMsg(c.id,t,c.reply&&c.reply.id);
+ if(r.error){toast(r.error.code==='42501'?'Tu ne peux pas écrire à cette personne.':'Message non envoyé');return false}
  c.reply=null;if(cur===c)setReply(null);
- stick=true;bump(c,t,data.created_at);
- if(cur===c)renderMsgs();
- renderChats();
+ stick=true;
  return true;
 }
 function setReply(m){
@@ -1134,9 +1332,12 @@ function joinTyping(id){
 }
 /* réactions, réponses, menu d'un message */
 async function react(m,emo){
- const r=cur.reacts[m.id]=cur.reacts[m.id]||{};
- if(r[me.id]===emo){delete r[me.id];renderMsgs();await sb.from('vyro_reactions').delete().eq('message_id',m.id).eq('user_id',me.id)}
- else{r[me.id]=emo;renderMsgs();const {error}=await sb.from('vyro_reactions').upsert({message_id:m.id,user_id:me.id,emoji:emo},{onConflict:'message_id,user_id'});if(error)toast('Réaction impossible')}
+ const r=cur.reacts[m.id]=cur.reacts[m.id]||{},k=m.id+':'+me.id,cid=cur.id,off=r[me.id]===emo;
+ if(off){delete r[me.id];LDB.del('rx',[k])}
+ else{r[me.id]=emo;LDB.put('rx',[{k,message_id:m.id,user_id:me.id,conversation_id:cid,emoji:emo}])}
+ renderMsgs();
+ const x=await postMsg(cid,'[rx:'+m.id+':'+(off?'-':emo)+']');
+ if(x.error)toast('Réaction impossible');
 }
 function openMsgMenu(id){
  const m=cur&&cur.msgs.find(x=>String(x.id)===String(id));if(!m||SYS_RE.test(m.body)||CALL_RE.test(m.body))return;
@@ -1145,6 +1346,7 @@ function openMsgMenu(id){
  const sh=openSheet('',`<div class="rxbar">${RXE.map(e=>`<button type="button" data-e="${e}" class="${mr===e?'cur':''}">${e}</button>`).join('')}</div>
  <div class="opt" data-act="reply">${I('reply')}<span>Répondre</span></div>
  ${txt?`<div class="opt" data-act="copy">${I('copy')}<span>Copier</span></div>`:''}
+ <div class="opt" data-act="delme">${I('trash')}<span>Supprimer pour moi</span></div>
  ${mine?`<div class="opt dng" data-act="del">${I('trash')}<span>Supprimer pour tous</span></div>`:`<div class="opt dng" data-act="rep">${I('flag')}<span>Signaler ce message</span></div>`}`);
  sh.onclick=async e=>{
   const x=e.target.closest('[data-e]');
@@ -1153,9 +1355,12 @@ function openMsgMenu(id){
   if(a.dataset.act==='reply'){setReply(m);$('#tIn').focus()}
   else if(a.dataset.act==='copy'){try{await navigator.clipboard.writeText(m.body);toast('Copié')}catch(x){toast('Copie impossible')}}
   else if(a.dataset.act==='del'){
-   const {error}=await sb.from('vyro_messages').delete().eq('id',m.id);
-   if(error){toast('Suppression impossible');return}
-   cur.msgs=cur.msgs.filter(y=>y.id!==m.id);renderMsgs();
+   sb.from('vyro_messages').delete().eq('id',m.id).then(()=>{},()=>{});
+   const x=await postMsg(cur.id,'[del:'+m.id+']');
+   if(x.error){toast('Suppression impossible');return}
+   await dropMsgs([m]);cur.msgs=cur.msgs.filter(y=>y.id!==m.id);renderMsgs();await refreshMeta();renderChats();
+  }else if(a.dataset.act==='delme'){
+   await dropMsgs([m]);cur.msgs=cur.msgs.filter(y=>y.id!==m.id);renderMsgs();await refreshMeta();renderChats();
   }else if(a.dataset.act==='rep')reportSheet('message',m.id,'ce message');
  };
 }
@@ -1183,40 +1388,19 @@ function openMsgMenu(id){
 })();
 function openMedia(u){const v=$('#mv');v.innerHTML=`<img src="${u}" alt=""><button type="button" class="cb" aria-label="Fermer">${I('x')}</button>`;v.classList.add('on')}
 $('#mv').onclick=()=>{$('#mv').classList.remove('on');$('#mv').innerHTML=''};
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&cur&&curScreen==='thread')sb.rpc('vyro_mark_read',{p_conv:cur.id})});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&cur&&curScreen==='thread')markRead()});
 /* temps réel */
 function subscribe(){
  if(chan)sb.removeChannel(chan);
  chan=sb.channel('vyro-live')
   .on('postgres_changes',{event:'INSERT',schema:'public',table:'vyro_messages'},onMsg)
-  .on('postgres_changes',{event:'DELETE',schema:'public',table:'vyro_messages'},pl=>{const id=pl.old&&pl.old.id;if(cur&&id&&cur.msgs.some(x=>x.id===id)){cur.msgs=cur.msgs.filter(x=>x.id!==id);renderMsgs()}})
-  .on('postgres_changes',{event:'*',schema:'public',table:'vyro_reactions'},onReact)
+  .on('postgres_changes',{event:'DELETE',schema:'public',table:'vyro_messages'},pl=>{const id=pl.old&&pl.old.id;if(id&&PEND[id]!==undefined)markDelivered([id])})
   .on('postgres_changes',{event:'UPDATE',schema:'public',table:'vyro_members'},pl=>{
    const n=pl.new;if(!n||!cur||n.conversation_id!==cur.id||n.user_id===me.id||cur.type==='group')return;
    const t=Date.parse(n.last_read_at)||0;if(t>peerRead){peerRead=t;renderMsgs()}})
-  .subscribe();
+  .subscribe(st=>{if(st==='SUBSCRIBED')syncInbox()});
 }
-function onReact(pl){
- if(!cur)return;
- const r=pl.eventType==='DELETE'?pl.old:pl.new;if(!r||!cur.msgs.some(x=>x.id===r.message_id))return;
- const o=cur.reacts[r.message_id]=cur.reacts[r.message_id]||{};
- if(pl.eventType==='DELETE')delete o[r.user_id];else o[r.user_id]=r.emoji;
- renderMsgs();
-}
-async function onMsg(pl){
- const m=pl.new;if(!m)return;
- let c=chats.find(x=>x.id===m.conversation_id);
- if(!c){await loadChats();c=chats.find(x=>x.id===m.conversation_id);if(!c)return}
- const mineMsg=m.sender_id===me.id;
- const open=curScreen==='thread'&&cur&&cur.id===c.id&&!document.hidden;
- const inThread=curScreen==='thread'&&cur&&cur.id===c.id;
- if(inThread){
-  if(!cur.msgs.some(x=>x.id===m.id)){cur.msgs.push(m);if(!mineMsg){typing=null;setStatus()}renderMsgs()}
-  if(!mineMsg&&open)sb.rpc('vyro_mark_read',{p_conv:c.id});
- }
- if(!mineMsg&&!SYS_RE.test(m.body)&&!(c.type!=='group'&&blocks.has(m.sender_id))&&!open){c.unread++;notifyMsg(c,m)}
- bump(c,m.body,m.created_at);renderChats();
-}
+async function onMsg(pl){const m=pl.new;if(m)await ingest([m],{live:true})}
 
 /* ---------- nouvelle conversation / groupe ---------- */
 function newChatSheet(){
@@ -2616,6 +2800,7 @@ async function sendChatMedia(kind,blob,name,dur){
   const r=await upMedia(kind,blob,name,p=>{up.firstChild.style.width=Math.max(6,Math.round(p*100))+'%'});
   const {data,error}=await sb.from('vyro_media').insert({conversation_id:c.id,sender_id:me.id,kind,tg_file_id:r.file_id,duration:dur||null}).select('id').single();
   if(error)throw error;
+  try{await LDB.set('blobs',data.id,blob);BU.set(data.id,URL.createObjectURL(blob))}catch(e){}
   await sendBody('[med:'+kind+':'+data.id+']',c);
  }catch(x){toast(x&&x.message==='too_large'?'Fichier trop lourd (20 Mo maximum)':'Envoi impossible, réessaie')}
  finally{up.hidden=true}
@@ -2775,7 +2960,7 @@ function endCall(reason,fromRemote){
   else if(c.dir==='out'||c.state!=='ringing')sendSig(c.peer,'bye',c.id,null,null);
  }
  if(c.dir==='out'&&c.cid){
-  sb.from('vyro_messages').insert({conversation_id:c.cid,sender_id:me.id,body:'[call:'+c.media+':'+secs+']'}).then(()=>{},()=>{});
+  postMsg(c.cid,'[call:'+c.media+':'+secs+']').catch(()=>{});
  }
  const T={noanswer:'Pas de réponse',declined:'Appel refusé',nomic:'Micro ou caméra inaccessible',fail:'Connexion impossible',lost:'Connexion perdue',missed:'Appel manqué'};
  if(T[reason]&&!(reason==='declined'&&c.dir==='in'))toast(T[reason]);
