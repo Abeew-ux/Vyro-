@@ -18,7 +18,8 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{--bg:#06020d;--card:rgba(255,255,255,.05);--card2:rgba(255,255,255,.09);--line:rgba(168,85,247,.28);--text:#fff;--muted:#a99cc4;--acl:#d8b4fe;--nav:rgba(14,7,28,.88);--sheet:#150a2e;--inp:rgba(255,255,255,.07);--sw:rgba(255,255,255,.16)}
 [data-theme=light]{--bg:#f6f1ff;--card:rgba(124,58,237,.06);--card2:rgba(124,58,237,.12);--line:rgba(124,58,237,.28);--text:#1b0f33;--muted:#6f5f8f;--acl:#7c3aed;--nav:rgba(255,255,255,.92);--sheet:#fff;--inp:rgba(124,58,237,.08);--sw:rgba(0,0,0,.18)}
-html,body{height:100%;overflow:hidden}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+*{overscroll-behavior-y:contain}
 body{background:var(--bg);color:var(--text);font:16px/1.3 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -261,6 +262,11 @@ button{cursor:pointer}
 .shut .pr{fill:none;stroke:#ff3b6b;stroke-width:6;stroke-linecap:round;stroke-dasharray:239;stroke-dashoffset:239}
 .shut span{position:absolute;inset:9px;border-radius:50%;background:#fff;transition:transform .15s,background .15s,border-radius .15s}
 .shut.rec span{background:#ff3b6b;transform:scale(.55);border-radius:30%}
+.camgal{position:absolute;left:20px;bottom:calc(env(safe-area-inset-bottom) + 34px);z-index:4;border:0;background:none;color:#fff;display:flex;flex-direction:column;align-items:center;gap:4px;padding:0}
+.camgal[hidden]{display:none}
+.camgal .gth{width:50px;height:50px;border-radius:14px;border:2px solid #fff;background:linear-gradient(135deg,rgba(236,72,153,.55),rgba(139,92,246,.55));display:grid;place-items:center;box-shadow:0 0 16px rgba(168,85,247,.55)}
+.camgal small{font-size:11px;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+#pvPost[hidden],#pvStory[hidden]{display:none}
 .camtip{font-size:12px;color:rgba(255,255,255,.75)}
 .camhint{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 76px);transform:translateX(-50%);max-width:70%;text-align:center;background:rgba(10,5,20,.7);padding:8px 14px;border-radius:14px;font-size:13px;z-index:3;opacity:0;pointer-events:none;transition:opacity .2s}
 .camhint.on{opacity:1}
@@ -668,7 +674,7 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
  <div class="top"><div class="logo"><span data-logo="40"></span><span>VYRO</span></div><span class="sp"></span>
   <button class="ib" id="bSearch" aria-label="Rechercher"><span class="ico" data-i="search"></span></button>
   <button class="ib" data-go="cam" aria-label="Caméra"><span class="ico" data-i="camera"></span></button>
-  <button class="plus" id="bNew" aria-label="Nouvelle conversation"><span class="ico" data-i="plus"></span></button></div>
+  <button class="plus" id="bNew" aria-label="Nouvelle conversation" style="display:none" hidden><span class="ico" data-i="plus"></span></button></div>
  <div class="stories" id="stories"></div>
  <div class="sbar" hidden><span class="ico" data-i="search"></span><input id="q" placeholder="Rechercher une conversation…" autocomplete="off"></div>
  <div class="chips" id="chips"></div>
@@ -701,12 +707,12 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
   <button class="cb" data-m="m" type="button" aria-label="Masques"><span class="ico" data-i="mask"></span></button>
   <button class="cb" data-m="s" type="button" aria-label="Stickers"><span class="ico" data-i="sticker"></span></button>
  </div>
- <div class="cambot"><div class="camstrip" id="camStrip"></div>
+ <button class="camgal" id="camGal" type="button" hidden aria-label="Galerie"><span class="gth"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg></span><small>Galerie</small></button><input id="camFile" type="file" accept="video/*" hidden><div class="cambot"><div class="camstrip" id="camStrip"></div>
   <button class="shut" id="camShut" type="button" aria-label="Photo ou vidéo"><svg viewBox="0 0 84 84"><circle class="rg" cx="42" cy="42" r="38"/><circle class="pr" id="camPr" cx="42" cy="42" r="38" transform="rotate(-90 42 42)"/></svg><span></span></button>
   <p class="camtip">Appuie : photo · Maintiens : vidéo</p></div>
  <div class="camstkp" id="camStkP"><div class="stkt" id="camStkT"></div><div class="stkg" id="camStkG"></div></div>
  <div class="campv" id="camPv"><div class="pvbox" id="pvBox"></div>
-  <div class="pvbar"><button type="button" id="pvRetake" class="pvb sq" aria-label="Refaire"><span class="ico" data-i="back"></span></button><button type="button" id="pvSave" class="pvb pvs"><span class="ico" data-i="download"></span>Enregistrer</button><button type="button" id="pvStory" class="pvb pvs hi"><span class="ico" data-i="plus"></span>Ma story</button><button type="button" id="pvShare" class="pvb sq" hidden aria-label="Partager"><span class="ico" data-i="share"></span></button></div></div>
+  <div class="pvbar"><button type="button" id="pvRetake" class="pvb sq" aria-label="Refaire"><span class="ico" data-i="back"></span></button><button type="button" id="pvSave" class="pvb pvs"><span class="ico" data-i="download"></span>Enregistrer</button><button type="button" id="pvPost" class="pvb pvs hi" hidden><span class="ico" data-i="plus"></span>Publier</button><button type="button" id="pvStory" class="pvb pvs hi"><span class="ico" data-i="plus"></span>Ma story</button><button type="button" id="pvShare" class="pvb sq" hidden aria-label="Partager"><span class="ico" data-i="share"></span></button></div></div>
 </section>
 
 <!-- STORY -->
@@ -738,7 +744,7 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
  <div class="vtop"><button class="ib" id="vBack" data-go="back" hidden aria-label="Retour" style="color:#fff"><span class="ico" data-i="back"></span></button><button class="vtab cur" data-v="fy">Pour toi</button><button class="vtab" data-v="ab">Abonnements</button><span class="sp"></span>
   <button class="ib" data-go="cam" aria-label="Caméra" style="color:#fff"><span class="ico" data-i="camera"></span></button>
   <button class="ib" id="vSearch" aria-label="Rechercher" style="color:#fff"><span class="ico" data-i="search"></span></button></div>
- <button class="plus vplus upl" aria-label="Ajouter une vidéo"><span class="ico" data-i="plus"></span></button>
+ <button class="plus vplus upl" aria-label="Ajouter une vidéo" style="display:none" hidden><span class="ico" data-i="plus"></span></button>
  <div class="feed" id="feed"></div>
 </section>
 
@@ -1259,7 +1265,7 @@ async function loadChats(){
 }
 function renderChats(){
  const cnt=t=>chats.filter(c=>t==='all'||c.type===t).length;
- $('#chips').innerHTML=[['all','Toutes'],['group','Groupes'],['friend','Amis']].map(([k,l])=>`<button class="chip ${filter===k?'cur':''}" data-f="${k}">${l}<em>${cnt(k)}</em></button>`).join('');
+ $('#chips').innerHTML=[['all','Toutes'],['group','Room'],['friend','Amis']].map(([k,l])=>`<button class="chip ${filter===k?'cur':''}" data-f="${k}">${l}<em>${cnt(k)}</em></button>`).join('');
  const list=chats.filter(c=>(filter==='all'||c.type===filter)&&c.name.toLowerCase().includes(q));
  $('#chatList').innerHTML=list.map(c=>`<div class="chat" data-id="${c.id}">${av(c)}<div class="cm"><div class="r1"><b>${esc(c.name)}${c.ttl?`<em class="eph" title="Messages éphémères">${I('clock')}</em>`:''}</b><span class="tm ${c.unread?'hot':''}">${tfmt(c.at)}</span></div><div class="r2"><span class="lm">${esc(c.last)}</span>${c.unread?`<span class="bdg">${c.unread}</span>`:''}</div></div></div>`).join('')||`<div class="emptyart">${chats.length?'':ART_CHAT}<p>${chats.length?'Aucune conversation trouvée':'Aucune conversation pour l’instant.<br>Appuie sur + pour écrire à quelqu’un.'}</p></div>`;
  const tot=chats.reduce((s,c)=>s+c.unread,0),nb=$('#nbChat');
@@ -1670,7 +1676,7 @@ async function openComments(p){
 }
 
 /* ---------- publier une vidéo ---------- */
-function uploadSheet(){
+function uploadSheet(pre){
  const real=!!MEDIA_URL;
  openSheet('Nouvelle publication',`${real?`<label class="fld">Vidéo<input id="vFile" type="file" accept="video/*"></label><div id="vInfo" class="muted" style="font-size:13px;margin:-6px 0 12px"></div>`:''}
  <label class="fld">Légende<textarea id="vCap" rows="3" maxlength="300" placeholder="Décris ta vidéo…"></textarea></label>
@@ -1679,6 +1685,7 @@ function uploadSheet(){
  <button class="cta" id="vGo">${real?'Publier':'Publier (test, sans vidéo)'}</button>
  <p class="muted" style="font-size:13px;margin-top:12px">${real?'Vidéo de 20 Mo maximum (environ une minute).':'L’envoi de vraies vidéos n’est pas encore activé : cette publication test affiche un visuel de démonstration, ce qui permet d’essayer likes, commentaires et abonnements.'}</p>`);
  let file=null,dur=0;
+ if(real&&pre&&pre.file){file=pre.file;dur=pre.dur||0;const fi=$('#vFile');if(fi){fi.closest('label').style.display='none'}$('#vInfo').textContent='Vidéo prête : '+(dur?dur+' s · ':'')+(file.size/1048576).toFixed(1)+' Mo'}
  if(real){
   $('#vFile').onchange=e=>{
    file=null;dur=0;const f=e.target.files[0],info=$('#vInfo');info.style.color='';
@@ -1723,7 +1730,7 @@ function sendVideo(file,dur,token,onProg){
   x.send(fd);
  });
 }
-$$('.upl').forEach(b=>b.onclick=uploadSheet);
+$$('.upl').forEach(b=>b.onclick=()=>{if(MEDIA_URL&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)openCam(true);else uploadSheet()});
 
 /* ---------- profil ---------- */
 const G={vid:[],like:[],fav:[]};
@@ -2148,10 +2155,31 @@ function updHint(now){
 }
 
 /* ---------- ouverture / fermeture ---------- */
-function openCam(){
+let postMode=false;
+function applyPost(){
+ $('#camGal').hidden=!postMode;$('#pvPost').hidden=!postMode;$('#pvStory').hidden=postMode;
+ $('.camtip').textContent=postMode?'Maintiens pour filmer · ou ouvre ta galerie':'Appuie : photo · Maintiens : vidéo';
+}
+function openCam(post){
+ postMode=post===true;applyPost();
  camOn=true;camMode='f';csel=null;items.length=0;updDel();$('#camStkP').classList.remove('on');
  push('cam');fit();renderStrip();setRail();startCam();
 }
+function goPublish(f,dur){back();setTimeout(()=>uploadSheet({file:f,dur:dur}),320)}
+$('#camGal').onclick=()=>$('#camFile').click();
+$('#camFile').onchange=e=>{
+ const f=e.target.files[0];e.target.value='';
+ if(!f)return;
+ if(!String(f.type).startsWith('video/')){toast('Choisis une vidéo');return}
+ if(f.size>MAX_VIDEO){toast('Vidéo trop lourde ('+(f.size/1048576).toFixed(1)+' Mo). Maximum : 20 Mo');return}
+ const t=document.createElement('video'),u=URL.createObjectURL(f);let done=false;
+ const go=d=>{if(done)return;done=true;URL.revokeObjectURL(u);goPublish(f,d)};
+ t.preload='metadata';t.onloadedmetadata=()=>go(Math.round(t.duration)||0);t.onerror=()=>go(0);t.src=u;
+};
+$('#pvPost').onclick=()=>{
+ if(!cap||cap.type!=='video')return;
+ const f=capFile(),d=cap.dur;goPublish(f,d);
+};
 function camMsg(t){const m=$('#camMsg');m.classList.toggle('on',!!t);$('#camMsgT').textContent=t||''}
 async function startCam(){
  stopStream();camMsg('');
@@ -2285,7 +2313,7 @@ shut.addEventListener('pointerdown',e=>{
  if(recording||holdT)return;
  holdT=setTimeout(()=>{holdT=0;if(startRec()){recording=true;shut.classList.add('rec')}},350);
 });
-shut.addEventListener('pointerup',()=>{if(holdT){clearTimeout(holdT);holdT=0;takePhoto()}else if(recording)stopRec()});
+shut.addEventListener('pointerup',()=>{if(holdT){clearTimeout(holdT);holdT=0;if(postMode)toast('Maintiens le bouton pour filmer');else takePhoto()}else if(recording)stopRec()});
 shut.addEventListener('pointercancel',()=>{if(holdT){clearTimeout(holdT);holdT=0}else if(recording)stopRec()});
 shut.addEventListener('contextmenu',e=>e.preventDefault());
 
