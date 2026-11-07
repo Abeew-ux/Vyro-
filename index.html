@@ -1296,7 +1296,7 @@ async function openThread(id){
  $('#tAv').innerHTML=av(cur,44);$('#tName').textContent=cur.name;setStatus();setReply(null);
  $('#tIn').value='';syncSend();
  renderMsgs();renderChats();push('thread');joinTyping(id);
- const mp=sb.from('vyro_members').select('user_id,last_read_at,profile:vyro_profiles(username,display_name)').eq('conversation_id',id);
+ const mp=sb.from('vyro_members').select('user_id,last_read_at,profile:vyro_profiles!vyro_members_user_id_fkey(username,display_name)').eq('conversation_id',id);
  let loc=[],rxs=[];
  try{await purgeLocal();[loc,rxs]=await Promise.all([LDB.all('msgs',id),LDB.all('rx',id)])}catch(e){}
  loc=loc.filter(m=>!m.ctl).sort((a,b)=>a.ts-b.ts||a.id-b.id).slice(-400);
@@ -1537,7 +1537,7 @@ function scene(i){
 }
 
 /* ---------- vidéos ---------- */
-const VCOLS='id,user_id,caption,tags,likes_count,comments_count,saves_count,created_at,tg_file_id,tg_thumb_id,author:vyro_profiles(username,display_name,avatar_url)';
+const VCOLS='id,user_id,caption,tags,likes_count,comments_count,saves_count,created_at,tg_file_id,tg_thumb_id,author:vyro_profiles!vyro_videos_user_id_fkey(username,display_name,avatar_url)';
 const tagsHTML=t=>String(t||'').split(/\s+/).filter(Boolean).map(x=>`<span class="tg" data-tag="${esc(x)}">${esc(x)}</span>`).join(' ');
 const mapPost=v=>({id:v.id,uid:v.user_id,user:(v.author&&v.author.username)||'?',av:(v.author&&v.author.avatar_url)||null,cap:v.caption,tags:v.tags,likes:v.likes_count,comments:v.comments_count,saves:v.saves_count,fid:v.tg_file_id,tid:v.tg_thumb_id,mine:v.user_id===me.id});
 // le relais vérifie à chaque lecture que ce compte a le droit de voir la vidéo (comptes privés inclus)
@@ -1652,7 +1652,7 @@ async function openComments(p){
  let list=[];
  const draw=l=>l.map(c=>`<div class="cmt" data-cid="${c.id||''}">${av({name:c.u,h:hue(c.u),uid:c.uid,avatar:c.av},38)}<div class="cbody"><b data-u="${c.uid||''}">@${esc(c.u)}</b><p>${esc(c.t)}</p></div>${(c.id&&(c.uid===me.id||p.mine))?`<button type="button" class="cdel" data-del="${c.id}" aria-label="Supprimer">${I('trash')}</button>`:''}</div>`).join('')||'<p class="empty" style="padding:20px 0">Aucun commentaire. Lance la discussion !</p>';
  const sh=openSheet('Commentaires',`<div id="cList"><p class="empty" style="padding:20px 0">Chargement…</p></div><form class="cform" id="cForm"><input id="cIn" maxlength="500" placeholder="Ajouter un commentaire…" autocomplete="off"><button type="submit" aria-label="Envoyer">${I('send')}</button></form>`);
- const {data}=await sb.from('vyro_comments').select('id,user_id,body,author:vyro_profiles(username,avatar_url)').eq('video_id',p.id).order('created_at').limit(100);
+ const {data}=await sb.from('vyro_comments').select('id,user_id,body,author:vyro_profiles!vyro_comments_user_id_fkey(username,avatar_url)').eq('video_id',p.id).order('created_at').limit(100);
  list=(data||[]).filter(c=>!blocks.has(c.user_id)).map(c=>({id:c.id,uid:c.user_id,u:(c.author&&c.author.username)||'?',av:c.author&&c.author.avatar_url,t:c.body}));
  if($('#cList'))$('#cList').innerHTML=draw(list);
  sh.onclick=async e=>{
@@ -1731,8 +1731,8 @@ async function loadProfileData(){
  const cnt=f=>sb.from('vyro_follows').select('*',{count:'exact',head:true}).eq(f,me.id);
  const [a,b,c,d,e]=await Promise.all([cnt('following_id'),cnt('follower_id'),
   sb.from('vyro_videos').select(VCOLS).eq('user_id',me.id).order('created_at',{ascending:false}).limit(60),
-  sb.from('vyro_likes').select('video:vyro_videos('+VCOLS+')').eq('user_id',me.id).order('created_at',{ascending:false}).limit(60),
-  sb.from('vyro_saves').select('video:vyro_videos('+VCOLS+')').eq('user_id',me.id).order('created_at',{ascending:false}).limit(60)]);
+  sb.from('vyro_likes').select('video:vyro_videos!vyro_likes_video_id_fkey('+VCOLS+')').eq('user_id',me.id).order('created_at',{ascending:false}).limit(60),
+  sb.from('vyro_saves').select('video:vyro_videos!vyro_saves_video_id_fkey('+VCOLS+')').eq('user_id',me.id).order('created_at',{ascending:false}).limit(60)]);
  $('#stFollowers').textContent=fmt(a.count||0);$('#stFollowing').textContent=fmt(b.count||0);
  const mine=(c.data||[]).map(mapPost);$('#stLikes').textContent=fmt(mine.reduce((s,v)=>s+v.likes,0));
  G.vid=mine;G.like=(d.data||[]).filter(x=>x.video).map(x=>mapPost(x.video)).filter(x=>!blocks.has(x.uid));G.fav=(e.data||[]).filter(x=>x.video).map(x=>mapPost(x.video)).filter(x=>!blocks.has(x.uid));
@@ -2362,7 +2362,7 @@ const ago=iso=>{const m=Math.max(0,Math.round((Date.now()-new Date(iso))/60000))
 const unseen=g=>g.items.some(i=>!seen.has(i.id));
 async function loadStories(){
  if(!me||!MEDIA_URL)return;
- const [{data,error},vw]=await Promise.all([sb.from('vyro_stories').select('id,user_id,kind,duration,created_at,profile:vyro_profiles(username,display_name,avatar_url)').order('created_at',{ascending:true}).limit(300),
+ const [{data,error},vw]=await Promise.all([sb.from('vyro_stories').select('id,user_id,kind,duration,created_at,profile:vyro_profiles!vyro_stories_user_id_fkey(username,display_name,avatar_url)').order('created_at',{ascending:true}).limit(300),
   sb.from('vyro_story_views').select('story_id').eq('viewer_id',me.id).limit(500)]);
  if(error)return;
  if(vw&&vw.data){vw.data.forEach(r=>seen.add(r.story_id));saveSeen()}
