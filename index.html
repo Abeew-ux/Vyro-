@@ -422,6 +422,9 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
 .b.med small{padding:0 8px}
 .cimg{display:block;max-width:100%;width:240px;max-height:320px;object-fit:cover;border-radius:16px;cursor:zoom-in}
 .cvid{display:block;width:240px;max-width:100%;max-height:340px;border-radius:16px;background:#000}
+.aw{display:flex;align-items:center;gap:6px}
+.spd{flex:none;min-width:38px;height:28px;border-radius:14px;border:1px solid rgba(168,85,247,.55);background:rgba(168,85,247,.16);color:inherit;font:600 12px system-ui;padding:0 8px}
+.bkrow{display:flex;gap:10px;margin-top:12px}.bkrow .cta{flex:1}
 .caud{display:block;width:230px;max-width:100%;height:42px;color-scheme:dark}
 [data-theme=light] .caud{color-scheme:light}
 .dsep{display:flex;justify-content:center;margin:12px 0 6px}
@@ -775,7 +778,7 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
   <div class="card">
    <div class="row" data-go="edit"><span class="ri" data-i="user"></span><div class="rt"><b>Informations du compte</b><small>Nom, pseudo, bio…</small></div><span class="ico mut" data-i="chev"></span></div>
    <div class="row" data-go="privacy"><span class="ri" data-i="lock"></span><div class="rt"><b>Confidentialité</b><small>Qui peut voir vos activités ?</small></div><span class="ico mut" data-i="chev"></span></div>
-   <div class="row" data-go="security"><span class="ri" data-i="shield"></span><div class="rt"><b>Sécurité</b><small>Mot de passe, vérification…</small></div><span class="ico mut" data-i="chev"></span></div>
+   <div class="row" data-go="security"><span class="ri" data-i="shield"></span><div class="rt"><b>Sécurité</b><small>Mot de passe, vérification…</small></div><span class="ico mut" data-i="chev"></span></div><div class="row" id="rowBackup"><span class="ri" data-i="download"></span><div class="rt"><b>Sauvegarde des discussions</b><small>Exporter ou restaurer tes messages</small></div><span class="ico mut" data-i="chev"></span></div>
    <div class="row" data-go="follows"><span class="ri" data-i="userplus"></span><div class="rt"><b>Mes abonnements</b><small>Gérer mes abonnements et abonnés</small></div><span class="ico mut" data-i="chev"></span></div>
    <div class="row" data-go="soon"><span class="ri" data-i="db"></span><div class="rt"><b>Mon portefeuille</b><small>Mes pièces et cadeaux</small></div><span class="ico mut" data-i="chev"></span></div>
   </div>
@@ -1342,7 +1345,7 @@ function msgHTML(m,i,arr){
  else if(md&&MEDIA_URL){
   if(md[1]==='image')body=`<img class="cimg" data-full="${mu(md[2])}" src="${mu(md[2])}" alt="Photo" loading="lazy">`;
   else if(md[1]==='video')body=`<video class="cvid" src="${mu(md[2])}" controls playsinline preload="metadata"></video>`;
-  else body=`<audio class="caud" src="${mu(md[2])}" controls preload="metadata"></audio>`;
+  else body=`<div class="aw"><audio class="caud" src="${mu(md[2])}" controls preload="metadata"></audio><button type="button" class="spd" aria-label="Vitesse de lecture">1×</button></div>`;
  }else body=`<span>${esc(m.body)}</span>`;
  const rd=!mine?'':(cur.type!=='group'&&d.getTime()<=peerRead?'<i class="tk rd">✓✓</i>':m.dlv?'<i class="tk dl">✓✓</i>':'<i class="tk">✓</i>');
  const rs=cur.reacts&&cur.reacts[m.id],g={};
@@ -1445,7 +1448,7 @@ function openMsgMenu(id){
 (()=>{
  const tm=$('#tMsgs');let lpT=0,lx=0,ly=0,lt=0,lid='';
  tm.addEventListener('pointerdown',e=>{
-  const b=e.target.closest('.b[data-id]');if(!b||e.target.closest('video,audio,.rx,.qt'))return;
+  const b=e.target.closest('.b[data-id]');if(!b||e.target.closest('video,audio,.spd,.rx,.qt'))return;
   lx=e.clientX;ly=e.clientY;clearTimeout(lpT);lpT=setTimeout(()=>{lt=-1;openMsgMenu(b.dataset.id)},430)});
  tm.addEventListener('pointermove',e=>{if(Math.abs(e.clientX-lx)>8||Math.abs(e.clientY-ly)>8)clearTimeout(lpT)});
  ['pointerup','pointercancel'].forEach(ev=>tm.addEventListener(ev,()=>clearTimeout(lpT)));
@@ -1458,7 +1461,7 @@ function openMsgMenu(id){
   const q=e.target.closest('[data-q]');
   if(q){const t=tm.querySelector(`.b[data-id="${q.dataset.q}"]`);if(t){t.scrollIntoView({block:'center',behavior:'smooth'});t.classList.add('flash');setTimeout(()=>t.classList.remove('flash'),1200)}return}
   const im=e.target.closest('.cimg');if(im){openMedia(im.dataset.full);return}
-  const b=e.target.closest('.b[data-id]');if(!b||e.target.closest('video,audio'))return;
+  const b=e.target.closest('.b[data-id]');if(!b||e.target.closest('video,audio,.spd'))return;
   const now=Date.now();
   if(lid===b.dataset.id&&now-lt<340){const m=cur.msgs.find(x=>String(x.id)===b.dataset.id);if(m&&!(cur.reacts[m.id]||{})[me.id])react(m,'❤️');lt=0;return}
   lid=b.dataset.id;lt=now;
@@ -2797,6 +2800,48 @@ async function sheetBlocked(){
  sh.onclick=async e=>{const b=e.target.closest('[data-unb]');if(!b)return;await unblockUser(b.dataset.unb,b.dataset.n);draw()};
  draw();
 }
+
+
+/* ---------- vitesse des vocaux ---------- */
+$('#tMsgs').addEventListener('click',e=>{
+ const b=e.target.closest('.spd');if(!b)return;
+ const a=b.previousElementSibling;if(!a||a.tagName!=='AUDIO')return;
+ const L=[1,1.5,2],n=L[(L.indexOf(a.playbackRate)+1)%3]||1;
+ a.playbackRate=n;b.textContent=(n===1.5?'1,5':n)+'×';
+});
+
+/* ---------- sauvegarde / restauration des discussions ---------- */
+async function backupExport(){
+ try{
+  const [msgs,rx]=await Promise.all([LDB.all('msgs'),LDB.all('rx')]);
+  const data={app:'vyro',v:1,uid:me.id,at:new Date().toISOString(),msgs,rx};
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'}),d=new Date();
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='vyro-sauvegarde-'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'.json';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  toast('Sauvegarde enregistrée ✔ ('+msgs.length+' messages)');
+ }catch(x){toast('Sauvegarde impossible')}
+}
+async function backupImport(file){
+ try{
+  if(file.size>40e6){toast('Fichier trop gros');return}
+  const j=JSON.parse(await file.text());
+  if(!j||j.app!=='vyro'||!Array.isArray(j.msgs)){toast('Ce fichier n’est pas une sauvegarde VYRO');return}
+  if(j.uid&&j.uid!==me.id){toast('Cette sauvegarde appartient à un autre compte');return}
+  const ok=x=>x&&typeof x.id==='string'&&typeof x.conversation_id==='string';
+  const msgs=j.msgs.filter(ok).slice(0,200000),rx=(Array.isArray(j.rx)?j.rx:[]).filter(x=>x&&typeof x.k==='string'&&typeof x.conversation_id==='string').slice(0,200000);
+  await LDB.put('msgs',msgs);if(rx.length)await LDB.put('rx',rx);
+  closeSheet();toast('Restauré ✔ ('+msgs.length+' messages)');
+  setTimeout(()=>location.reload(),900);
+ }catch(x){toast('Fichier illisible')}
+}
+$('#rowBackup').onclick=()=>{
+ openSheet('Sauvegarde des discussions',`<p class="muted" style="font-size:14px;line-height:1.45">Tes messages sont gardés sur ce téléphone. Exporte-les pour ne pas les perdre si tu changes de téléphone ou vides les données du navigateur. Les photos, vidéos et vocaux ne sont pas inclus.</p>
+ <div class="bkrow"><button class="cta" id="bkOut" type="button">Exporter</button><button class="cta" id="bkIn" type="button" style="background:rgba(168,85,247,.22);box-shadow:none">Restaurer</button></div><input id="bkFile" type="file" accept=".json,application/json" hidden>`);
+ $('#bkOut').onclick=backupExport;
+ $('#bkIn').onclick=()=>$('#bkFile').click();
+ $('#bkFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)backupImport(f)};
+};
 
 /* =====================================================================
    VYRO v3 — chat : menu, éphémère, photos / vidéos / vocaux,
