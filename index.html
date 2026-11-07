@@ -590,6 +590,9 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
 .vplus{right:auto;left:14px}
 @media (max-height:720px){.rail{bottom:112px;gap:8px}.rail .ib,.rail .rb{transform:scale(.88)}}
 .tk.dl{opacity:.7}
+.alinks{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:16px;text-align:center}.lnk{background:none;border:0;color:var(--acl);font:600 14px/1.2 inherit;padding:6px;cursor:pointer}.lnk:disabled{opacity:.55;cursor:default}.amsg{font-size:14px;color:var(--muted);margin:0 0 14px;line-height:1.5}.acode{letter-spacing:10px;font-size:24px;text-align:center;font-weight:700}
+.nbar{display:flex;align-items:center;gap:10px;margin:0 14px 10px;padding:10px 12px;border-radius:16px;background:linear-gradient(135deg,rgba(168,85,247,.28),rgba(236,72,153,.18));border:1px solid var(--line);backdrop-filter:blur(10px)}.nbi{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:rgba(168,85,247,.35);flex:none}.nbi svg{width:18px;height:18px}.nbt{flex:1;min-width:0;display:flex;flex-direction:column}.nbt b{font-size:14px}.nbt small{font-size:12px;color:var(--muted);line-height:1.3}.nbx{background:none;border:0;color:var(--muted);font-size:16px;padding:4px 6px}
+.alogo>*:not(.floaty){position:relative;z-index:1}.floaty svg{opacity:.5}
 </style>
 </head>
 <body>
@@ -656,13 +659,7 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
  <div class="auth">
   <div class="alogo"><div class="floaty"><svg class="f1" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></svg><svg class="f2" viewBox="0 0 24 24" fill="currentColor"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.500 2-1.500-1.500-2.700-2-4.500-2A5.500 5.500 0 0 0 2 8.500c0 2.300 1.500 4 3 5.500l7 7z"/></svg><svg class="f3" viewBox="0 0 24 24" fill="currentColor"><path d="M7.900 20A9 9 0 1 0 4 16.100L2 22z"/></svg><svg class="f4" viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 2.200 6.800L21 11l-6.800 2.200L12 20l-2.200-6.800L3 11l6.800-2.200z"/></svg></div><span data-logo="84"></span><h1>VYRO</h1><p>Chat • Vidéos • Communauté</p></div>
   <div class="atabs" id="aTabs"><button class="cur" data-m="login" type="button">Connexion</button><button data-m="signup" type="button">Inscription</button></div>
-  <form id="aForm">
-   <label class="fld">Pseudo<input id="aUser" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" placeholder="ex : bee_dev"></label>
-   <label class="fld">Mot de passe<input id="aPass" type="password" autocomplete="current-password" maxlength="72" placeholder="6 caractères minimum"></label>
-   <p id="aErr" class="aerr"></p>
-   <button class="cta" id="aGo" type="submit">Se connecter</button>
-  </form>
-  <p class="muted" style="text-align:center;font-size:13px;margin-top:18px">Pseudo : lettres minuscules, chiffres et _ (3 à 20 caractères)</p>
+  <form id="aForm" novalidate><div id="aBody"></div><p id="aErr" class="aerr"></p><button class="cta" id="aGo" type="submit">Se connecter</button><div id="aLinks" class="alinks"></div></form>
  </div>
 </section>
 
@@ -840,14 +837,14 @@ const hue=s=>[...String(s)].reduce((a,c)=>a+c.charCodeAt(0),0)*37%360;
 const logo=s=>`<svg width="${s}" height="${s}" viewBox="0 0 48 48"><path d="M12 9.5c0-2.4 2.6-3.9 4.7-2.6l23 14.1c2 1.2 2 4.1 0 5.3l-23 14.1c-2.1 1.3-4.7-.2-4.7-2.6z" fill="url(#lg)"/><path d="M20 17.5c0-1 1.1-1.6 2-1.1l11 6.5c.9.5.9 1.7 0 2.2l-11 6.5c-.9.5-2-.1-2-1.1z" fill="#fff" opacity=".92"/></svg>`;
 let toastT;
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),2600)}
-const ERR={invalid_username:'Pseudo invalide : 3 à 20 caractères (minuscules, chiffres, _).',invalid_password:'Mot de passe : 6 caractères minimum.',username_taken:'Ce pseudo est déjà pris.',server_error:'Erreur du serveur, réessaie dans un instant.',dm_closed:'Cette personne n’accepte pas de messages.',dm_followers_only:'Cette personne n’accepte que les messages de ses abonnés.',name_required:'Donne un nom au groupe.',too_many_members:'Un groupe est limité à 50 membres.',blocked:'Impossible : un blocage existe avec cette personne.',admin_only:'Seul un administrateur du groupe peut faire ça.'};
+const ERR={invalid_email:'Adresse email invalide.',email_taken:'Cet email est déjà utilisé. Connecte-toi, ou utilise « Mot de passe oublié ».',email_other_app:'Cet email est déjà lié à un autre compte. Utilise une autre adresse.',code_invalid:'Code incorrect.',code_expired:'Code expiré. Demande un nouveau code.',code_locked:'Trop d’essais. Demande un nouveau code.',mail_not_configured:'L’envoi des emails n’est pas encore activé. Réessaie plus tard.',mail_failed:'Impossible d’envoyer l’email. Vérifie ton adresse.',too_soon:'Attends un peu avant de redemander un code.',network:'Erreur réseau. Vérifie ta connexion.',invalid_username:'Pseudo invalide : 3 à 20 caractères (minuscules, chiffres, _).',invalid_password:'Mot de passe : 6 caractères minimum.',username_taken:'Ce pseudo est déjà pris.',server_error:'Erreur du serveur, réessaie dans un instant.',dm_closed:'Cette personne n’accepte pas de messages.',dm_followers_only:'Cette personne n’accepte que les messages de ses abonnés.',name_required:'Donne un nom au groupe.',too_many_members:'Un groupe est limité à 50 membres.',blocked:'Impossible : un blocage existe avec cette personne.',admin_only:'Seul un administrateur du groupe peut faire ça.'};
 const errMsg=e=>{const m=(e&&e.message)||'';for(const k in ERR)if(m.includes(k))return ERR[k];return 'Une erreur est survenue. Vérifie ta connexion.'};
 
 /* ---------- état ---------- */
 const THEME_KEY='vyro_theme';
 const S={theme:'dark',
  priv:{private:false,dm:'all',comments:'all',download:true,activity:true,joined:true},
- notif:{messages:true,likes:true,followers:true,comments:true,mentions:true,gifts:true,updates:true}};
+ notif:{sound:true,messages:true,likes:true,followers:true,comments:true,mentions:true,gifts:true,updates:true}};
 try{S.theme=localStorage.getItem(THEME_KEY)||'dark'}catch(e){}
 let me=null,chats=[],cur=null,posts=[],tabV='fy',filter='all',q='',gtab='vid',chan=null;
 const following=new Set(),liked=new Set(),saved=new Set(),blocks=new Set();
@@ -904,31 +901,98 @@ function closeSheet(){$('#bd').classList.remove('on');$('#sh').classList.remove(
 $('#bd').onclick=closeSheet;
 
 /* ---------- authentification ---------- */
-let amode='login';
-$('#aTabs').onclick=e=>{const b=e.target.closest('[data-m]');if(!b)return;amode=b.dataset.m;
- $$('#aTabs button').forEach(x=>x.classList.toggle('cur',x===b));
- $('#aGo').textContent=amode==='login'?'Se connecter':'Créer mon compte';
- $('#aPass').autocomplete=amode==='login'?'current-password':'new-password';$('#aErr').textContent=''};
+let amode='login',apend={email:'',pw:''},acool=0,actimer=null;
+const AFN=SB_URL+'/functions/v1/vyro-auth';
+async function callAuth(body){
+ try{
+  const r=await fetch(AFN,{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+SB_KEY},body:JSON.stringify(body)});
+  const j=await r.json().catch(()=>({}));
+  return r.ok?{ok:true}:{error:j.error||'server_error'};
+ }catch(e){return {error:'network'}}
+}
+const aIn=(id,label,attrs)=>`<label class="fld">${label}<input id="${id}" ${attrs}></label>`;
+function renderAuth(){
+ const M=amode;
+ $('#aTabs').hidden=!(M==='login'||M==='signup');
+ $$('#aTabs button').forEach(x=>x.classList.toggle('cur',x.dataset.m===M));
+ const em=aIn('aEmail','Email','type="email" inputmode="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="254" placeholder="ex : toi@gmail.com"');
+ const pw=(lab,ac,ph)=>aIn('aPass',lab,`type="password" autocomplete="${ac}" maxlength="72" placeholder="${ph||'6 caractères minimum'}"`);
+ const cd=aIn('aCode','Code à 6 chiffres','inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" class="acode"');
+ let h,go,links='';
+ if(M==='login'){h=em+pw('Mot de passe','current-password');go='Se connecter';links='<button type="button" class="lnk" data-a="forgot">Mot de passe oublié ?</button>'}
+ else if(M==='signup'){h=aIn('aUser','Pseudo','autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" placeholder="ex : bee_dev"')+em+pw('Mot de passe','new-password');go='Créer mon compte';links='<small class="muted">Pseudo : minuscules, chiffres et _ (3 à 20). Un code de vérification sera envoyé à ton email.</small>'}
+ else if(M==='verify'){h=`<p class="amsg">Un code a été envoyé à <b>${esc(apend.email)}</b>. Pense à regarder les spams.</p>`+cd;go='Valider';links='<button type="button" class="lnk" data-a="resend" id="aResend"></button><button type="button" class="lnk" data-a="back">Changer d’email</button>'}
+ else if(M==='forgot'){h='<p class="amsg">Entre ton email : on t’envoie un code pour choisir un nouveau mot de passe.</p>'+em;go='Envoyer le code';links='<button type="button" class="lnk" data-a="back">Retour</button>'}
+ else{h=`<p class="amsg">Code envoyé à <b>${esc(apend.email)}</b>.</p>`+cd+pw('Nouveau mot de passe','new-password');go='Changer le mot de passe';links='<button type="button" class="lnk" data-a="resend" id="aResend"></button><button type="button" class="lnk" data-a="back">Retour</button>'}
+ $('#aBody').innerHTML=h;$('#aLinks').innerHTML=links;$('#aGo').textContent=go;$('#aErr').textContent='';
+ const e=$('#aEmail');if(e&&apend.email)e.value=apend.email;
+ tickResend();
+}
+function tickResend(){
+ clearInterval(actimer);
+ const b=$('#aResend');if(!b)return;
+ const upd=()=>{const l=Math.ceil((acool-Date.now())/1000);const bb=$('#aResend');if(!bb){clearInterval(actimer);return}
+  bb.disabled=l>0;bb.textContent=l>0?'Renvoyer le code ('+l+' s)':'Renvoyer le code'};
+ upd();actimer=setInterval(upd,1000);
+}
+$('#aTabs').onclick=e=>{const b=e.target.closest('[data-m]');if(!b)return;amode=b.dataset.m;renderAuth()};
+$('#aLinks').onclick=async e=>{
+ const b=e.target.closest('[data-a]');if(!b||b.disabled)return;const a=b.dataset.a;
+ if(a==='forgot'){amode='forgot';renderAuth()}
+ else if(a==='back'){amode=amode==='verify'?'signup':'login';renderAuth()}
+ else if(a==='resend'){
+  const r=await callAuth({action:'resend',email:apend.email,purpose:amode==='reset'?'reset':'signup'});
+  if(r.error){$('#aErr').textContent=ERR[r.error]||ERR.server_error;return}
+  acool=Date.now()+45000;tickResend();toast('Code renvoyé ✉️');
+ }
+};
+async function aLogin(email,pw,err){
+ const {error}=await sb.auth.signInWithPassword({email,password:pw});
+ if(error){
+  if(/not confirmed/i.test(error.message)){
+   apend={email,pw};
+   const r=await callAuth({action:'resend',email,purpose:'signup'});
+   acool=Date.now()+(r.error==='too_soon'?20000:45000);amode='verify';renderAuth();
+   $('#aErr').textContent='Confirme d’abord ton email avec le code reçu.';return false;
+  }
+  err.textContent=/invalid/i.test(error.message)?'Email ou mot de passe incorrect.':'Connexion impossible : '+error.message;return false;
+ }
+ await enter();return true;
+}
 $('#aForm').onsubmit=async e=>{
  e.preventDefault();
  const err=$('#aErr'),btn=$('#aGo');err.textContent='';
  if(!sb){err.textContent='Impossible de charger Supabase. Vérifie ta connexion internet.';return}
- const u=$('#aUser').value.trim().toLowerCase(),pw=$('#aPass').value;
- if(!/^[a-z0-9_]{3,20}$/.test(u)){err.textContent=ERR.invalid_username;return}
- if(pw.length<6){err.textContent=ERR.invalid_password;return}
+ const g=id=>{const x=$('#'+id);return x?x.value.trim():''};
+ const email=(g('aEmail')||apend.email).toLowerCase(),pw=$('#aPass')?$('#aPass').value:'',code=g('aCode'),M=amode;
+ if((M==='login'||M==='signup'||M==='forgot')&&!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){err.textContent=ERR.invalid_email;return}
+ if(M==='signup'&&!/^[a-z0-9_]{3,20}$/.test(g('aUser').toLowerCase())){err.textContent=ERR.invalid_username;return}
+ if((M==='login'||M==='signup'||M==='reset')&&pw.length<6){err.textContent=ERR.invalid_password;return}
+ if((M==='verify'||M==='reset')&&!/^\d{6}$/.test(code)){err.textContent=ERR.code_invalid;return}
  btn.disabled=true;const old=btn.textContent;btn.textContent='Patiente…';
  try{
-  if(amode==='signup'){
-   const r=await fetch(SB_URL+'/functions/v1/vyro-signup',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+SB_KEY},body:JSON.stringify({username:u,password:pw})});
-   const j=await r.json().catch(()=>({}));
-   if(!r.ok){err.textContent=ERR[j.error]||ERR.server_error;return}
+  if(M==='login')await aLogin(email,pw,err);
+  else if(M==='signup'){
+   const r=await callAuth({action:'signup',email,username:g('aUser').toLowerCase(),password:pw});
+   if(r.error){err.textContent=ERR[r.error]||ERR.server_error;return}
+   apend={email,pw};acool=Date.now()+45000;amode='verify';renderAuth();
+  }else if(M==='verify'){
+   const r=await callAuth({action:'verify',email:apend.email,code});
+   if(r.error){err.textContent=ERR[r.error]||ERR.server_error;return}
+   if(apend.pw){await aLogin(apend.email,apend.pw,err)}else{amode='login';renderAuth();toast('Email confirmé ✅ Connecte-toi')}
+  }else if(M==='forgot'){
+   const r=await callAuth({action:'forgot',email});
+   if(r.error){err.textContent=ERR[r.error]||ERR.server_error;return}
+   apend={email,pw:''};acool=Date.now()+45000;amode='reset';renderAuth();
+  }else if(M==='reset'){
+   const r=await callAuth({action:'reset',email:apend.email,code,password:pw});
+   if(r.error){err.textContent=ERR[r.error]||ERR.server_error;return}
+   toast('Mot de passe changé ✅');await aLogin(apend.email,pw,err);
   }
-  const {error}=await sb.auth.signInWithPassword({email:u+MAIL,password:pw});
-  if(error){err.textContent=/invalid/i.test(error.message)?'Pseudo ou mot de passe incorrect.':'Connexion impossible : '+error.message;return}
-  await enter();
  }catch(x){err.textContent='Erreur réseau. Vérifie ta connexion.'}
- finally{btn.disabled=false;btn.textContent=old}
+ finally{btn.disabled=false;if($('#aGo').textContent==='Patiente…')btn.textContent=old}
 };
+renderAuth();
 async function boot(){
  applyTheme();
  if(!sb){show('auth');$('#aErr').textContent='Impossible de charger Supabase. Vérifie ta connexion internet.';return}
@@ -953,7 +1017,7 @@ async function enter(){
  subscribe();initExtras();
  tab('chat');
 }
-async function logout(){try{await sb.auth.signOut()}catch(e){}location.reload()}
+async function logout(){try{await pushRemove()}catch(e){}try{await sb.auth.signOut()}catch(e){}location.reload()}
 
 /* ---------- suivis / likes / favoris ---------- */
 async function loadFollows(){
@@ -1106,7 +1170,7 @@ async function uiIngest(list,o){
   if(sy){c.ttl=+sy[1];if(cur&&cur.id===c.id){cur.ttl=c.ttl;setStatus()}}
   if(inThread){
    await prepBlobs([m]);
-   if(!cur.msgs.some(x=>x.id===m.id)){cur.msgs.push(m);cur.msgs.sort((a,b)=>a.ts-b.ts||a.id-b.id);if(!mine){typing=null;setStatus()}renderMsgs()}
+   if(!cur.msgs.some(x=>x.id===m.id)){cur.msgs.push(m);cur.msgs.sort((a,b)=>a.ts-b.ts||a.id-b.id);if(!mine){typing=null;setStatus();if(open)popIn()}renderMsgs()}
    if(!mine&&open)markRead();
   }
   if(!mine&&!sy&&!(c.type!=='group'&&blocks.has(m.sender_id))&&!open){if(!reloaded)c.unread++;if(o.live)notifyMsg(c,m)}
@@ -1165,6 +1229,14 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncInbox(
 window.addEventListener('online',()=>syncInbox());
 setInterval(()=>{if(!document.hidden&&me)syncInbox()},45000);
 
+function openFromUrl(){
+ try{
+  const q=new URLSearchParams(location.search),cid=q.get('open');
+  if(!cid)return;
+  history.replaceState(null,'',location.pathname+location.hash);
+  if(chats.some(c=>c.id===cid))openThread(cid);
+ }catch(e){}
+}
 /* ---------- chat : liste ---------- */
 const aurl=(uid,a)=>MEDIA_URL+'/avatar/'+uid+'?t='+encodeURIComponent(tok)+'&v='+encodeURIComponent(String(a).slice(-10));
 const av=(c,size=58)=>`<div class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size*.4)}px;background:linear-gradient(135deg,hsl(${c.h} 80% 62%),hsl(${(c.h+50)%360} 70% 30%))">${esc(c.type==='group'?'👥':(c.name||'?')[0].toUpperCase())}${(c.avatar&&c.uid&&MEDIA_URL)?`<img src="${aurl(c.uid,c.avatar)}" alt="" onerror="this.remove()">`:''}</div>`;
@@ -1183,7 +1255,7 @@ async function loadChats(){
   await purgeLocal();await refreshMeta();
  }catch(e){}
  renderChats();
- if(!purged){purged=true;sb.rpc('vyro_purge_expired');syncInbox()}
+ if(!purged){purged=true;sb.rpc('vyro_purge_expired');syncInbox();openFromUrl()}
 }
 function renderChats(){
  const cnt=t=>chats.filter(c=>t==='all'||c.type===t).length;
@@ -1301,7 +1373,7 @@ async function sendBody(t,c){
  const r=await postMsg(c.id,t,c.reply&&c.reply.id);
  if(r.error){toast(r.error.code==='42501'?'Tu ne peux pas écrire à cette personne.':'Message non envoyé');return false}
  c.reply=null;if(cur===c)setReply(null);
- stick=true;
+ stick=true;popOut();
  return true;
 }
 function setReply(m){
@@ -1732,9 +1804,10 @@ function renderNotifs(){
  ${row('chat','Commentaires','',sw('notif','comments',n.comments))}
  ${row('at','Mentions (@)','',sw('notif','mentions',n.mentions))}
  ${row('gift','Cadeaux et pièces','',sw('notif','gifts',n.gifts))}</div>
- <div class="sec">${I('gear')}Notifications système</div><div class="card">
+ <div class="sec">${I('gear')}Sons et système</div><div class="card">
+ ${row('bell','Sons dans l’application','Bips à l’envoi et à la réception',sw('notif','sound',n.sound!==false))}
  ${row('download','Mises à jour de l’application','',sw('notif','updates',n.updates))}</div>
- <p class="muted" style="font-size:13px;padding:10px 6px">Les réglages sont enregistrés. Les alertes arrivent quand VYRO est ouverte ou installée sur ton écran d’accueil.</p>`;
+ <p class="muted" style="font-size:13px;padding:10px 6px">Les réglages sont enregistrés. Active les notifications ci-dessus pour recevoir tes messages et appels même quand VYRO est fermée (sur iPhone : installe d’abord VYRO sur l’écran d’accueil).</p>`;
 }
 document.addEventListener('change',e=>{
  const el=e.target,sc=el.dataset&&el.dataset.s;if(!sc)return;
@@ -2708,23 +2781,75 @@ window.addEventListener('appinstalled',()=>{instPrompt=null;toast('VYRO est inst
 
 function initExtras(){
  if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){
-  navigator.serviceWorker.register('sw.js').then(r=>{swReg=r}).catch(()=>{});
+  navigator.serviceWorker.register('sw.js').then(r=>{swReg=r;pushEnable()}).catch(()=>{});
   navigator.serviceWorker.addEventListener('message',ev=>{const cid=ev.data&&ev.data.open;if(cid){const c=chats.find(x=>x.id===cid);if(c)openThread(cid)}});
  }
  initCalls();
  renderNotifs();
+ setTimeout(notifBar,1500);
+}
+
+/* ---------- notifications push (message / appel même appli fermée) ---------- */
+let vapidPub=null;
+const u8=b=>{const p='='.repeat((4-b.length%4)%4),r=atob((b+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(r,c=>c.charCodeAt(0))};
+const pushOK=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window&&(location.protocol==='https:'||location.hostname==='localhost');
+async function pushEnable(){
+ try{
+  if(!pushOK()||Notification.permission!=='granted'||!swReg)return;
+  if(!vapidPub){const {data}=await sb.rpc('vyro_vapid_public');vapidPub=data}
+  if(!vapidPub)return;
+  const reg=await navigator.serviceWorker.ready;
+  let sub=await reg.pushManager.getSubscription();
+  if(sub){
+   const k=sub.options&&sub.options.applicationServerKey;
+   if(k&&btoa(String.fromCharCode(...new Uint8Array(k))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')!==vapidPub){await sub.unsubscribe();sub=null}
+  }
+  if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:u8(vapidPub)});
+  const j=sub.toJSON();
+  if(j&&j.endpoint&&j.keys)await sb.rpc('vyro_push_save',{p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth});
+ }catch(e){}
+}
+async function pushRemove(){
+ try{
+  if(!('serviceWorker' in navigator))return;
+  const reg=await navigator.serviceWorker.getRegistration();
+  const sub=reg&&await reg.pushManager.getSubscription();
+  if(sub){await sb.rpc('vyro_push_remove',{p_endpoint:sub.endpoint});await sub.unsubscribe()}
+ }catch(e){}
+}
+function notifBar(){
+ try{
+  if(!('Notification' in window)&&!/iP(hone|ad|od)/.test(navigator.userAgent))return;
+  if(document.getElementById('nbar')||localStorage.getItem('vyro_nbar')==='1')return;
+  const ios=/iP(hone|ad|od)/.test(navigator.userAgent)&&!isStandalone();
+  if(!ios&&Notification.permission!=='default')return;
+  if(curScreen!=='chat')return;
+  const d=document.createElement('div');d.id='nbar';d.className='nbar';
+  d.innerHTML=`<span class="nbi">${I('bell')}</span><div class="nbt"><b>${ios?'Reçois tes messages en direct':'Activer les notifications'}</b><small>${ios?'Installe VYRO sur ton écran d’accueil pour être notifié.':'Messages et appels, même quand VYRO est fermée.'}</small></div><button type="button" class="btn-o sm" id="nbGo">${ios?'Installer':'Activer'}</button><button type="button" class="nbx" id="nbX" aria-label="Plus tard">✕</button>`;
+  const top=document.querySelector('#s-chat .top');top&&top.insertAdjacentElement('afterend',d);
+  $('#nbGo').onclick=()=>{d.remove();if(ios)installApp();else askNotifPerm()};
+  $('#nbX').onclick=()=>{d.remove();try{localStorage.setItem('vyro_nbar','1')}catch(e){}};
+ }catch(e){}
 }
 
 /* ---------- notifications ---------- */
 let actx=null;
-function ping(){
+function tone(notes,vol){
+ if(S.notif&&S.notif.sound===false)return;
  try{
   actx=actx||new (window.AudioContext||window.webkitAudioContext)();
-  const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.setValueAtTime(880,actx.currentTime);o.frequency.exponentialRampToValueAtTime(1320,actx.currentTime+.09);
-  g.gain.setValueAtTime(.0001,actx.currentTime);g.gain.exponentialRampToValueAtTime(.12,actx.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+.22);
-  o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+.24);
+  if(actx.state==='suspended')actx.resume();
+  const t0=actx.currentTime;
+  notes.forEach(([f,at,len])=>{
+   const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.setValueAtTime(f,t0+at);
+   g.gain.setValueAtTime(.0001,t0+at);g.gain.exponentialRampToValueAtTime(vol,t0+at+.015);g.gain.exponentialRampToValueAtTime(.0001,t0+at+len);
+   o.connect(g);g.connect(actx.destination);o.start(t0+at);o.stop(t0+at+len+.02);
+  });
  }catch(e){}
 }
+function ping(){tone([[988,0,.16],[1319,.11,.26]],.16)}
+function popIn(){tone([[740,0,.09],[988,.06,.12]],.09)}
+function popOut(){tone([[520,0,.07],[660,.05,.09]],.07)}
 function sysNotify(title,body,tag,data){
  if(!('Notification' in window)||Notification.permission!=='granted')return;
  try{
@@ -2746,7 +2871,7 @@ function permRow(){
 }
 async function askNotifPerm(){
  if(!('Notification' in window)){toast('Notifications non prises en charge ici');return}
- try{const r=await Notification.requestPermission();toast(r==='granted'?'Notifications activées ✅':'Notifications refusées')}catch(e){}
+ try{const r=await Notification.requestPermission();toast(r==='granted'?'Notifications activées ✅':'Notifications refusées');if(r==='granted')pushEnable()}catch(e){}
  renderNotifs();
 }
 function installApp(){
@@ -2865,6 +2990,18 @@ async function iceServers(){
 function initCalls(){
  if(sigChan){try{sb.removeChannel(sigChan)}catch(e){}}
  sigChan=sb.channel('vyro-calls').on('postgres_changes',{event:'INSERT',schema:'public',table:'vyro_signals',filter:'to_id=eq.'+me.id},pl=>onSignal(pl.new)).subscribe();
+ pendingInvites();
+}
+/* appel reçu pendant que l'appli était fermée (ouverte via la notification) */
+async function pendingInvites(){
+ try{
+  if(call)return;
+  const since=new Date(Date.now()-40000).toISOString();
+  const {data}=await sb.from('vyro_signals').select('id,from_id,to_id,kind,call_id,media,payload').eq('to_id',me.id).gt('created_at',since).order('id',{ascending:true});
+  const rows=data||[];
+  const inv=rows.filter(s=>s.kind==='invite'&&!rows.some(x=>x.call_id===s.call_id&&(x.kind==='bye'||x.kind==='decline'))).pop();
+  if(inv)rows.filter(x=>x.call_id===inv.call_id).forEach(x=>onSignal(x));
+ }catch(e){}
 }
 const sendSig=(to,kind,id,media,payload)=>sb.from('vyro_signals').insert({from_id:me.id,to_id:to,kind,call_id:id,media:media||null,payload:payload||null}).then(r=>r,()=>({error:1}));
 async function getLocal(){
