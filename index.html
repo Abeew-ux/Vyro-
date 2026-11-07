@@ -423,6 +423,19 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
 .cvid{display:block;width:240px;max-width:100%;max-height:340px;border-radius:16px;background:#000}
 .vl{color:hsl(calc(269 + var(--hs)) 97% 85%);font-weight:600;text-decoration:underline;text-underline-offset:3px}
 .shl{max-height:44vh;overflow:auto}
+.pinbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--glass);border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
+.pinbar[hidden],.srchbar[hidden]{display:none}
+.pinbar span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pinbar i{font-style:normal;font-size:12px;background:var(--card2);border-radius:10px;padding:2px 8px}
+.pinbar button{background:none;border:0;color:inherit;font-size:16px;padding:4px 8px}
+.srchbar{display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--glass);border-bottom:1px solid var(--line)}
+.srchbar input{flex:1;min-width:0;height:38px;border-radius:19px;border:1px solid var(--line);background:var(--inp);color:var(--text);padding:0 14px;font:inherit;outline:none}
+.srchbar span{font-size:12px;color:var(--muted);min-width:34px;text-align:center}
+.srchbar .ib{width:34px;height:34px;font-size:12px}
+.camdr{left:auto;right:20px}
+.dfl .opt{align-items:center}
+.dfl .dbt{background:var(--card2);border:0;color:inherit;border-radius:14px;padding:8px 12px;font:600 13px system-ui;margin-left:6px}
+.b.hit{outline:2px solid hsl(calc(285 + var(--hs)) 95% 70%);outline-offset:2px}
 .aw{display:flex;align-items:center;gap:6px}
 .spd{flex:none;min-width:38px;height:28px;border-radius:14px;border:1px solid hsla(calc(271 + var(--hs)) 91% 65% / .55);background:hsla(calc(271 + var(--hs)) 91% 65% / .16);color:inherit;font:600 12px system-ui;padding:0 8px}
 .bkrow{display:flex;gap:10px;margin-top:12px}.bkrow .cta{flex:1}
@@ -630,7 +643,7 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-<defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d8b4fe"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs>
+<defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:hsl(calc(269 + var(--hs)) 97% 85%)"/><stop offset="1" style="stop-color:hsl(calc(263 + var(--hs)) 83% 58%)"/></linearGradient></defs>
 <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
 <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
 <symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></symbol>
@@ -712,6 +725,8 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
 <!-- THREAD -->
 <section class="screen" id="s-thread">
  <div class="thead"><button class="ib" data-go="back" aria-label="Retour"><span class="ico" data-i="back"></span></button><div id="tAv"></div><div class="tinfo" id="tInfo"><b id="tName"></b><small id="tSt"></small></div><button class="ib" id="tCallA" aria-label="Appel vocal"><span class="ico" data-i="phone"></span></button><button class="ib" id="tCallV" aria-label="Appel vidéo"><span class="ico" data-i="video"></span></button><button class="ib" id="tMenu" aria-label="Options"><span class="ico" data-i="more"></span></button></div>
+ <div class="pinbar" id="pinBar" hidden></div>
+ <div class="srchbar" id="srchBar" hidden><input id="srchQ" type="search" placeholder="Rechercher dans la discussion…" autocomplete="off"><span id="srchN">0/0</span><button type="button" class="ib" id="srchUp" aria-label="Précédent">▲</button><button type="button" class="ib" id="srchDn" aria-label="Suivant">▼</button><button type="button" class="ib" id="srchX" aria-label="Fermer">✕</button></div>
  <div class="tmsgs" id="tMsgs"></div>
  <div class="stkp" id="stkp"><div class="stkt" id="stkt"></div><div class="stkg" id="stkg"></div></div>
  <div class="replybar" id="replyBar" hidden><div><b id="rpName"></b><span id="rpText"></span></div><button type="button" class="ib" id="rpX" aria-label="Annuler la réponse"><span class="ico" data-i="x"></span></button></div>
@@ -734,12 +749,12 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
   <button class="cb" data-m="m" type="button" aria-label="Masques"><span class="ico" data-i="mask"></span></button>
   <button class="cb" data-m="s" type="button" aria-label="Stickers"><span class="ico" data-i="sticker"></span></button>
  </div>
- <button class="camgal" id="camGal" type="button" hidden aria-label="Galerie"><span class="gth"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg></span><small>Galerie</small></button><input id="camFile" type="file" accept="video/*" hidden><div class="cambot"><div class="camstrip" id="camStrip"></div>
+ <button class="camgal" id="camGal" type="button" hidden aria-label="Galerie"><span class="gth"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg></span><small>Galerie</small></button><input id="camFile" type="file" accept="video/*" hidden><button class="camgal camdr" id="camDraft" type="button" hidden aria-label="Brouillons"><span class="gth"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><small id="camDrN">Brouillons</small></button><div class="cambot"><div class="camstrip" id="camStrip"></div>
   <button class="shut" id="camShut" type="button" aria-label="Photo ou vidéo"><svg viewBox="0 0 84 84"><circle class="rg" cx="42" cy="42" r="38"/><circle class="pr" id="camPr" cx="42" cy="42" r="38" transform="rotate(-90 42 42)"/></svg><span></span></button>
   <p class="camtip">Appuie : photo · Maintiens : vidéo</p></div>
  <div class="camstkp" id="camStkP"><div class="stkt" id="camStkT"></div><div class="stkg" id="camStkG"></div></div>
  <div class="campv" id="camPv"><div class="pvbox" id="pvBox"></div>
-  <div class="pvbar"><button type="button" id="pvRetake" class="pvb sq" aria-label="Refaire"><span class="ico" data-i="back"></span></button><button type="button" id="pvSave" class="pvb pvs"><span class="ico" data-i="download"></span>Enregistrer</button><button type="button" id="pvPost" class="pvb pvs hi" hidden><span class="ico" data-i="plus"></span>Publier</button><button type="button" id="pvStory" class="pvb pvs hi"><span class="ico" data-i="plus"></span>Ma story</button><button type="button" id="pvShare" class="pvb sq" hidden aria-label="Partager"><span class="ico" data-i="share"></span></button></div></div>
+  <div class="pvbar"><button type="button" id="pvRetake" class="pvb sq" aria-label="Refaire"><span class="ico" data-i="back"></span></button><button type="button" id="pvSave" class="pvb pvs"><span class="ico" data-i="download"></span>Enregistrer</button><button type="button" id="pvPost" class="pvb pvs hi" hidden><span class="ico" data-i="plus"></span>Publier</button><button type="button" id="pvDraft" class="pvb" hidden>Brouillon</button><button type="button" id="pvStory" class="pvb pvs hi"><span class="ico" data-i="plus"></span>Ma story</button><button type="button" id="pvShare" class="pvb sq" hidden aria-label="Partager"><span class="ico" data-i="share"></span></button></div></div>
 </section>
 
 <!-- STORY -->
@@ -1395,6 +1410,7 @@ function visibleMsgs(){
 }
 function renderMsgs(){
  const s=$('#tMsgs');if(!s||!cur)return;
+ if(typeof renderPinBar==='function')renderPinBar();
  const arr=visibleMsgs(),keep=new Set();
  const bottom=stick||s.scrollHeight-s.scrollTop-s.clientHeight<140;
  const emp=s.querySelector('.empty');if(emp&&arr.length)emp.remove();
@@ -1461,6 +1477,7 @@ function openMsgMenu(id){
  const mr=(cur.reacts[m.id]||{})[me.id];
  const sh=openSheet('',`<div class="rxbar">${RXE.map(e=>`<button type="button" data-e="${e}" class="${mr===e?'cur':''}">${e}</button>`).join('')}</div>
  <div class="opt" data-act="reply">${I('reply')}<span>Répondre</span></div>
+ <div class="opt" data-act="pin"><span style="width:22px;text-align:center">📌</span><span>${isPinned(m.id)?'Désépingler':'Épingler en haut'}</span></div>
  ${txt?`<div class="opt" data-act="copy">${I('copy')}<span>Copier</span></div>`:''}
  <div class="opt" data-act="delme">${I('trash')}<span>Supprimer pour moi</span></div>
  ${mine?`<div class="opt dng" data-act="del">${I('trash')}<span>Supprimer pour tous</span></div>`:`<div class="opt dng" data-act="rep">${I('flag')}<span>Signaler ce message</span></div>`}`);
@@ -1469,6 +1486,7 @@ function openMsgMenu(id){
   if(x){closeSheet();react(m,x.dataset.e);return}
   const a=e.target.closest('[data-act]');if(!a)return;closeSheet();
   if(a.dataset.act==='reply'){setReply(m);$('#tIn').focus()}
+  else if(a.dataset.act==='pin')pinToggle(m)
   else if(a.dataset.act==='copy'){try{await navigator.clipboard.writeText(m.body);toast('Copié')}catch(x){toast('Copie impossible')}}
   else if(a.dataset.act==='del'){
    sb.from('vyro_messages').delete().eq('id',m.id).then(()=>{},()=>{});
@@ -1755,6 +1773,7 @@ function uploadSheet(pre){
   }
   const {error}=await sb.from('vyro_videos').insert(Object.assign({user_id:me.id,caption,tags},extra));
   if(error){btn.disabled=false;btn.textContent=real?'Publier':'Publier (test, sans vidéo)';toast('Publication impossible');return}
+  if(pre&&pre.onDone)try{pre.onDone()}catch(e){}
   closeSheet();toast('Publié ✅');tabV='fy';$$('.vtab').forEach(x=>x.classList.toggle('cur',x.dataset.v==='fy'));tab('videos');
  };
 }
@@ -2199,6 +2218,7 @@ function updHint(now){
 let postMode=false;
 function applyPost(){
  $('#camGal').hidden=!postMode;$('#pvPost').hidden=!postMode;$('#pvStory').hidden=postMode;
+ $('#camDraft').hidden=!postMode;$('#pvDraft').hidden=!postMode;if(postMode)updDraftBtn();
  $('.camtip').textContent=postMode?'Maintiens pour filmer · ou ouvre ta galerie':'Appuie : photo · Maintiens : vidéo';
 }
 function openCam(post){
@@ -2391,6 +2411,39 @@ $('#pvSave').onclick=()=>saveCap(false);
 $('#pvShare').onclick=()=>saveCap(true);
 $('#pvRetake').onclick=()=>closePreview(false);
 
+
+
+/* ---------- brouillons de vidéos (sur ce téléphone) ---------- */
+async function draftList(){try{return (await LDB.get('meta','drafts'))||[]}catch(e){return[]}}
+async function updDraftBtn(){const n=(await draftList()).length;const b=$('#camDrN');if(b)b.textContent=n?'Brouillons ('+n+')':'Brouillons'}
+async function draftSave(f,dur){
+ const id='d'+Date.now();
+ await LDB.set('blobs','draft:'+id,{blob:f,dur:dur||0,at:Date.now(),type:f.type||'video/webm'});
+ const l=await draftList();l.unshift(id);
+ for(const old of l.slice(10))await LDB.del('blobs',['draft:'+old]);
+ await LDB.set('meta','drafts',l.slice(0,10));
+}
+$('#pvDraft').onclick=async()=>{
+ if(!cap||cap.type!=='video')return;
+ try{await draftSave(capFile(),cap.dur);toast('Brouillon enregistré ✔');back()}catch(e){toast('Enregistrement impossible')}
+};
+$('#camDraft').onclick=async()=>{
+ const l=await draftList();
+ const recs=(await Promise.all(l.map(async id=>({id,r:await LDB.get('blobs','draft:'+id)})))).filter(x=>x.r&&x.r.blob);
+ const row=x=>`<div class="opt" data-d="${x.id}"><div class="rt"><b>Brouillon${x.r.dur?' · '+x.r.dur+' s':''}</b><small>${new Date(x.r.at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · ${(x.r.blob.size/1048576).toFixed(1)} Mo</small></div><button type="button" class="dbt" data-pub>Publier</button><button type="button" class="dbt" data-del aria-label="Supprimer">🗑</button></div>`;
+ const sh=openSheet('Mes brouillons',`<div class="dfl">${recs.map(row).join('')||'<p class="muted">Aucun brouillon pour l’instant.</p>'}</div>`);
+ sh.onclick=async e=>{
+  const o=e.target.closest('[data-d]');if(!o)return;const id=o.dataset.d;
+  if(e.target.closest('[data-del]')){
+   await LDB.del('blobs',['draft:'+id]);await LDB.set('meta','drafts',(await draftList()).filter(x=>x!==id));o.remove();updDraftBtn();return}
+  if(e.target.closest('[data-pub]')){
+   const r=await LDB.get('blobs','draft:'+id);if(!r)return;
+   const ext=/mp4/.test(r.type)?'mp4':'webm',f=new File([r.blob],'draft.'+ext,{type:r.type});
+   closeSheet();back();
+   setTimeout(()=>uploadSheet({file:f,dur:r.dur,onDone:async()=>{await LDB.del('blobs',['draft:'+id]);await LDB.set('meta','drafts',(await draftList()).filter(x=>x!==id))}}),320);
+  }
+ };
+};
 
 
 /* ---------- photo de profil : outils d'images ---------- */
@@ -2923,6 +2976,94 @@ function shareSheet(p){
  const so=$('#shOut');if(so)so.onclick=()=>{navigator.share({title:'VYRO',text:p.cap||'',url}).catch(()=>{});closeSheet()};
 }
 
+
+/* ---------- réponse glissée ---------- */
+(()=>{
+ const tm=$('#tMsgs');let sw=null;
+ tm.addEventListener('touchstart',e=>{
+  const b=e.target.closest('.b[data-id]');
+  if(!b||e.touches.length!==1||e.target.closest('audio,video,.spd,input')){sw=null;return}
+  sw={b,x:e.touches[0].clientX,y:e.touches[0].clientY,on:false,t:0};
+ },{passive:true});
+ tm.addEventListener('touchmove',e=>{
+  if(!sw)return;
+  const dx=e.touches[0].clientX-sw.x,dy=e.touches[0].clientY-sw.y;
+  if(!sw.on){
+   if(Math.abs(dy)>12&&Math.abs(dy)>Math.abs(dx)){sw=null;return}
+   if(dx>14&&dx>Math.abs(dy)*1.5)sw.on=true;else return;
+  }
+  sw.t=Math.min(72,Math.max(0,dx)*.7);
+  sw.b.style.transition='none';sw.b.style.transform='translateX('+sw.t+'px)';
+ },{passive:true});
+ const end=()=>{
+  if(!sw)return;
+  const s=sw;sw=null;
+  if(!s.on)return;
+  s.b.style.transition='transform .2s';s.b.style.transform='';
+  if(s.t>=46){
+   const m=cur&&cur.msgs.find(x=>String(x.id)===String(s.b.dataset.id));
+   if(m&&!SYS_RE.test(m.body)&&!CALL_RE.test(m.body)){setReply(m);$('#tIn').focus();try{navigator.vibrate&&navigator.vibrate(15)}catch(x){}}
+  }
+ };
+ tm.addEventListener('touchend',end);tm.addEventListener('touchcancel',end);
+})();
+
+/* ---------- messages épinglés (sur ce téléphone) ---------- */
+const PKEY=()=>'vyro_pins_'+(me?me.id:'x');
+function pinsOf(cid){try{return (JSON.parse(localStorage.getItem(PKEY())||'{}')[cid])||[]}catch(e){return[]}}
+function savePins(cid,a){try{const o=JSON.parse(localStorage.getItem(PKEY())||'{}');if(a.length)o[cid]=a;else delete o[cid];localStorage.setItem(PKEY(),JSON.stringify(o))}catch(e){}}
+function isPinned(id){return !!cur&&pinsOf(cur.id).includes(String(id))}
+function pinToggle(m){
+ if(!cur)return;
+ const id=String(m.id);let a=pinsOf(cur.id);
+ if(a.includes(id)){a=a.filter(x=>x!==id);toast('Message désépinglé')}else{a.push(id);a=a.slice(-5);toast('Message épinglé 📌')}
+ savePins(cur.id,a);pinIdx=-1;renderPinBar();
+}
+let pinIdx=-1;
+function flashMsg(id){
+ const el=$('#tMsgs').querySelector('.b[data-id="'+id+'"]');if(!el)return false;
+ el.scrollIntoView({block:'center',behavior:'smooth'});el.classList.add('hit');setTimeout(()=>el.classList.remove('hit'),1600);return true;
+}
+function renderPinBar(){
+ const bar=$('#pinBar');if(!bar)return;
+ const ids=cur?pinsOf(cur.id).filter(id=>cur.msgs.some(x=>String(x.id)===id)):[];
+ if(!ids.length){bar.hidden=true;bar.innerHTML='';return}
+ const i=pinIdx<0||pinIdx>=ids.length?ids.length-1:pinIdx,m=cur.msgs.find(x=>String(x.id)===ids[i]);
+ bar.hidden=false;bar.dataset.id=ids[i];
+ bar.innerHTML='<span>📌 '+esc(prev(m.body))+'</span>'+(ids.length>1?'<i>'+(i+1)+'/'+ids.length+'</i>':'')+'<button type="button" aria-label="Désépingler">✕</button>';
+}
+$('#pinBar').onclick=e=>{
+ if(!cur)return;
+ const ids=pinsOf(cur.id).filter(id=>cur.msgs.some(x=>String(x.id)===id));
+ if(e.target.closest('button')){const id=$('#pinBar').dataset.id;savePins(cur.id,pinsOf(cur.id).filter(x=>x!==id));pinIdx=-1;renderPinBar();return}
+ const id=$('#pinBar').dataset.id;flashMsg(id);
+ if(ids.length>1){pinIdx=(ids.indexOf(id)+1)%ids.length;renderPinBar()}
+};
+
+/* ---------- recherche dans la discussion ---------- */
+let srchHits=[],srchI=0;
+function openSearch(){
+ if(!cur)return;
+ $('#srchBar').hidden=false;$('#srchQ').value='';srchHits=[];$('#srchN').textContent='0/0';$('#srchQ').focus();
+}
+function closeSearch(){$('#srchBar').hidden=true;srchHits=[];$$('#tMsgs .b.hit').forEach(x=>x.classList.remove('hit'))}
+function runSearch(){
+ const q=$('#srchQ').value.trim().toLowerCase();
+ if(!cur||q.length<2){srchHits=[];$('#srchN').textContent='0/0';return}
+ srchHits=visibleMsgs().filter(m=>!isCtl(m.body)&&!SYS_RE.test(m.body)&&!CALL_RE.test(m.body)&&!parseStk(m.body)&&!MED_RE.test(m.body)&&String(m.body).toLowerCase().includes(q)).map(m=>String(m.id));
+ srchI=srchHits.length-1;showHit();
+}
+function showHit(){
+ $('#srchN').textContent=srchHits.length?(srchI+1)+'/'+srchHits.length:'0/0';
+ $$('#tMsgs .b.hit').forEach(x=>x.classList.remove('hit'));
+ if(srchHits.length){const el=$('#tMsgs').querySelector('.b[data-id="'+srchHits[srchI]+'"]');if(el){el.classList.add('hit');el.scrollIntoView({block:'center',behavior:'smooth'})}}
+}
+$('#srchQ').oninput=runSearch;
+$('#srchUp').onclick=()=>{if(!srchHits.length)return;srchI=(srchI-1+srchHits.length)%srchHits.length;showHit()};
+$('#srchDn').onclick=()=>{if(!srchHits.length)return;srchI=(srchI+1)%srchHits.length;showHit()};
+$('#srchX').onclick=closeSearch;
+$('#srchQ').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#srchDn').click()}};
+
 /* =====================================================================
    VYRO v3 — chat : menu, éphémère, photos / vidéos / vocaux,
    notifications, installation (PWA)
@@ -3043,11 +3184,11 @@ $('#tCallV').onclick=()=>startCall('video');
 $('#tMenu').onclick=()=>{
  if(!cur)return;
  const dm=cur.type!=='group',bl=dm&&blocks.has(cur.uid);
- const rows=[dm?['user','Voir le profil','prof']:null,['clock','Messages éphémères'+(cur.ttl?' · '+ttlLabel(cur.ttl):' · désactivés'),'ttl'],
+ const rows=[['search','Rechercher dans la discussion','srch'],dm?['user','Voir le profil','prof']:null,['clock','Messages éphémères'+(cur.ttl?' · '+ttlLabel(cur.ttl):' · désactivés'),'ttl'],
   dm?(bl?['ban','Débloquer ce contact','unb']:['ban','Bloquer ce contact','blk','dng']):null,dm?['flag','Signaler ce contact','rep','dng']:null].filter(Boolean);
  const sh=openSheet('Options',rows.map(([i,t,a,c])=>`<div class="opt ${c||''}" data-act="${a}">${I(i)}<span>${esc(t)}</span></div>`).join(''));
  sh.onclick=e=>{const o=e.target.closest('[data-act]');if(!o)return;const a=o.dataset.act;closeSheet();
-  if(a==='prof')openProfile(cur.uid);else if(a==='ttl')setTimeout(ttlSheet,260);
+  if(a==='srch')setTimeout(openSearch,200);else if(a==='prof')openProfile(cur.uid);else if(a==='ttl')setTimeout(ttlSheet,260);
   else if(a==='blk')blockUser(cur.uid,cur.name);else if(a==='unb')unblockUser(cur.uid,cur.name);else if(a==='rep')reportSheet('user',cur.uid,'ce contact')};
 };
 function ttlSheet(){
