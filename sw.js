@@ -1,5 +1,5 @@
 /* VYRO — service worker : démarrage rapide, hors-ligne de base, clic sur une notification */
-const V = 'vyro-v8';
+const V = 'vyro-v10';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));
@@ -22,6 +22,31 @@ self.addEventListener('fetch', e => {
   );
 });
 // notification push : message ou appel reçu appli fermée
+const replyActions = d => (d.t === 'msg' && d.rt && d.ru) ? [{ action: 'reply', type: 'text', title: 'Répondre', placeholder: 'Écrire un message…' }] : [];
+// boîte d'envoi : les réponses faites depuis la notification attendent ici que l'appli les range dans la conversation
+const obDb = () => new Promise((res, rej) => { const r = indexedDB.open('vyro_outbox', 1); r.onupgradeneeded = () => r.result.createObjectStore('o', { keyPath: 'id' }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+const obPut = async it => { const db = await obDb(); await new Promise((res, rej) => { const tx = db.transaction('o', 'readwrite'); tx.objectStore('o').put(it); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); db.close(); };
+async function sendReply(e, dt) {
+  const text = (e.reply || '').trim(), n = e.notification, tag = n.tag;
+  if (!text) return;
+  let ok = false, res = null;
+  try {
+    const r = await fetch(dt.ru, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: dt.rt, text }) });
+    if (r.ok) { res = await r.json(); ok = true; }
+  } catch (_) {}
+  if (ok) {
+    try { await obPut({ id: res.id, cid: res.cid, uid: res.uid, body: text, created_at: res.created_at }); } catch (_) {}
+    const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    cs.forEach(c => c.postMessage({ outbox: 1 }));
+  }
+  const short = text.length > 90 ? text.slice(0, 89) + '…' : text;
+  await self.registration.showNotification(dt.title || 'VYRO', {
+    body: ok ? '✓ Toi : ' + short : '⚠️ Envoi impossible : appuie pour ouvrir VYRO',
+    tag, renotify: false, silent: true, icon: 'icon-192.png', badge: 'icon-192.png',
+    actions: ok ? replyActions({ t: 'msg', rt: dt.rt, ru: dt.ru }) : [],
+    data: dt
+  });
+}
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data.json(); } catch (_) { d = { title: 'VYRO', body: e.data ? e.data.text() : '' }; }
@@ -33,11 +58,14 @@ self.addEventListener('push', e => {
       icon: 'icon-192.png', badge: 'icon-192.png',
       vibrate: d.t === 'call' ? [400, 200, 400, 200, 400] : [120, 60, 120],
       requireInteraction: d.t === 'call', silent: false,
-      data: { cid: d.cid || null, v: d.v || null, t: d.t || 'msg' }
+      actions: replyActions(d),
+      data: { cid: d.cid || null, v: d.v || null, t: d.t || 'msg', rt: d.rt || null, ru: d.ru || null, title: d.title || 'VYRO' }
     });
   })());
 });
 self.addEventListener('notificationclick', e => {
+  const dt = e.notification.data || {};
+  if (e.action === 'reply' && dt.rt && dt.ru && typeof e.reply === 'string') { e.waitUntil(sendReply(e, dt)); return; }
   e.notification.close();
   const cid = e.notification.data && e.notification.data.cid, vid = e.notification.data && e.notification.data.v;
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs => {
