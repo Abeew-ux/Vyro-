@@ -1344,7 +1344,7 @@ function dayLabel(d){const n=new Date(),y=new Date(n);y.setDate(n.getDate()-1);r
 function setStatus(){
  if(!cur)return;
  const bl=cur.type!=='group'&&blocks.has(cur.uid);
- const t=bl?'Contact bloqué':typing?(cur.type==='group'&&typing!==true?typing+' écrit…':'écrit…'):cur.ttl?'⏱ Messages éphémères · '+ttlLabel(cur.ttl):(cur.type==='group'?'Groupe':'');
+ const t=bl?'Contact bloqué':typing?(cur.type==='group'&&typing!==true?typing+' écrit…':'écrit…'):[(cur.type!=='group'&&typeof presText==='function'?presText(cur):''),cur.ttl?'⏱ '+ttlLabel(cur.ttl):''].filter(Boolean).join(' · ')||(cur.type==='group'?'Groupe':'');
  const e=$('#tSt');e.textContent=t;e.classList.toggle('typ',!!typing);
  $('#tCallA').hidden=$('#tCallV').hidden=cur.type==='group';
 }
@@ -1352,7 +1352,7 @@ async function openThread(id){
  cur=chats.find(c=>c.id===id);if(!cur)return;
  cur.unread=0;cur.msgs=[];cur.reacts={};cur.reply=null;names={};peerRead=0;typing=null;stick=true;
  $('#stkp').classList.remove('on');$('#tMsgs').innerHTML='';
- $('#tAv').innerHTML=av(cur,44);$('#tName').textContent=cur.name;setStatus();setReply(null);
+ $('#tAv').innerHTML=av(cur,44);$('#tName').textContent=cur.name;setStatus();if(typeof refreshPres==='function')refreshPres();setReply(null);
  $('#tIn').value='';syncSend();
  renderMsgs();renderChats();push('thread');joinTyping(id);
  const mp=sb.from('vyro_members').select('user_id,last_read_at,profile:vyro_profiles!vyro_members_user_id_fkey(username,display_name)').eq('conversation_id',id);
@@ -1854,7 +1854,7 @@ function renderPrivacy(){
  ${row('at','Qui peut commenter vos vidéos ?','',sel('priv','comments',p.comments))}
  ${row('download','Autoriser le téléchargement de mes vidéos','',sw('priv','download',p.download))}</div>
  <div class="sec">${I('bars')}Visibilité</div><div class="card">
- ${row('heart','Afficher mon activité','(likes, vues…)',sw('priv','activity',p.activity))}
+ ${row('heart','Statut « en ligne » et activité','Si désactivé, tu ne vois pas celui des autres non plus.',sw('priv','activity',p.activity))}
  ${row('cal','Afficher ma date d’inscription','',sw('priv','joined',p.joined))}</div>
  <div class="sec">${I('ban')}Sécurité</div><div class="card"><div class="row sm" data-go="blocked"><span class="ri">${I('ban')}</span><div class="rt"><b>Comptes bloqués</b><small>${blocks.size?blocks.size+' compte'+(blocks.size>1?'s':''):'Aucun'}</small></div><span class="ico mut">${I('chev')}</span></div></div>`;
 }
@@ -1879,6 +1879,7 @@ document.addEventListener('change',e=>{
  const k=el.dataset.k,v=el.type==='checkbox'?el.checked:el.value;
  if(k==='all'){NK.forEach(x=>S.notif[x]=v);renderNotifs()}else{S[sc][k]=v;if(sc==='notif')renderNotifs()}
  saveRemote();
+ if(sc==='priv'&&k==='activity'&&typeof pingNow==='function')pingNow(true);
 });
 function sheetTheme(){
  const o=(v,ic,tx)=>`<div class="opt" data-th="${v}">${I(ic)}<span>${tx}</span>${S.theme===v?I('check'):''}</div>`;
@@ -2736,7 +2737,7 @@ function openViewer(list,idx){
 /* ---------- recherche ---------- */
 const sS={m:'v',seq:0,tm:0,tags:null,list:[]};
 function openSearch(q){
- sS.m='v';$$('#sSeg button').forEach(b=>b.classList.toggle('cur',b.dataset.m==='v'));
+ sS.m='v';sS.disc=null;$$('#sSeg button').forEach(b=>b.classList.toggle('cur',b.dataset.m==='v'));
  $('#sIn').value=q||'';$('#sClr').hidden=!q;
  if(curScreen!=='search')push('search');
  runSearch();
@@ -2746,14 +2747,19 @@ async function runSearch(){
  const q=$('#sIn').value.trim(),box=$('#sRes'),my=++sS.seq;
  $('#sClr').hidden=!q;
  if(!q){
-  if(!sS.tags){
+  if(!sS.disc){
    box.innerHTML='<p class="empty">Chargement…</p>';
-   const {data}=await sb.rpc('vyro_search_videos',{p_q:'#',p_limit:60});const c={};
-   (data||[]).forEach(v=>String(v.tags||'').split(/\s+/).filter(x=>x.charAt(0)==='#'&&x.length>1).forEach(t=>{const k=t.toLowerCase();c[k]=(c[k]||0)+1}));
-   sS.tags=Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,18);
+   const [dv,vs]=await Promise.all([
+    sb.rpc('vyro_discover'),
+    sb.from('vyro_videos').select(VCOLS).order('likes_count',{ascending:false}).order('created_at',{ascending:false}).limit(18)]);
+   sS.disc={tags:(dv.data&&dv.data.tags)||[],creators:((dv.data&&dv.data.creators)||[]).filter(u=>!blocks.has(u.id)),vids:(vs.data||[]).map(mapPost).filter(p=>!blocks.has(p.uid))};
   }
   if(my!==sS.seq)return;
-  box.innerHTML=`<div class="sec sm">${I('hash')}Tendances</div><div class="tagcloud">${sS.tags.map(([t,n])=>`<button type="button" class="tagc" data-t="${esc(t)}">${esc(t)}<em>${n}</em></button>`).join('')||'<p class="empty">Aucun hashtag pour l’instant.<br>Ajoute des #hashtags à tes vidéos !</p>'}</div>`;
+  const d=sS.disc;sS.list=d.vids;
+  const tg=d.tags.length?`<div class="sec sm">${I('hash')}Hashtags tendance</div><div class="tagcloud">${d.tags.map(t=>`<button type="button" class="tagc" data-t="#${esc(t.tag)}">#${esc(t.tag)}<em>${t.n}</em></button>`).join('')}</div>`:'';
+  const cr=d.creators.length?`<div class="sec sm">${I('user')}Créateurs à suivre</div>${d.creators.map(u=>`<div class="urow" data-u="${u.id}">${av({name:u.display_name||u.username,h:hue(u.username),uid:u.id,avatar:u.avatar_url},46)}<div><b>${esc(u.display_name||u.username)}</b><small>@${esc(u.username)} · ${u.followers} abonné${u.followers>1?'s':''}</small></div><button type="button" class="btn-o sm" data-fol="${u.id}" data-n="${esc(u.username)}">${following.has(u.id)?'Abonné':'Suivre'}</button></div>`).join('')}`:'';
+  const vd=d.vids.length?`<div class="sec sm">${I('heart')}Vidéos populaires</div><div class="grid">${gridHTML(d.vids,'')}</div>`:'';
+  box.innerHTML=(tg+cr+vd)||`<div class="empty big"><p>Rien à découvrir pour l’instant. Publie la première vidéo !</p></div>`;
   return;
  }
  if(sS.m==='v'){
@@ -2774,7 +2780,9 @@ $('#sIn').addEventListener('input',()=>{clearTimeout(sS.tm);sS.tm=setTimeout(run
 $('#sIn').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();clearTimeout(sS.tm);runSearch();$('#sIn').blur()}});
 $('#sClr').onclick=()=>{$('#sIn').value='';runSearch();$('#sIn').focus()};
 $('#sSeg').onclick=e=>{const b=e.target.closest('[data-m]');if(!b)return;sS.m=b.dataset.m;$$('#sSeg button').forEach(x=>x.classList.toggle('cur',x===b));runSearch()};
-$('#sRes').onclick=e=>{
+$('#sRes').onclick=async e=>{
+ const fb=e.target.closest('[data-fol]');
+ if(fb){const id=fb.dataset.fol;await toggleFollow({uid:id,user:fb.dataset.n});fb.textContent=following.has(id)?'Abonné':'Suivre';return}
  const t=e.target.closest('[data-t]');if(t){$('#sIn').value=t.dataset.t;runSearch();return}
  const th=e.target.closest('.th');if(th){openViewer(sS.list,+th.dataset.i);return}
  const u=e.target.closest('[data-u]');if(u)openProfile(u.dataset.u);
@@ -3042,12 +3050,12 @@ $('#pinBar').onclick=e=>{
 
 /* ---------- recherche dans la discussion ---------- */
 let srchHits=[],srchI=0;
-function openSearch(){
+function openThreadSearch(){
  if(!cur)return;
  $('#srchBar').hidden=false;$('#srchQ').value='';srchHits=[];$('#srchN').textContent='0/0';$('#srchQ').focus();
 }
-function closeSearch(){$('#srchBar').hidden=true;srchHits=[];$$('#tMsgs .b.hit').forEach(x=>x.classList.remove('hit'))}
-function runSearch(){
+function closeThreadSearch(){$('#srchBar').hidden=true;srchHits=[];$$('#tMsgs .b.hit').forEach(x=>x.classList.remove('hit'))}
+function runThreadSearch(){
  const q=$('#srchQ').value.trim().toLowerCase();
  if(!cur||q.length<2){srchHits=[];$('#srchN').textContent='0/0';return}
  srchHits=visibleMsgs().filter(m=>!isCtl(m.body)&&!SYS_RE.test(m.body)&&!CALL_RE.test(m.body)&&!parseStk(m.body)&&!MED_RE.test(m.body)&&String(m.body).toLowerCase().includes(q)).map(m=>String(m.id));
@@ -3058,10 +3066,10 @@ function showHit(){
  $$('#tMsgs .b.hit').forEach(x=>x.classList.remove('hit'));
  if(srchHits.length){const el=$('#tMsgs').querySelector('.b[data-id="'+srchHits[srchI]+'"]');if(el){el.classList.add('hit');el.scrollIntoView({block:'center',behavior:'smooth'})}}
 }
-$('#srchQ').oninput=runSearch;
+$('#srchQ').oninput=runThreadSearch;
 $('#srchUp').onclick=()=>{if(!srchHits.length)return;srchI=(srchI-1+srchHits.length)%srchHits.length;showHit()};
 $('#srchDn').onclick=()=>{if(!srchHits.length)return;srchI=(srchI+1)%srchHits.length;showHit()};
-$('#srchX').onclick=closeSearch;
+$('#srchX').onclick=closeThreadSearch;
 $('#srchQ').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#srchDn').click()}};
 
 /* =====================================================================
@@ -3076,9 +3084,10 @@ window.addEventListener('appinstalled',()=>{instPrompt=null;toast('VYRO est inst
 function initExtras(){
  if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){
   navigator.serviceWorker.register('sw.js').then(r=>{swReg=r;pushEnable()}).catch(()=>{});
-  navigator.serviceWorker.addEventListener('message',ev=>{const cid=ev.data&&ev.data.open;if(cid){const c=chats.find(x=>x.id===cid);if(c)openThread(cid)}});
+  navigator.serviceWorker.addEventListener('message',ev=>{const cid=ev.data&&ev.data.open;if(cid){const c=chats.find(x=>x.id===cid);if(c)openThread(cid)}const vv=ev.data&&ev.data.video;if(vv&&typeof openSharedVideo==='function')openSharedVideo(vv)});
  }
  initCalls();
+ pingNow(true);
  renderNotifs();
  setTimeout(notifBar,1500);
 }
@@ -3188,7 +3197,7 @@ $('#tMenu').onclick=()=>{
   dm?(bl?['ban','Débloquer ce contact','unb']:['ban','Bloquer ce contact','blk','dng']):null,dm?['flag','Signaler ce contact','rep','dng']:null].filter(Boolean);
  const sh=openSheet('Options',rows.map(([i,t,a,c])=>`<div class="opt ${c||''}" data-act="${a}">${I(i)}<span>${esc(t)}</span></div>`).join(''));
  sh.onclick=e=>{const o=e.target.closest('[data-act]');if(!o)return;const a=o.dataset.act;closeSheet();
-  if(a==='srch')setTimeout(openSearch,200);else if(a==='prof')openProfile(cur.uid);else if(a==='ttl')setTimeout(ttlSheet,260);
+  if(a==='srch')setTimeout(openThreadSearch,200);else if(a==='prof')openProfile(cur.uid);else if(a==='ttl')setTimeout(ttlSheet,260);
   else if(a==='blk')blockUser(cur.uid,cur.name);else if(a==='unb')unblockUser(cur.uid,cur.name);else if(a==='rep')reportSheet('user',cur.uid,'ce contact')};
 };
 function ttlSheet(){
@@ -3265,6 +3274,37 @@ function stopVoice(send){
 $('#tMic').onclick=startVoice;
 $('#tRecX').onclick=()=>stopVoice(false);
 $('#tRecOk').onclick=()=>stopVoice(true);
+
+
+/* ---------- présence : « en ligne » / « vu à … » ---------- */
+const PRES={},PRES_AT={};
+function pingNow(force){
+ if(typeof me==='undefined'||!me||(!force&&document.hidden))return;
+ sb.rpc('vyro_ping',{p_show:!(S.priv&&S.priv.activity===false)}).then(()=>{},()=>{});
+}
+setInterval(pingNow,60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)pingNow(true)});
+function presText(c){
+ if(!c||c.type==='group'||!c.uid)return '';
+ const t=PRES[c.uid];
+ if(!t)return '';
+ const d=new Date(t),now=new Date(),diff=Date.now()-d.getTime();
+ if(diff<100000)return '● en ligne';
+ const hm=d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+ if(d.toDateString()===now.toDateString())return 'vu à '+hm;
+ const y=new Date(now);y.setDate(y.getDate()-1);
+ if(d.toDateString()===y.toDateString())return 'vu hier à '+hm;
+ return 'vu le '+d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
+}
+async function refreshPres(){
+ if(!cur||cur.type==='group'||!cur.uid)return;
+ const uid=cur.uid;PRES_AT[uid]=Date.now();
+ const {data}=await sb.rpc('vyro_presence',{p_ids:[uid]});
+ const r=(data||[])[0];
+ if(r)PRES[uid]=r.last_seen;else delete PRES[uid];
+ if(cur&&cur.uid===uid)setStatus();
+}
+setInterval(()=>{if(cur&&curScreen==='thread'&&!document.hidden)refreshPres()},25000);
 
 /* =====================================================================
    VYRO v3 — appels audio / vidéo (WebRTC)

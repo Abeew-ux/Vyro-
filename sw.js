@@ -1,5 +1,5 @@
 /* VYRO — service worker : démarrage rapide, hors-ligne de base, clic sur une notification */
-const V = 'vyro-v4';
+const V = 'vyro-v5';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));
@@ -33,15 +33,15 @@ self.addEventListener('push', e => {
       icon: 'icon-192.png', badge: 'icon-192.png',
       vibrate: d.t === 'call' ? [400, 200, 400, 200, 400] : [120, 60, 120],
       requireInteraction: d.t === 'call',
-      data: { cid: d.cid || null, t: d.t || 'msg' }
+      data: { cid: d.cid || null, v: d.v || null, t: d.t || 'msg' }
     });
   })());
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const cid = e.notification.data && e.notification.data.cid;
+  const cid = e.notification.data && e.notification.data.cid, vid = e.notification.data && e.notification.data.v;
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs => {
-    if (cs.length) { cs[0].focus(); if (cid) cs[0].postMessage({ open: cid }); return; }
-    return self.clients.openWindow(cid ? './?open=' + encodeURIComponent(cid) : './');
+    if (cs.length) { cs[0].focus(); if (cid) cs[0].postMessage({ open: cid }); else if (vid) cs[0].postMessage({ video: vid }); return; }
+    return self.clients.openWindow(cid ? './?open=' + encodeURIComponent(cid) : vid ? './?v=' + encodeURIComponent(vid) : './');
   }));
 });
