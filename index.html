@@ -669,8 +669,63 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
 @media (hover:none){
  *,*::before,*::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
 }
-.chat{content-visibility:auto;contain-intrinsic-size:auto 78px}
 .scroll,#tMsgs{-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
+/* VYRO Plus */
+#fxc{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;display:none}
+#fxc.on{display:block}
+.plhero{text-align:center;padding:10px 6px 4px}
+.plcrown{width:76px;height:76px;margin:0 auto 6px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 30% 25%,#fde68a,#f59e0b);box-shadow:0 0 36px rgba(251,191,36,.55);animation:crwp 2.6s ease-in-out infinite}
+.plcrown .ic{width:40px;height:40px;color:#7c2d12}
+@keyframes crwp{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+.plhero h2{font-size:30px;margin:6px 0 4px;font-family:var(--fh)}
+.plhero h2 span{background:linear-gradient(90deg,#fde68a,#f59e0b);-webkit-background-clip:text;background-clip:text;color:transparent}
+.plhero p{color:var(--muted);font-size:15px;line-height:1.45;margin:0 8px}
+.plcta{margin:16px 0 6px;display:grid;gap:10px}
+.plperks{display:grid;gap:8px;margin:14px 0 6px}
+.plperks div{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
+.plperks span{font-size:24px}
+.plperks p{margin:0;font-size:14.5px;line-height:1.35}
+.plnote{font-size:13px;text-align:center;margin:6px 0 0}
+.fxg{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.fxt,.frt{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px;border-radius:16px;background:var(--card);border:1.5px solid var(--line);color:var(--text)}
+.fxt .e{font-size:30px}
+.fxt b,.frt b{font-size:13px;font-weight:600;text-align:center}
+.fxt.cur,.frt.cur{border-color:hsl(calc(271 + var(--hs)) 91% 70%);box-shadow:0 0 18px hsla(calc(271 + var(--hs)) 91% 65% / .45)}
+.lk{position:absolute;top:5px;right:6px;font-size:12px;font-style:normal;opacity:.9}
+.frg{display:grid;grid-template-columns:repeat(3,1fr);gap:16px 10px;padding-top:8px}
+.frno{padding:16px 0 12px}
+.fxt:active,.frt:active{transform:scale(.96)}
+/* cadres de photo animés */
+.av .frm,.pav .frm{position:absolute;inset:0;pointer-events:none;z-index:2}
+.frm .rg{position:absolute;inset:-7%;border-radius:50%;display:block}
+.frm .rg::before{content:"";position:absolute;inset:0;border-radius:50%;-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3.5px),#000 calc(100% - 3px));mask:radial-gradient(farthest-side,transparent calc(100% - 3.5px),#000 calc(100% - 3px))}
+.frm .dc{position:absolute;left:-34%;top:-34%;width:168%;height:168%;overflow:visible}
+@keyframes frs{to{transform:rotate(360deg)}}
+@keyframes frp{0%,100%{opacity:.75;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+.fm-neon .rg::before{background:conic-gradient(#f0abfc,#a855f7,#22d3ee,#f0abfc);animation:frs 2.4s linear infinite;filter:drop-shadow(0 0 4px #c084fc)}
+.fm-aurora .rg::before{background:conic-gradient(#34d399,#22d3ee,#818cf8,#f472b6,#34d399);animation:frs 6s linear infinite}
+.fm-gold .rg::before{background:conic-gradient(#fde68a,#f59e0b,#fff7d6,#d97706,#fde68a);animation:frs 7s linear infinite}
+.fm-wings .rg::before{background:linear-gradient(135deg,#fff,#e9d5ff 50%,#fde68a);animation:frp 3s ease-in-out infinite}
+.fm-roses .rg::before{background:conic-gradient(#fb7185,#be123c,#f9a8d4,#fb7185);animation:frs 8s linear infinite}
+.fm-butterflies .rg::before{background:conic-gradient(#22d3ee,#a78bfa,#f472b6,#22d3ee);animation:frs 5s linear infinite}
+.fm-stars .rg::before{background:conic-gradient(#fff,#67e8f9,#a78bfa,#fff);animation:frs 4s linear infinite}
+.fm-hearts .rg::before{background:linear-gradient(135deg,#f472b6,#fb7185);animation:frp 1.6s ease-in-out infinite}
+.fm-gold .crw{animation:frp 2.4s ease-in-out infinite;transform-origin:50px 15px}
+.wg{transform-origin:25px 52px;animation:wfl 1.8s ease-in-out infinite}
+@keyframes wfl{0%,100%{transform:rotate(0)}50%{transform:rotate(-9deg)}}
+.orb{transform-origin:50px 50px;animation:frs 14s linear infinite}
+.orb2{transform-origin:50px 50px;animation:frs 9s linear infinite reverse}
+.bf{animation:bfl .38s ease-in-out infinite alternate}
+@keyframes bfl{from{transform:scaleX(1)}to{transform:scaleX(.3)}}
+.tw{transform-box:fill-box;transform-origin:center;animation:twk 1.8s ease-in-out infinite}
+@keyframes twk{0%,100%{opacity:.25;transform:scale(.5)}50%{opacity:1;transform:scale(1.15)}}
+.ht{animation:hrt 2.7s ease-in infinite;opacity:0}
+@keyframes hrt{0%{opacity:0;transform:translateY(6px) scale(.5)}30%{opacity:1}100%{opacity:0;transform:translateY(-14px) scale(1.2)}}
+.phead .pav:has(.frm){margin:10px 12px 10px 22px}
+.chat .frm .dc,.urow .frm .dc,#tAv .frm .dc{left:-24%;top:-24%;width:148%;height:148%}
+.chat:has(.frm) .av{margin:0 6px 0 4px}
+#tAv .av:has(.frm){margin:0 6px}
+@media (prefers-reduced-motion:reduce){.frm *,.plcrown{animation:none!important}}
 #splash{position:absolute;inset:0;z-index:200;display:grid;place-items:center;background:radial-gradient(60% 45% at 50% 40%,hsl(calc(272 + var(--hs)) 70% 22%),#06020d 72%);transition:opacity .45s,visibility .45s}
 #splash.out{opacity:0;visibility:hidden}
 #splash .spl{display:flex;flex-direction:column;align-items:center;gap:14px;animation:splin .6s cubic-bezier(.2,.9,.3,1.2) both}
@@ -835,6 +890,12 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
  <div class="scroll" id="ncRes"></div>
 </section>
 
+<!-- VYRO PLUS -->
+<section class="screen" id="s-plus">
+ <div class="top"><button class="ib bd" data-go="back" aria-label="Retour"><span class="ico" data-i="back"></span></button><h1>VYRO Plus</h1><span class="ico" data-i="crown" data-fill style="color:#fbbf24;width:44px;justify-content:center"></span></div>
+ <div class="scroll" id="plBody"></div>
+</section>
+
 <!-- USER -->
 <section class="screen" id="s-user">
  <div class="top"><button class="ib bd" data-go="back" aria-label="Retour"><span class="ico" data-i="back"></span></button><h1 id="uTitle"></h1><button class="ib bd" id="uMore" aria-label="Options"><span class="ico" data-i="more"></span></button></div>
@@ -872,7 +933,7 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
   <div class="me"><div class="pav"><span data-ini></span></div>
    <div style="min-width:0"><div class="nm"><span data-name></span></div><div class="muted" data-handle></div><div class="bio1" data-bio1></div></div>
    <button class="btn-o" data-edit><span class="ico" data-i="pencil"></span>Modifier</button></div>
-  <div class="prem" data-go="soon"><span class="ico" data-i="crown" data-fill data-cls="cr"></span><div class="rt"><b>Passer à VYRO Premium</b><small>Débloquez plus de fonctionnalités !</small></div><span class="ico mut" data-i="chev"></span></div>
+  <div class="prem" data-go="plus"><span class="ico" data-i="crown" data-fill data-cls="cr"></span><div class="rt"><b>VYRO Plus</b><small>Effets animés, cadres de photo et plus !</small></div><span class="ico mut" data-i="chev"></span></div>
   <div class="sec"><span class="ico" data-i="user"></span>Compte</div>
   <div class="card">
    <div class="row" data-go="edit"><span class="ri" data-i="user"></span><div class="rt"><b>Informations du compte</b><small>Nom, pseudo, bio…</small></div><span class="ico mut" data-i="chev"></span></div>
@@ -906,6 +967,7 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
  <div class="scroll" id="notifBody"></div>
 </section>
 
+<canvas id="fxc" aria-hidden="true"></canvas>
 <nav id="nav">
  <button data-t="chat" class="cur"><span class="ico" data-i="chat"></span>Chat<i class="nb" id="nbChat" hidden></i></button>
  <button data-t="videos"><span class="ico" data-i="play"></span>Vidéos</button>
@@ -986,7 +1048,7 @@ $$('[data-logo]').forEach(el=>el.innerHTML=logo(+el.dataset.logo));
 
 /* ---------- navigation ---------- */
 let stack=['auth'],curScreen='auth';
-const TABOF={newc:'chat',story:'chat',cam:'chat',chat:'chat',thread:'chat',videos:'videos',search:'videos',user:'videos',profile:'profile',settings:'profile',privacy:'profile',notifs:'profile'};
+const TABOF={plus:'profile',newc:'chat',story:'chat',cam:'chat',chat:'chat',thread:'chat',videos:'videos',search:'videos',user:'videos',profile:'profile',settings:'profile',privacy:'profile',notifs:'profile'};
 const NONAV=['thread','auth','cam','story','search','user','newc'];
 function show(n){
  if(n!=='cam'&&camOn)stopCam();
@@ -1357,7 +1419,8 @@ function openFromUrl(){
 }
 /* ---------- chat : liste ---------- */
 const aurl=(uid,a)=>MEDIA_URL+'/avatar/'+uid+'?t='+encodeURIComponent(tok)+'&v='+encodeURIComponent(String(a).slice(-10));
-const av=(c,size=58)=>`<div class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size*.4)}px;background:linear-gradient(135deg,hsl(${c.h} 80% 62%),hsl(${(c.h+50)%360} 70% 30%))">${esc(c.type==='group'?'👥':(c.name||'?')[0].toUpperCase())}${(c.avatar&&c.uid&&MEDIA_URL)?`<img src="${aurl(c.uid,c.avatar)}" alt="" onerror="this.remove()">`:''}</div>`;
+const FRM={};
+const av=(c,size=58,fr)=>`<div class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size*.4)}px;background:linear-gradient(135deg,hsl(${c.h} 80% 62%),hsl(${(c.h+50)%360} 70% 30%))">${esc(c.type==='group'?'👥':(c.name||'?')[0].toUpperCase())}${(c.avatar&&c.uid&&MEDIA_URL)?`<img src="${aurl(c.uid,c.avatar)}" alt="" onerror="this.remove()">`:''}${typeof frameMk==='function'?frameMk(fr===undefined?(c.uid&&FRM[c.uid]):fr):''}</div>`;
 let purged=false;
 async function loadChats(){
  const {data,error}=await sb.rpc('vyro_my_chats');
@@ -1961,6 +2024,7 @@ function go(w){
  else if(w==='appearance')sheetTheme();
  else if(w==='lang')sheetLang();
  else if(w==='edit')editProfile();
+ else if(w==='plus')openPlus();
  else if(w==='logout')logout();
  else if(w==='back')back();
  else toast('Bientôt disponible 🚧');
@@ -3744,6 +3808,229 @@ $('#svLike').onclick=async()=>{
 };
 const _ps=playStory;
 playStory=function(){_ps.apply(this,arguments);svRepUpd()};
+
+/* =====================================================================
+   VYRO Plus : cadres de photo animés + effets d'écran
+   ===================================================================== */
+let PLUS={active:false,until:null,trial_used:false,frame:null};
+const FRM_AT={};
+const tx=(x,y,a)=>`translate(${x} ${y})${a?` rotate(${a})`:''}`;
+const ptl=(r,n,f)=>Array.from({length:n},(_,i)=>{const a=i*360/n;const rad=a*Math.PI/180;return f(50+r*Math.sin(rad),50-r*Math.cos(rad),a,i)}).join('');
+const BFW='M0 0C-2-6-8-8-9-3C-9 0-4 2 0 0M0 0C-6 1-9 5-5 7C-2 7 0 3 0 0';
+const FRAMES=[
+ {id:'neon',name:'Néon',dec:''},
+ {id:'aurora',name:'Aurore',dec:''},
+ {id:'gold',name:'Royal',dec:'<g class="crw"><path d="M35 23 38 9 45 17 50 5 55 17 62 9 65 23Z" fill="#fbbf24" stroke="#b45309" stroke-width="1" stroke-linejoin="round"/><circle cx="38" cy="9" r="1.7" fill="#fff"/><circle cx="50" cy="5" r="2" fill="#f472b6"/><circle cx="62" cy="9" r="1.7" fill="#fff"/><path d="M36 21H64" stroke="#fde68a" stroke-width="1.2"/></g>'},
+ {id:'wings',name:'Ailes',dec:(()=>{const w='<g class="wg"><path d="M24 52C9 40 1 25 4 12 13 19 22 26 27 38 21 29 14 26 8 23 12 36 21 45 29 52Z" fill="#fff"/><path d="M24 58C11 53 4 48 1 41 10 43 19 47 26 52Z" fill="#e9d5ff"/><path d="M20 46C14 40 11 35 9 29" stroke="#c4b5fd" stroke-width=".8" fill="none"/></g>';return w+'<g transform="translate(100 0) scale(-1 1)">'+w+'</g>'})()},
+ {id:'roses',name:'Roses',dec:'<g class="orb">'+ptl(37,8,(x,y,a,i)=>i%3===0?`<g transform="${tx(x,y)}"><circle r="3.6" fill="#be123c"/><circle r="2.3" fill="#fb7185"/><circle r="1" fill="#fecdd3"/><path d="M0 3.4C3 4 5 6 5 8 2 7 0 5 0 3.4Z" fill="#16a34a"/></g>`:`<path transform="${tx(x,y,a+90)}" d="M0-3.4C2.4-3 3.2-.8 0 3.4-3.2-.8-2.4-3 0-3.4Z" fill="${i%2?'#fb7185':'#f9a8d4'}"/>`)+'</g>'},
+ {id:'butterflies',name:'Papillons',dec:'<g class="orb2">'+[[40,'#22d3ee'],[160,'#f472b6'],[280,'#a78bfa']].map(([a,c])=>{const r=a*Math.PI/180,x=50+37*Math.sin(r),y=50-37*Math.cos(r);return `<g transform="${tx(x,y,a+90)}"><g class="bf" style="animation-delay:-${a%7/10}s"><path d="${BFW}" fill="${c}"/><path d="${BFW}" fill="${c}" transform="scale(-1 1)"/></g></g>`}).join('')+'</g>'},
+ {id:'stars',name:'Étoiles',dec:[[18,20,1],[84,26,.7],[12,70,.8],[88,76,1],[50,3,.7]].map(([x,y,s],i)=>`<path class="tw" style="animation-delay:-${i*.55}s" transform="${tx(x,y)} scale(${s})" d="M0-6 1.4-1.4 6 0 1.4 1.4 0 6-1.4 1.4-6 0-1.4-1.4Z" fill="${i%2?'#fff':'#fde047'}"/>`).join('')},
+ {id:'hearts',name:'Cœurs',dec:[[22,40],[80,36],[50,16]].map(([x,y],i)=>`<path class="ht" style="animation-delay:-${i*.9}s" transform="${tx(x,y)}" d="M0 3C-6-1-4-6 0-3 4-6 6-1 0 3Z" fill="#fb7185"/>`).join('')}
+];
+function frameMk(id){
+ const f=FRAMES.find(x=>x.id===id);if(!f)return '';
+ return `<i class="frm fm-${f.id}"><span class="rg"></span>${f.dec?`<svg class="dc" viewBox="0 0 100 100" aria-hidden="true">${f.dec}</svg>`:''}</i>`;
+}
+async function frameSync(ids){
+ if(!me||!sb)return;
+ const need=[...new Set(ids)].filter(i=>i&&i!==me.id&&(!FRM_AT[i]||Date.now()-FRM_AT[i]>300000)).slice(0,80);
+ if(!need.length)return;
+ need.forEach(i=>FRM_AT[i]=Date.now());
+ try{
+  const {data,error}=await sb.rpc('vyro_frames',{p_ids:need});
+  if(error)return;
+  let ch=false;const got={};
+  (data||[]).forEach(r=>{got[r.id]=r.frame});
+  need.forEach(i=>{const n=got[i]||undefined;if(FRM[i]!==n){ch=true;if(n)FRM[i]=n;else delete FRM[i]}});
+  if(ch){renderChats();if(cur&&cur.uid)$('#tAv').innerHTML=av(cur,44);if(curScreen==='chat')renderStories()}
+ }catch(e){}
+}
+function decorPavs(){
+ if(!me)return;
+ document.querySelectorAll('#s-profile .pav,#s-settings .pav').forEach(p=>{
+  const o=p.querySelector(':scope>.frm');if(o)o.remove();
+  if(PLUS.active&&FRM[me.id])p.insertAdjacentHTML('beforeend',frameMk(FRM[me.id]));
+ });
+}
+async function plusInit(){
+ try{
+  const {data,error}=await sb.rpc('vyro_plus_me');
+  if(error||!data)return;
+  PLUS=Object.assign(PLUS,data);
+  if(PLUS.active&&PLUS.frame)FRM[me.id]=PLUS.frame;else delete FRM[me.id];
+  decorPavs();
+  const saved=lsGet('vyro_fx');
+  if(PLUS.active&&saved)fxApply(saved,true);else fxApply('',true);
+  frameSync(chats.filter(c=>c.uid).map(c=>c.uid));
+ }catch(e){}
+}
+function lsGet(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
+function lsSet(k,v){try{v?localStorage.setItem(k,v):localStorage.removeItem(k)}catch(e){}}
+const _en=enter;
+enter=async function(){await _en.apply(this,arguments);plusInit()};
+const _lc=loadChats;
+loadChats=async function(){const r=await _lc.apply(this,arguments);frameSync(chats.filter(c=>c.uid).map(c=>c.uid));return r};
+const _ru=renderUser;
+renderUser=function(){
+ _ru.apply(this,arguments);
+ const u=userCur&&userCur.u;if(!u)return;
+ const put=()=>{const p=document.querySelector('#uBody .pav');if(!p)return;const o=p.querySelector(':scope>.frm');if(o)o.remove();if(FRM[u.id])p.insertAdjacentHTML('beforeend',frameMk(FRM[u.id]))};
+ put();
+ if(u.id!==me.id){FRM_AT[u.id]=0;frameSync([u.id]).then(put)}
+};
+
+/* ---------- moteur d'effets d'écran ---------- */
+const FXL=[['butterflies','Papillons','🦋'],['petals','Pétales de rose','🌹'],['doves','Colombes','🕊️'],['hearts','Cœurs','💜'],['fireflies','Lucioles','✨'],['stars','Étoiles filantes','🌠'],['bubbles','Bulles','🫧']];
+const FXS={name:'',raf:0,list:[],w:0,h:0,last:0,dpr:1,cv:null,cx:null,t:0,prevT:0,saved:''};
+const R=(a,b)=>a+Math.random()*(b-a);
+const FXP=['#f0abfc','#c084fc','#a78bfa','#67e8f9','#f9a8d4','#fde68a'];
+function fxSize(){
+ const cv=FXS.cv;if(!cv)return;
+ const w=cv.clientWidth||innerWidth,h=cv.clientHeight||innerHeight,d=Math.min(window.devicePixelRatio||1,1.5);
+ FXS.w=w;FXS.h=h;FXS.dpr=d;cv.width=Math.round(w*d);cv.height=Math.round(h*d);FXS.cx.setTransform(d,0,0,d,0,0);
+}
+function fxGlow(){
+ if(FXS.glow)return FXS.glow;
+ const c=document.createElement('canvas');c.width=c.height=48;const x=c.getContext('2d');
+ const g=x.createRadialGradient(24,24,0,24,24,24);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.25,'rgba(253,230,138,.85)');g.addColorStop(.6,'rgba(240,171,252,.25)');g.addColorStop(1,'rgba(240,171,252,0)');
+ x.fillStyle=g;x.fillRect(0,0,48,48);return FXS.glow=c;
+}
+function fxMake(t,init){
+ const {w,h}=FXS,s={t,ph:R(0,6.28),rot:0,a:1,col:FXP[Math.floor(R(0,FXP.length))]};
+ switch(t){
+  case 'butterflies':s.s=R(8,13);s.x=R(0,w);s.y=init?R(0,h):R(h*.3,h);s.th=R(0,6.28);s.sp=R(.5,.9);s.vph=R(.28,.42);break;
+  case 'petals':s.s=R(5,9);s.x=R(0,w);s.y=init?R(-20,h):-20;s.vy=R(.45,1.0);s.sw=R(.4,1.2);s.vr=R(-.03,.03);s.rot=R(0,6.28);s.col=['#fb7185','#f9a8d4','#e11d48','#fda4af'][Math.floor(R(0,4))];break;
+  case 'doves':s.dir=Math.random()<.5?1:-1;s.s=R(13,20);s.x=init?R(0,w):(s.dir>0?-40:w+40);s.y=R(h*.12,h*.7);s.vx=s.dir*R(.8,1.4);s.vph=R(.12,.18);s.wait=init?R(0,300):R(200,500);break;
+  case 'hearts':s.s=R(6,12);s.x=R(0,w);s.y=init?R(0,h):h+20;s.vy=R(.4,.9);s.sw=R(.3,.8);s.col=['#f472b6','#c084fc','#fb7185','#e879f9'][Math.floor(R(0,4))];break;
+  case 'fireflies':s.s=R(8,22);s.x=R(0,w);s.y=R(0,h);s.th=R(0,6.28);s.sp=R(.15,.4);s.vph=R(.02,.05);break;
+  case 'stars':s.tw=Math.random()<.7;if(s.tw){s.s=R(.8,1.8);s.x=R(0,w);s.y=R(0,h);s.vph=R(.03,.07)}else{s.life=0;s.x=R(w*.3,w);s.y=R(0,h*.4);s.len=R(70,130);s.vx=-R(5,8);s.vy=R(3,5);s.dead=1;s.wait=R(60,200)}break;
+  case 'bubbles':s.s=R(5,15);s.x=R(0,w);s.y=init?R(0,h):h+20;s.vy=R(.35,.8);s.sw=R(.3,.9);break;
+ }
+ return s;
+}
+const FXC={butterflies:7,petals:14,doves:3,hearts:11,fireflies:20,stars:26,bubbles:12};
+function fxDraw(c,s,T){
+ switch(s.t){
+  case 'butterflies':{
+   s.th+=R(-.07,.07);s.x+=Math.cos(s.th)*s.sp;s.y+=Math.sin(s.th)*s.sp-.15;s.ph+=s.vph;
+   const {w,h}=FXS;if(s.x<-30)s.x=w+20;if(s.x>w+30)s.x=-20;if(s.y<-30)s.y=h+20;if(s.y>h+30)s.y=-20;
+   const f=.2+.8*Math.abs(Math.cos(s.ph)),k=s.s;
+   c.save();c.translate(s.x,s.y);c.rotate(s.th+Math.PI/2);c.globalAlpha=.9;
+   for(const side of [-1,1]){c.save();c.scale(side*f,1);
+    c.fillStyle=s.col;c.beginPath();c.moveTo(0,0);c.bezierCurveTo(k*.2,-k*.95,k*1.15,-k*.85,k*.95,-k*.1);c.bezierCurveTo(k*.8,k*.1,k*.3,k*.1,0,0);c.fill();
+    c.fillStyle='#fff';c.globalAlpha=.55;c.beginPath();c.moveTo(0,k*.05);c.bezierCurveTo(k*.7,k*.1,k*.9,k*.8,k*.4,k*.85);c.bezierCurveTo(k*.1,k*.85,0,k*.4,0,k*.05);c.fill();c.globalAlpha=.9;c.restore()}
+   c.fillStyle='#1b0f33';c.beginPath();c.ellipse(0,0,k*.07,k*.4,0,0,6.3);c.fill();c.restore();break}
+  case 'petals':{
+   s.y+=s.vy;s.ph+=.03;s.x+=Math.sin(s.ph)*s.sw;s.rot+=s.vr;
+   if(s.y>FXS.h+20){Object.assign(s,fxMake('petals',false))}
+   const k=s.s;c.save();c.translate(s.x,s.y);c.rotate(s.rot);c.scale(Math.abs(Math.cos(s.ph*1.3))*.7+.3,1);c.fillStyle=s.col;c.globalAlpha=.85;
+   c.beginPath();c.moveTo(0,-k);c.bezierCurveTo(k*.95,-k*.6,k*.7,k*.7,0,k);c.bezierCurveTo(-k*.7,k*.7,-k*.95,-k*.6,0,-k);c.fill();c.restore();break}
+  case 'doves':{
+   if(s.wait>0){s.wait--;break}
+   s.x+=s.vx;s.ph+=s.vph;const y=s.y+Math.sin(s.ph*.5)*8;
+   if((s.dir>0&&s.x>FXS.w+50)||(s.dir<0&&s.x<-50)){Object.assign(s,fxMake('doves',false));break}
+   const k=s.s,fl=Math.sin(s.ph*3);
+   c.save();c.translate(s.x,y);c.scale(s.dir,1);c.globalAlpha=.92;c.fillStyle='#fff';
+   c.beginPath();c.ellipse(0,0,k*.9,k*.38,-.15,0,6.3);c.fill();
+   c.beginPath();c.arc(k*.85,-k*.22,k*.24,0,6.3);c.fill();
+   c.fillStyle='#fbbf24';c.beginPath();c.moveTo(k*1.07,-k*.25);c.lineTo(k*1.3,-k*.18);c.lineTo(k*1.07,-k*.12);c.fill();
+   c.fillStyle='#ede9fe';c.beginPath();c.moveTo(-k*.8,0);c.lineTo(-k*1.5,-k*.15);c.lineTo(-k*1.4,k*.2);c.fill();
+   c.fillStyle='#fff';c.save();c.translate(-k*.1,-k*.1);c.rotate(-.5+fl*.9);c.beginPath();c.moveTo(0,0);c.quadraticCurveTo(-k*.2,-k*1.3,-k*.9,-k*1.1);c.quadraticCurveTo(-k*.6,-k*.5,k*.4,-k*.05);c.fill();c.restore();
+   c.restore();break}
+  case 'hearts':{
+   s.y-=s.vy;s.ph+=.03;s.x+=Math.sin(s.ph)*s.sw;
+   if(s.y<-20){Object.assign(s,fxMake('hearts',false))}
+   const k=s.s;c.save();c.translate(s.x,s.y);c.globalAlpha=Math.max(.15,Math.min(.85,s.y/FXS.h+.15));c.fillStyle=s.col;
+   c.beginPath();c.moveTo(0,k*.35);c.bezierCurveTo(-k,-k*.35,-k*.45,-k,0,-k*.4);c.bezierCurveTo(k*.45,-k,k,-k*.35,0,k*.35);c.fill();c.restore();break}
+  case 'fireflies':{
+   s.th+=R(-.1,.1);s.x+=Math.cos(s.th)*s.sp;s.y+=Math.sin(s.th)*s.sp;s.ph+=s.vph;
+   const {w,h}=FXS;if(s.x<-20)s.x=w+10;if(s.x>w+20)s.x=-10;if(s.y<-20)s.y=h+10;if(s.y>h+20)s.y=-10;
+   c.globalAlpha=.25+.75*Math.abs(Math.sin(s.ph));c.drawImage(fxGlow(),s.x-s.s/2,s.y-s.s/2,s.s,s.s);break}
+  case 'stars':{
+   if(s.tw){s.ph+=s.vph;c.globalAlpha=.2+.7*Math.abs(Math.sin(s.ph));c.fillStyle='#fff';c.beginPath();c.arc(s.x,s.y,s.s,0,6.3);c.fill();break}
+   if(s.dead){if(--s.wait<=0){s.dead=0;s.life=0;s.x=R(FXS.w*.4,FXS.w+40);s.y=R(-10,FXS.h*.35)}break}
+   s.life++;s.x+=s.vx;s.y+=s.vy;
+   const g=c.createLinearGradient(s.x,s.y,s.x-s.vx*s.len/6,s.y-s.vy*s.len/6);g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(1,'rgba(192,132,252,0)');
+   c.globalAlpha=1;c.strokeStyle=g;c.lineWidth=2;c.lineCap='round';c.beginPath();c.moveTo(s.x,s.y);c.lineTo(s.x-s.vx*s.len/6,s.y-s.vy*s.len/6);c.stroke();
+   if(s.life>70||s.y>FXS.h||s.x<-60){s.dead=1;s.wait=R(80,260)}break}
+  case 'bubbles':{
+   s.y-=s.vy;s.ph+=.03;s.x+=Math.sin(s.ph)*s.sw;
+   if(s.y<-20){Object.assign(s,fxMake('bubbles',false))}
+   c.globalAlpha=.55;c.strokeStyle='rgba(216,180,254,.9)';c.lineWidth=1.3;c.beginPath();c.arc(s.x,s.y,s.s,0,6.3);c.stroke();
+   c.fillStyle='rgba(255,255,255,.6)';c.beginPath();c.arc(s.x-s.s*.35,s.y-s.s*.35,s.s*.18,0,6.3);c.fill();break}
+ }
+ c.globalAlpha=1;
+}
+function fxFrame(ts){
+ FXS.raf=0;
+ if(!FXS.name||document.hidden||!(curScreen==='chat'||curScreen==='plus')){const c=FXS.cx;if(c)c.clearRect(0,0,FXS.w,FXS.h);return}
+ FXS.raf=requestAnimationFrame(fxFrame);
+ if(ts-FXS.last<33)return;FXS.last=ts;
+ if(!FXS.w)fxSize();
+ const c=FXS.cx;c.clearRect(0,0,FXS.w,FXS.h);
+ for(const s of FXS.list)fxDraw(c,s,ts);
+}
+function fxKick(){if(FXS.name&&!FXS.raf&&!document.hidden&&(curScreen==='chat'||curScreen==='plus'))FXS.raf=requestAnimationFrame(fxFrame)}
+function fxApply(name,silent){
+ FXS.cv=FXS.cv||$('#fxc');if(!FXS.cv)return;
+ FXS.cx=FXS.cx||FXS.cv.getContext('2d');
+ FXS.name=name||'';clearTimeout(FXS.pt);
+ if(!FXS.name){FXS.list=[];if(FXS.raf){cancelAnimationFrame(FXS.raf);FXS.raf=0}FXS.cx.clearRect(0,0,FXS.w,FXS.h);FXS.cv.classList.remove('on');return}
+ fxSize();FXS.list=Array.from({length:FXC[name]||10},()=>fxMake(name,true));FXS.cv.classList.add('on');
+ if(FXS.raf)cancelAnimationFrame(FXS.raf);FXS.raf=0;fxKick();
+}
+setInterval(fxKick,700);
+window.addEventListener('resize',()=>{if(FXS.name){fxSize()}});
+function fxPreview(name){
+ const keep=PLUS.active?lsGet('vyro_fx'):'';
+ fxApply(name);clearTimeout(FXS.pt);
+ FXS.pt=setTimeout(()=>fxApply(keep),7000);
+}
+
+/* ---------- écran VYRO Plus ---------- */
+const PLUS_PERKS=[['🦋','Effets d’écran animés dans le Chat : papillons, roses, colombes…'],['🖼️','Cadres de photo animés, visibles par tous tes amis'],['👑','Badge VYRO Plus sur ton profil (bientôt)'],['🎨','Nouveaux effets et cadres ajoutés régulièrement']];
+function plusUntilTxt(){if(!PLUS.until)return '';return new Date(PLUS.until).toLocaleDateString('fr-FR',{day:'numeric',month:'long'})}
+function renderPlus(){
+ const act=PLUS.active,box=$('#plBody');if(!box)return;
+ const meL={name:me.display_name||me.username,h:hue(me.username||'x'),uid:me.id,avatar:me.avatar_url};
+ const curFx=act?lsGet('vyro_fx'):'';
+ const hero=`<div class="plhero"><div class="plcrown">${I('crown','fill cr')}</div><h2>VYRO <span>Plus</span></h2><p>${act?'Ton abonnement est actif jusqu’au '+esc(plusUntilTxt())+' ✨':'Rends ton VYRO unique : effets, cadres animés et plus encore.'}</p></div>`;
+ const cta=act?'':`<div class="plcta">${PLUS.trial_used?'':`<button type="button" class="cta" id="plTrial">${I('crown','fill')}Essayer 7 jours gratuits</button>`}<button type="button" class="cta alt" disabled style="opacity:.6">Payer avec ma monnaie VYRO · bientôt</button>${PLUS.trial_used?'<p class="muted" style="text-align:center;font-size:13px;margin-top:8px">Ton essai gratuit a déjà été utilisé.</p>':''}</div>`;
+ const perks=`<div class="plperks">${PLUS_PERKS.map(([e,t])=>`<div><span>${e}</span><p>${t}</p></div>`).join('')}</div>`;
+ const fx=`<div class="sec sm">${I('bars')}Effets d’écran (onglet Chat)</div><div class="fxg">
+  <button type="button" class="fxt ${!curFx?'cur':''}" data-fx=""><span class="e">🚫</span><b>Aucun</b></button>
+  ${FXL.map(([k,n,e])=>`<button type="button" class="fxt ${curFx===k?'cur':''}" data-fx="${k}"><span class="e">${e}</span><b>${n}</b>${act?'':'<i class="lk">🔒</i>'}</button>`).join('')}</div>${act?'':'<p class="muted plnote">Touche un effet pour voir un aperçu de 7 secondes.</p>'}`;
+ const fr=`<div class="sec sm">${I('user')}Cadre de photo</div><div class="frg">
+  <button type="button" class="frt ${!(act&&FRM[me.id])?'cur':''}" data-fr=""><div class="frno">${av(meL,56,'')}</div><b>Aucun</b></button>
+  ${FRAMES.map(f=>`<button type="button" class="frt ${act&&FRM[me.id]===f.id?'cur':''}" data-fr="${f.id}"><div class="frno">${av(meL,56,f.id)}</div><b>${f.name}</b>${act?'':'<i class="lk">🔒</i>'}</button>`).join('')}</div>`;
+ box.innerHTML=hero+cta+perks+fx+fr;
+}
+function openPlus(){
+ renderPlus();if(curScreen!=='plus')push('plus');
+ plusInit().then(()=>{if(curScreen==='plus')renderPlus()});
+}
+$('#plBody').onclick=async e=>{
+ const t=e.target.closest('#plTrial');
+ if(t){
+  t.disabled=true;
+  const {data,error}=await sb.rpc('vyro_plus_trial');
+  if(error){toast(/trial_used/.test(error.message||'')?'Essai gratuit déjà utilisé':'Impossible pour le moment');t.disabled=false;return}
+  PLUS=Object.assign(PLUS,data);toast('VYRO Plus activé pour 7 jours 🎉');fxPreview('butterflies');renderPlus();return}
+ const fx=e.target.closest('[data-fx]');
+ if(fx){
+  const k=fx.dataset.fx;
+  if(!PLUS.active){if(k){fxPreview(k);toast('Aperçu · active VYRO Plus pour le garder')}return}
+  lsSet('vyro_fx',k);fxApply(k);renderPlus();toast(k?'Effet activé ✨':'Effet désactivé');return}
+ const fr=e.target.closest('[data-fr]');
+ if(fr){
+  const k=fr.dataset.fr;
+  if(!PLUS.active){toast('Les cadres sont réservés à VYRO Plus 🔒');return}
+  const {data,error}=await sb.rpc('vyro_set_frame',{p_frame:k});
+  if(error){toast(/plus_required/.test(error.message||'')?'VYRO Plus requis':'Impossible pour le moment');return}
+  PLUS=Object.assign(PLUS,data);if(PLUS.frame)FRM[me.id]=PLUS.frame;else delete FRM[me.id];
+  decorPavs();renderChats();renderPlus();toast(k?'Cadre appliqué ✨':'Cadre retiré');
+ }
+};
 /*@@MOD-END*/
 /* ---------- démarrage ---------- */
 boot();
