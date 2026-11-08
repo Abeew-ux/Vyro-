@@ -713,7 +713,7 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
 <section class="screen" id="s-chat">
  <div class="top"><div class="logo"><span data-logo="40"></span><span>VYRO</span></div><span class="sp"></span>
   <button class="ib" id="bSearch" aria-label="Rechercher"><span class="ico" data-i="search"></span></button>
-  <button class="ib" data-go="cam" aria-label="Caméra"><span class="ico" data-i="camera"></span></button>
+  <button class="ib" data-go="cam" aria-label="Caméra" style="display:none" hidden><span class="ico" data-i="camera"></span></button>
   <button class="plus" id="bNew" aria-label="Nouvelle conversation" style="display:none" hidden><span class="ico" data-i="plus"></span></button></div>
  <div class="stories" id="stories"></div>
  <div class="sbar" hidden><span class="ico" data-i="search"></span><input id="q" placeholder="Rechercher une conversation…" autocomplete="off"></div>
@@ -749,7 +749,7 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
   <button class="cb" data-m="m" type="button" aria-label="Masques"><span class="ico" data-i="mask"></span></button>
   <button class="cb" data-m="s" type="button" aria-label="Stickers"><span class="ico" data-i="sticker"></span></button>
  </div>
- <button class="camgal" id="camGal" type="button" hidden aria-label="Galerie"><span class="gth"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg></span><small>Galerie</small></button><input id="camFile" type="file" accept="video/*" hidden><button class="camgal camdr" id="camDraft" type="button" hidden aria-label="Brouillons"><span class="gth"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><small id="camDrN">Brouillons</small></button><div class="cambot"><div class="camstrip" id="camStrip"></div>
+ <button class="camgal" id="camGal" type="button" hidden aria-label="Galerie"><span class="gth"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg></span><small>Galerie</small></button><input id="camFile" type="file" accept="image/*,video/*" hidden><button class="camgal camdr" id="camDraft" type="button" hidden aria-label="Brouillons"><span class="gth"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><small id="camDrN">Brouillons</small></button><div class="cambot"><div class="camstrip" id="camStrip"></div>
   <button class="shut" id="camShut" type="button" aria-label="Photo ou vidéo"><svg viewBox="0 0 84 84"><circle class="rg" cx="42" cy="42" r="38"/><circle class="pr" id="camPr" cx="42" cy="42" r="38" transform="rotate(-90 42 42)"/></svg><span></span></button>
   <p class="camtip">Appuie : photo · Maintiens : vidéo</p></div>
  <div class="camstkp" id="camStkP"><div class="stkt" id="camStkT"></div><div class="stkg" id="camStkG"></div></div>
@@ -2218,9 +2218,9 @@ function updHint(now){
 /* ---------- ouverture / fermeture ---------- */
 let postMode=false;
 function applyPost(){
- $('#camGal').hidden=!postMode;$('#pvPost').hidden=!postMode;$('#pvStory').hidden=postMode;
+ $('#camGal').hidden=false;$('#pvPost').hidden=!postMode;$('#pvStory').hidden=postMode;
  $('#camDraft').hidden=!postMode;$('#pvDraft').hidden=!postMode;if(postMode)updDraftBtn();
- $('.camtip').textContent=postMode?'Maintiens pour filmer · ou ouvre ta galerie':'Appuie : photo · Maintiens : vidéo';
+ $('.camtip').textContent=postMode?'Maintiens pour filmer · ou ouvre ta galerie':'Appuie : photo · Maintiens : vidéo · ou galerie';
 }
 function openCam(post){
  postMode=post===true;applyPost();
@@ -2232,12 +2232,27 @@ $('#camGal').onclick=()=>$('#camFile').click();
 $('#camFile').onchange=e=>{
  const f=e.target.files[0];e.target.value='';
  if(!f)return;
+ if(!postMode){storyFromFile(f);return}
  if(!String(f.type).startsWith('video/')){toast('Choisis une vidéo');return}
  if(f.size>MAX_VIDEO){toast('Vidéo trop lourde ('+(f.size/1048576).toFixed(1)+' Mo). Maximum : 20 Mo');return}
  const t=document.createElement('video'),u=URL.createObjectURL(f);let done=false;
  const go=d=>{if(done)return;done=true;URL.revokeObjectURL(u);goPublish(f,d)};
  t.preload='metadata';t.onloadedmetadata=()=>go(Math.round(t.duration)||0);t.onerror=()=>go(0);t.src=u;
 };
+async function storyFromFile(f){
+ try{
+  let blob,kind,dur=0;
+  if(String(f.type).startsWith('image/')){kind='image';blob=await fitJpeg(f,1080,1920)}
+  else if(String(f.type).startsWith('video/')){
+   if(f.size>MAX_VIDEO){toast('Vidéo trop lourde (max 20 Mo)');return}
+   dur=await vidDur(f);if(dur>60){toast('Vidéo trop longue : 60 s maximum');return}
+   kind='video';blob=f;
+  }else{toast('Choisis une photo ou une vidéo');return}
+  toast('Publication de ta story…');
+  await publishStory(blob,kind,dur,()=>{});
+  back();toast('Story publiée ✅');
+ }catch(x){toast('Publication impossible, réessaie')}
+}
 $('#pvPost').onclick=()=>{
  if(!cap||cap.type!=='video')return;
  const f=capFile(),d=cap.dur;goPublish(f,d);
@@ -2510,7 +2525,7 @@ function renderStories(){
 $('#stories').onclick=e=>{
  const b=e.target.closest('.st');if(!b)return;
  const mine=b.dataset.u===me.id;
- if(mine&&(e.target.closest('[data-add]')||!stories.some(g=>g.uid===me.id)))addStorySheet();
+ if(mine&&(e.target.closest('[data-add]')||!stories.some(g=>g.uid===me.id)))addStory();
  else openStories(b.dataset.u);
 };
 setInterval(()=>{if(curScreen==='chat'&&me)loadStories()},90000);
@@ -2621,6 +2636,7 @@ async function publishStory(blob,kind,dur,onProg){
  if(error)throw error;
  await loadStories();
 }
+function addStory(){if(MEDIA_URL&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)openCam();else addStorySheet()}
 function addStorySheet(){
  openSheet('Ajouter à ma story',`<button class="cta" id="aCam" type="button">${I('camera')}Prendre une photo ou une vidéo</button>
  <label class="cta alt" for="aFile" style="margin-top:10px">${I('plus')}Choisir dans la galerie</label><input id="aFile" type="file" accept="image/*,video/*" hidden>
@@ -3150,7 +3166,20 @@ function tone(notes,vol){
   });
  }catch(e){}
 }
-function ping(){tone([[988,0,.16],[1319,.11,.26]],.16)}
+function rtone(notes,vol){
+ try{
+  actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+  if(actx.state==='suspended')actx.resume();
+  const t0=actx.currentTime;
+  notes.forEach(([f,at,len])=>{
+   const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.setValueAtTime(f,t0+at);
+   g.gain.setValueAtTime(.0001,t0+at);g.gain.exponentialRampToValueAtTime(vol,t0+at+.02);g.gain.setValueAtTime(vol,t0+at+Math.max(.02,len-.05));g.gain.exponentialRampToValueAtTime(.0001,t0+at+len);
+   o.connect(g);g.connect(actx.destination);o.start(t0+at);o.stop(t0+at+len+.02);
+  });
+ }catch(e){}
+}
+['pointerdown','touchstart','keydown','click'].forEach(ev=>document.addEventListener(ev,()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume()}catch(e){}},{passive:true}));
+function ping(){tone([[988,0,.18],[1319,.12,.3]],.32)}
 function popIn(){tone([[740,0,.09],[988,.06,.12]],.09)}
 function popOut(){tone([[520,0,.07],[660,.05,.09]],.07)}
 function sysNotify(title,body,tag,data){
@@ -3367,7 +3396,7 @@ async function startCall(media){
  if(!window.RTCPeerConnection||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('Appels non pris en charge sur ce navigateur');return}
  const id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
  call={id,peer:cur.uid,pname:cur.name,pav:cur.avatar,cid:cur.id,media,dir:'out',state:'calling',pending:[],t0:0,facing:'user'};
- const mine=call;renderCall();
+ const mine=call;renderCall();ring('out');
  try{await getLocal()}catch(e){if(call===mine){endCall('nomic')}return}
  if(call!==mine)return;
  call.ice=await iceServers();if(call!==mine)return;
@@ -3377,6 +3406,7 @@ async function startCall(media){
   const off=await pc.createOffer();await pc.setLocalDescription(off);
   const r=await sendSig(call.peer,'invite',id,media,{type:'offer',sdp:pc.localDescription.sdp,name:me.display_name||me.username});
   if(r&&r.error){if(call===mine)endCall('fail');return}
+  mine.rung=true;
  }catch(e){if(call===mine)endCall('fail');return}
  call.ringT=setTimeout(()=>{if(call===mine&&call.state==='calling')endCall('noanswer')},45000);
  renderCall();
@@ -3389,7 +3419,7 @@ async function onSignal(s){
   const ch=chats.find(c=>c.uid===s.from_id);
   call={id:s.call_id,peer:s.from_id,pname:ch?ch.name:((s.payload&&s.payload.name)||'Appel'),pav:ch&&ch.avatar,cid:ch&&ch.id,media:s.media||'audio',dir:'in',state:'ringing',pending:early[s.call_id]||[],offer:s.payload,t0:0,facing:'user'};
   delete early[s.call_id];
-  const mine=call;renderCall();ring(true);
+  const mine=call;renderCall();ring('in');
   if(document.hidden)sysNotify('Appel '+(call.media==='video'?'vidéo':'vocal')+' entrant',call.pname,'call',{cid:call.cid});
   call.ringT=setTimeout(()=>{if(call===mine&&call.state==='ringing')endCall('missed')},45000);
   return;
@@ -3414,13 +3444,13 @@ async function acceptCall(){
  }catch(e){if(call===c)endCall('fail')}
 }
 function goLive(){
- call.state='live';call.t0=Date.now();clearTimeout(call.ringT);
- const c=call;c.timer=setInterval(()=>{if(call!==c)return;$('#cSt').textContent=dur2(Math.round((Date.now()-c.t0)/1000))},500);
+ call.state='live';call.t0=Date.now();clearTimeout(call.ringT);ring(false);rtone([[784,0,.12],[1047,.1,.2]],.25);
+ const c=call;c.timer=setInterval(()=>{if(call!==c)return;$('#cSt').textContent='● En communication · '+dur2(Math.round((Date.now()-c.t0)/1000))},500);
  renderCall();
 }
 function endCall(reason,fromRemote){
  const c=call;if(!c)return;call=null;
- clearTimeout(c.ringT);clearTimeout(c.dc);clearInterval(c.timer);ring(false);
+ clearTimeout(c.ringT);clearTimeout(c.dc);clearInterval(c.timer);ring(false);if(c.state==='live')rtone([[659,0,.12],[440,.1,.22]],.25);
  try{c.pc&&c.pc.close()}catch(e){}
  if(c.local)c.local.getTracks().forEach(t=>t.stop());
  $('#cRemote').srcObject=null;$('#cLocal').srcObject=null;
@@ -3440,12 +3470,21 @@ function endCall(reason,fromRemote){
 }
 /* sonnerie */
 let ringT=0;
-function ring(on){
+function ring(mode){
  clearInterval(ringT);ringT=0;
  try{navigator.vibrate&&navigator.vibrate(0)}catch(e){}
- if(!on)return;
- const beep=()=>{ping();setTimeout(ping,260);try{navigator.vibrate&&navigator.vibrate([300,150,300])}catch(e){}};
- beep();ringT=setInterval(beep,2400);
+ if(!mode)return;
+ let beep;
+ if(mode==='out'){ /* tonalité d'attente côté appelant */
+  beep=()=>rtone([[440,0,1],[480,0,1]],.14);
+  beep();ringT=setInterval(beep,3000);
+ }else{ /* sonnerie côté appelé */
+  beep=()=>{
+   rtone([[880,0,.18],[1175,.2,.18],[880,.5,.18],[1175,.7,.18],[1319,1.0,.4]],.4);
+   try{navigator.vibrate&&navigator.vibrate([500,200,500,200,500])}catch(e){}
+  };
+  beep();ringT=setInterval(beep,2600);
+ }
 }
 /* écran d'appel */
 const cBtn=(id,ic,cls,lab)=>`<button type="button" class="cbt ${cls||''}" data-c="${id}" aria-label="${lab}">${I(ic)}<span>${lab}</span></button>`;
@@ -3456,7 +3495,7 @@ function renderCall(){
  el.className='call '+c.state+(vid?' vid':'')+(c.dir==='in'?' in':'');
  $('#cAv').innerHTML=av({name:c.pname,h:hue(c.pname),uid:c.peer,avatar:c.pav},120);
  $('#cName').textContent=c.pname;
- const st={calling:vid?'Appel vidéo…':'Appel…',ringing:'Appel '+(vid?'vidéo':'vocal')+' entrant',connecting:'Connexion…',live:dur2(Math.round((Date.now()-c.t0)/1000))}[c.state]||'';
+ const st={calling:c.rung?'Ça sonne…':(vid?'Appel vidéo…':'Appel…'),ringing:'Appel '+(vid?'vidéo':'vocal')+' entrant',connecting:'Connexion…',live:'● En communication · '+dur2(Math.round((Date.now()-c.t0)/1000))}[c.state]||'';
  $('#cSt').textContent=st;
  const ctl=live||c.state==='connecting'||c.state==='calling';
  $('#cBar').innerHTML=c.state==='ringing'

@@ -1,5 +1,5 @@
 /* VYRO — service worker : démarrage rapide, hors-ligne de base, clic sur une notification */
-const V = 'vyro-v5';
+const V = 'vyro-v6';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));
@@ -32,7 +32,7 @@ self.addEventListener('push', e => {
       body: d.body || '', tag: d.tag || 'vyro', renotify: true,
       icon: 'icon-192.png', badge: 'icon-192.png',
       vibrate: d.t === 'call' ? [400, 200, 400, 200, 400] : [120, 60, 120],
-      requireInteraction: d.t === 'call',
+      requireInteraction: d.t === 'call', silent: false,
       data: { cid: d.cid || null, v: d.v || null, t: d.t || 'msg' }
     });
   })());
