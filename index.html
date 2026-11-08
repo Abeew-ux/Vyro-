@@ -631,6 +631,46 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
  .screen.on #chatList .chat{animation:rise .38s cubic-bezier(.2,.8,.3,1) both,chs linear both;animation-timeline:auto,view();animation-range:normal,entry 0% entry 85%}
 }
 @keyframes chs{from{opacity:.15;transform:translateY(34px) scale(.93)}to{opacity:1;transform:none}}
+/* nouvelle discussion */
+.ncgrp{display:flex;align-items:center;gap:12px;margin:2px 16px 4px;padding:12px 14px;border-radius:18px;background:var(--card);border:1px solid var(--line,transparent);color:var(--text);font-size:16px;text-align:left}
+.ncgrp b{flex:1;font-weight:600}
+#ncRes .urow{padding:11px 4px}
+#ncRes .empty{text-align:center;color:var(--muted);padding:40px 20px;line-height:1.5}
+.avw{display:inline-flex}
+/* présence */
+.pdot{position:absolute;right:-1px;bottom:-1px;width:14px;height:14px;border-radius:50%;background:#22c55e;border:2.5px solid var(--bg,#0b0418);box-shadow:0 0 8px #22c55e}
+.urow .pdot{width:12px;height:12px}
+/* photo de profil en grand */
+#photoV{position:absolute;inset:0;z-index:150;display:grid;place-items:center;background:rgba(5,2,12,.88);opacity:0;transition:opacity .18s}
+#photoV.on{opacity:1}
+#photoV[hidden]{display:none}
+#photoV .pvbox{display:flex;flex-direction:column;align-items:center;gap:16px;width:min(86vw,360px);transform:scale(.92);transition:transform .22s cubic-bezier(.2,.9,.3,1.2)}
+#photoV.on .pvbox{transform:none}
+#photoV img,#photoV .pvini{width:min(78vw,320px);height:min(78vw,320px);border-radius:50%;object-fit:cover;box-shadow:0 0 0 3px hsla(calc(270 + var(--hs)) 95% 75% / .85),0 0 50px hsla(calc(271 + var(--hs)) 91% 65% / .55)}
+#photoV .pvini{display:grid;place-items:center;font-size:120px;font-weight:800;color:#fff}
+#photoV b{font-size:22px;color:#fff}
+#photoV .pvact{display:flex;gap:10px;width:100%}
+#photoV .pvact .cta{height:46px;font-size:15px}
+/* réponse à la story */
+.svrep{position:absolute;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 14px);z-index:6;display:flex;align-items:center;gap:8px}
+.svrep input{flex:1;min-width:0;height:46px;border-radius:999px;border:1.5px solid rgba(255,255,255,.55);background:rgba(0,0,0,.35);color:#fff;padding:0 18px;font-size:15px;outline:0;backdrop-filter:blur(6px)}
+.svrep input::placeholder{color:rgba(255,255,255,.75)}
+.svrep input:focus{border-color:#fff}
+.svrep button{flex:none;width:46px;height:46px;border-radius:50%;border:0;background:rgba(0,0,0,.35);color:#fff;display:grid;place-items:center}
+.svrep button .ic{width:24px;height:24px}
+#svSend{background:linear-gradient(135deg,#c084fc,#7c3aed)}
+#svLike.on{color:#ff2d75}
+#svLike.on .ic{fill:#ff2d75;stroke:#ff2d75}
+#svLike.pop .ic{animation:lkpop .45s ease-out}
+@keyframes lkpop{0%{transform:scale(.6)}50%{transform:scale(1.4)}100%{transform:scale(1)}}
+/* fluidité */
+.screen:not(.on) *,.screen:not(.on) *::before,.screen:not(.on) *::after{animation-play-state:paused!important}
+#photoV[hidden],.call[hidden]{display:none}
+@media (hover:none){
+ *,*::before,*::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+}
+.chat{content-visibility:auto;contain-intrinsic-size:auto 78px}
+.scroll,#tMsgs{-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
 #splash{position:absolute;inset:0;z-index:200;display:grid;place-items:center;background:radial-gradient(60% 45% at 50% 40%,hsl(calc(272 + var(--hs)) 70% 22%),#06020d 72%);transition:opacity .45s,visibility .45s}
 #splash.out{opacity:0;visibility:hidden}
 #splash .spl{display:flex;flex-direction:column;align-items:center;gap:14px;animation:splin .6s cubic-bezier(.2,.9,.3,1.2) both}
@@ -709,7 +749,8 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
 <symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></symbol>
 </svg>
 
-<div id="app"><div id="splash"><div class="spl"><svg width="72" height="72" viewBox="0 0 24 24" fill="none"><path d="M6 3.5v17a1 1 0 0 0 1.5.86l14-8.5a1 1 0 0 0 0-1.72l-14-8.5A1 1 0 0 0 6 3.5Z" fill="hsl(calc(275 + var(--hs)) 85% 66%)"/></svg><b>VYRO</b><small>CHAT • VIDÉOS • COMMUNAUTÉ</small></div></div>
+<div id="app"><div id="photoV" hidden></div>
+<div id="splash"><div class="spl"><svg width="72" height="72" viewBox="0 0 24 24" fill="none"><path d="M6 3.5v17a1 1 0 0 0 1.5.86l14-8.5a1 1 0 0 0 0-1.72l-14-8.5A1 1 0 0 0 6 3.5Z" fill="hsl(calc(275 + var(--hs)) 85% 66%)"/></svg><b>VYRO</b><small>CHAT • VIDÉOS • COMMUNAUTÉ</small></div></div>
 
 <!-- AUTH -->
 <section class="screen" id="s-auth">
@@ -776,6 +817,7 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
  <div class="svtop"></div>
  <div class="svbars" id="svBars"></div>
  <button type="button" class="svviews" id="svViews" hidden></button>
+ <div class="svrep" id="svRep" hidden><input id="svIn" placeholder="Répondre à la story…" maxlength="500" autocomplete="off" enterkeyhint="send"><button type="button" id="svSend" aria-label="Envoyer"><span class="ico" data-i="send"></span></button><button type="button" id="svLike" aria-label="J’aime"><span class="ico" data-i="heart"></span></button></div>
  <div class="svhead"><span id="svAv"></span><div><b id="svName"></b><small id="svTime"></small></div><span class="sp"></span><button class="cb" id="svDel" type="button" hidden aria-label="Supprimer"><span class="ico" data-i="trash"></span></button><button class="cb" id="svX" type="button" aria-label="Fermer"><span class="ico" data-i="x"></span></button></div>
 </section>
 
@@ -784,6 +826,13 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
  <div class="top sop"><button class="ib bd" data-go="back" aria-label="Retour"><span class="ico" data-i="back"></span></button><div class="sbox"><span class="ico" data-i="search"></span><input id="sIn" placeholder="Vidéos, #hashtags, personnes…" autocomplete="off" autocapitalize="none" enterkeyhint="search"><button type="button" class="ib" id="sClr" hidden aria-label="Effacer"><span class="ico" data-i="x"></span></button></div></div>
  <div class="seg ssg" id="sSeg"><button data-m="v" class="cur" type="button">Vidéos</button><button data-m="u" type="button">Personnes</button></div>
  <div class="scroll" id="sRes"></div>
+</section>
+
+<!-- NOUVELLE DISCUSSION -->
+<section class="screen" id="s-newc">
+ <div class="top sop"><button class="ib bd" data-go="back" aria-label="Retour"><span class="ico" data-i="back"></span></button><div class="sbox"><span class="ico" data-i="search"></span><input id="ncQ" placeholder="Chercher un nom ou un pseudo" autocomplete="off" autocapitalize="none" enterkeyhint="search"><button class="sclr" id="ncClr" type="button" hidden aria-label="Effacer"><span class="ico" data-i="x"></span></button></div></div>
+ <button class="ncgrp" id="ncGrp" type="button"><span class="ico" data-i="users"></span><b>Nouveau groupe</b><span class="ico mut" data-i="chev"></span></button>
+ <div class="scroll" id="ncRes"></div>
 </section>
 
 <!-- USER -->
@@ -937,8 +986,8 @@ $$('[data-logo]').forEach(el=>el.innerHTML=logo(+el.dataset.logo));
 
 /* ---------- navigation ---------- */
 let stack=['auth'],curScreen='auth';
-const TABOF={story:'chat',cam:'chat',chat:'chat',thread:'chat',videos:'videos',search:'videos',user:'videos',profile:'profile',settings:'profile',privacy:'profile',notifs:'profile'};
-const NONAV=['thread','auth','cam','story','search','user'];
+const TABOF={newc:'chat',story:'chat',cam:'chat',chat:'chat',thread:'chat',videos:'videos',search:'videos',user:'videos',profile:'profile',settings:'profile',privacy:'profile',notifs:'profile'};
+const NONAV=['thread','auth','cam','story','search','user','newc'];
 function show(n){
  if(n!=='cam'&&camOn)stopCam();
  if(n!=='story')stopStory();
@@ -3321,14 +3370,14 @@ function pingNow(force){
  if(typeof me==='undefined'||!me||(!force&&document.hidden))return;
  sb.rpc('vyro_ping',{p_show:!(S.priv&&S.priv.activity===false)}).then(()=>{},()=>{});
 }
-setInterval(pingNow,60000);
+setInterval(pingNow,30000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)pingNow(true)});
 function presText(c){
  if(!c||c.type==='group'||!c.uid)return '';
  const t=PRES[c.uid];
  if(!t)return '';
  const d=new Date(t),now=new Date(),diff=Date.now()-d.getTime();
- if(diff<100000)return '● en ligne';
+ if(diff<75000)return '● en ligne';
  const hm=d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
  if(d.toDateString()===now.toDateString())return 'vu à '+hm;
  const y=new Date(now);y.setDate(y.getDate()-1);
@@ -3533,6 +3582,168 @@ async function flipCam(){
  }catch(e){toast('Impossible de changer de caméra')}
 }
 window.addEventListener('beforeunload',()=>{if(call&&call.pc)try{sendSig(call.peer,'bye',call.id,null,null)}catch(e){}});
+
+/* ---------- nouvelle discussion (page) ---------- */
+const NC={seq:0,sug:null,sugAt:0,t:0};
+const ncAv=u=>av({name:u.display_name||u.username,h:hue(u.username||'x'),uid:u.id,avatar:u.avatar_url},46);
+const ncRow=(u,extra)=>`<div class="urow" data-u="${u.id}"><span class="avw" data-ph="${u.id}">${ncAv(u)}</span><div style="flex:1;min-width:0"><b>${esc(u.display_name||u.username)}</b><small>@${esc(u.username)}${extra||''}</small></div><span class="ico mut" data-i="chev"></span></div>`;
+function openNewChat(){
+ $('#ncQ').value='';$('#ncClr').hidden=true;
+ if(curScreen!=='newc')push('newc');
+ drawNC();
+ setTimeout(()=>{try{$('#ncQ').focus()}catch(e){}},300);
+}
+async function drawNC(){
+ const raw=$('#ncQ').value.trim().toLowerCase();
+ const q=raw.replace(/[^a-z0-9_ àâäçéèêëîïôöùûüÿ]/g,'').trim(),box=$('#ncRes'),my=++NC.seq;
+ $('#ncClr').hidden=!raw;
+ if(q){
+  const f=q.replace(/_/g,'\\_');
+  const {data,error}=await sb.from('vyro_profiles').select('id,username,display_name,avatar_url').or(`username.ilike.%${f}%,display_name.ilike.%${f}%`).neq('id',me.id).limit(25);
+  if(my!==NC.seq)return;
+  const l=(data||[]).filter(u=>!blocks.has(u.id));
+  box.innerHTML=error?'<p class="empty">Recherche impossible, réessaie.</p>':l.length?l.map(u=>ncRow(u)).join(''):'<p class="empty">Personne trouvé avec « '+esc(raw)+' »</p>';
+  hydrateIcons(box);ncPres();return;
+ }
+ if(!NC.sug||Date.now()-NC.sugAt>60000){
+  box.innerHTML='<p class="empty">Chargement…</p>';
+  const [dv,fl]=await Promise.all([sb.rpc('vyro_discover'),sb.from('vyro_follows').select('follower_id,following_id').or(`follower_id.eq.${me.id},following_id.eq.${me.id}`).limit(60)]);
+  if(my!==NC.seq)return;
+  const ids=[...new Set((fl.data||[]).map(r=>r.follower_id===me.id?r.following_id:r.follower_id))].filter(i=>i!==me.id&&!blocks.has(i));
+  let known=[];
+  if(ids.length){const {data}=await sb.from('vyro_profiles').select('id,username,display_name,avatar_url').in('id',ids);known=data||[]}
+  const kn=new Set(known.map(u=>u.id));
+  NC.sug={known,cr:((dv.data&&dv.data.creators)||[]).filter(u=>u.id!==me.id&&!kn.has(u.id)&&!blocks.has(u.id))};NC.sugAt=Date.now();
+ }
+ if(my!==NC.seq)return;
+ const s=NC.sug,fr=s.known.length?`<div class="sec sm">${I('userplus')}Tes abonnés et abonnements</div>${s.known.map(u=>ncRow(u)).join('')}`:'';
+ const cr=s.cr.length?`<div class="sec sm">${I('user')}Suggestions pour toi</div>${s.cr.map(u=>ncRow(u,' · '+u.followers+' abonné'+(u.followers>1?'s':''))).join('')}`:'';
+ box.innerHTML=(fr+cr)||'<p class="empty">Pas encore de suggestions.<br>Cherche un pseudo en haut.</p>';
+ hydrateIcons(box);ncPres();
+}
+function hydrateIcons(root){root.querySelectorAll('[data-i]').forEach(el=>{if(!el.innerHTML)el.innerHTML=I(el.dataset.i,(el.hasAttribute('data-fill')?'fill ':'')+(el.dataset.cls||''))})}
+async function ncStart(uid){
+ const {data,error}=await sb.rpc('vyro_start_direct',{p_other:uid});
+ if(error){toast(errMsg(error));return}
+ await loadChats();
+ if(stack[stack.length-1]==='newc')stack.pop();
+ openThread(data);
+}
+$('#ncQ').oninput=()=>{clearTimeout(NC.t);NC.t=setTimeout(drawNC,250)};
+$('#ncClr').onclick=()=>{$('#ncQ').value='';drawNC();$('#ncQ').focus()};
+$('#ncGrp').onclick=()=>{newChatSheet();setTimeout(()=>{const b=$('#sh .seg [data-m=group]');if(b)b.click()},40)};
+$('#ncRes').onclick=e=>{
+ const ph=e.target.closest('[data-ph]');
+ if(ph){const r=ph.closest('[data-u]');showPhoto(r.dataset.u,r.querySelector('b').textContent,e.target.closest('.av'));e.stopPropagation();return}
+ const r=e.target.closest('[data-u]');if(r)ncStart(r.dataset.u);
+};
+$('#fab').onclick=$('#bNew').onclick=openNewChat;
+
+/* ---------- photo de profil en grand ---------- */
+function showPhoto(uid,name,avEl){
+ const img=avEl&&avEl.querySelector('img');
+ const src=img?img.src:'';
+ const ch=chats.find(c=>c.uid===uid);
+ const ini=(name||'?')[0].toUpperCase(),h=hue(name||'x');
+ const el=$('#photoV');
+ el.innerHTML=`<div class="pvbox">${src?`<img src="${src}" alt="">`:`<div class="pvini" style="background:linear-gradient(135deg,hsl(${h} 80% 62%),hsl(${(h+50)%360} 70% 30%))">${esc(ini)}</div>`}<b>${esc(name||'')}</b>
+ <div class="pvact"><button type="button" class="cta" data-pa="msg">${I('chat')}Message</button><button type="button" class="cta alt" data-pa="prof">${I('user')}Profil</button></div></div>`;
+ el.dataset.u=uid;el.hidden=false;requestAnimationFrame(()=>el.classList.add('on'));
+}
+function closePhoto(){const el=$('#photoV');el.classList.remove('on');setTimeout(()=>{el.hidden=true;el.innerHTML=''},180)}
+$('#photoV').onclick=e=>{
+ const a=e.target.closest('[data-pa]'),uid=$('#photoV').dataset.u;
+ if(a){closePhoto();if(a.dataset.pa==='prof')openProfile(uid);else{const ch=chats.find(c=>c.uid===uid);if(curScreen==='thread'&&cur&&cur.uid===uid)return;if(ch){if(curScreen==='newc'&&stack[stack.length-1]==='newc')stack.pop();openThread(ch.id)}else ncStart(uid)}return}
+ if(!e.target.closest('.pvbox img,.pvini,b'))closePhoto();
+};
+$('#tAv').addEventListener('click',e=>{if(cur&&cur.type!=='group'&&cur.uid){e.stopPropagation();showPhoto(cur.uid,cur.name,$('#tAv .av'))}},true);
+$('#chatList').addEventListener('click',e=>{
+ const a=e.target.closest('.chat .av');if(!a)return;
+ const row=a.closest('.chat'),c=chats.find(x=>x.id===row.dataset.id);
+ if(c&&c.type!=='group'&&c.uid){e.stopImmediatePropagation();e.preventDefault();showPhoto(c.uid,c.name,a)}
+},true);
+
+/* ---------- présence en ligne : points verts ---------- */
+function pdotHTML(uid){const t=PRES[uid];return t&&Date.now()-new Date(t).getTime()<75000?'<i class="pdot"></i>':''}
+function applyDots(root){
+ root.querySelectorAll('.chat[data-id]').forEach(r=>{
+  const c=chats.find(x=>x.id===r.dataset.id),a=r.querySelector('.av');if(!a)return;
+  const old=a.querySelector('.pdot');if(old)old.remove();
+  if(c&&c.uid){const h=pdotHTML(c.uid);if(h)a.insertAdjacentHTML('beforeend',h)}
+ });
+ root.querySelectorAll('.urow[data-u]').forEach(r=>{
+  const a=r.querySelector('.av');if(!a)return;
+  const old=a.querySelector('.pdot');if(old)old.remove();
+  const h=pdotHTML(r.dataset.u);if(h)a.insertAdjacentHTML('beforeend',h);
+ });
+}
+let presBusy=false;
+async function ncPres(){applyDots($('#ncRes'))}
+async function presAll(){
+ if(presBusy||!me||document.hidden)return;
+ const ids=[...new Set([...chats.filter(c=>c.uid).map(c=>c.uid),...[...document.querySelectorAll('#ncRes [data-u]')].map(r=>r.dataset.u)])].slice(0,50);
+ if(!ids.length)return;
+ presBusy=true;
+ try{
+  const {data}=await sb.rpc('vyro_presence',{p_ids:ids});
+  const got=new Set();
+  (data||[]).forEach(r=>{PRES[r.id]=r.last_seen;got.add(r.id)});
+  ids.forEach(i=>{if(!got.has(i))delete PRES[i]});
+  applyDots($('#chatList'));applyDots($('#ncRes'));
+  if(cur&&cur.uid)setStatus();
+ }catch(e){}
+ presBusy=false;
+}
+new MutationObserver(()=>applyDots($('#chatList'))).observe($('#chatList'),{childList:true});
+setInterval(presAll,25000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(presAll,800)});
+setTimeout(presAll,1500);
+
+/* ---------- répondre à une story / aimer ---------- */
+const SLK=(()=>{try{return new Set(JSON.parse(localStorage.getItem('vyro_slk')||'[]'))}catch(e){return new Set()}})();
+const saveSLK=()=>{try{localStorage.setItem('vyro_slk',JSON.stringify([...SLK].slice(-300)))}catch(e){}};
+const svConv={};
+function svCur(){const g=sv.list&&sv.list[sv.gi];return g?{g,it:g.items[sv.ii]}:null}
+function svRepUpd(){
+ const c=svCur(),bar=$('#svRep');if(!c){bar.hidden=true;return}
+ const mine=c.g.uid===me.id;bar.hidden=mine;
+ $('#svLike').classList.toggle('on',!!(c.it&&SLK.has(c.it.id)));
+ $('#svIn').value='';
+}
+async function svSendDM(body){
+ const c=svCur();if(!c)return false;
+ try{
+  let cid=svConv[c.g.uid];
+  if(!cid){const {data,error}=await sb.rpc('vyro_start_direct',{p_other:c.g.uid});if(error){toast(errMsg(error));return false}cid=data;svConv[c.g.uid]=cid;await loadChats()}
+  const r=await postMsg(cid,body);
+  if(r.error){toast(r.error.code==='42501'?'Tu ne peux pas écrire à cette personne.':'Message non envoyé');return false}
+  return true;
+ }catch(e){toast('Message non envoyé');return false}
+}
+$('#svIn').addEventListener('focus',()=>svPause(true));
+$('#svIn').addEventListener('blur',()=>setTimeout(()=>{if(document.activeElement!==$('#svIn'))svPause(false)},150));
+$('#svRep').addEventListener('pointerdown',e=>e.stopPropagation());
+$('#svRep').addEventListener('touchstart',e=>e.stopPropagation(),{passive:true});
+async function svReply(){
+ const t=$('#svIn').value.trim();if(!t)return;
+ const c=svCur();if(!c)return;
+ $('#svIn').value='';$('#svIn').blur();
+ const ok=await svSendDM('↩️ Réponse à ta story : '+t.slice(0,1500));
+ if(ok)toast('Réponse envoyée ✅');else $('#svIn').value=t;
+}
+$('#svSend').onclick=svReply;
+$('#svIn').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();svReply()}});
+$('#svLike').onclick=async()=>{
+ const c=svCur();if(!c||!c.it)return;
+ const b=$('#svLike'),id=c.it.id;
+ if(SLK.has(id)){SLK.delete(id);saveSLK();b.classList.remove('on');return}
+ SLK.add(id);saveSLK();b.classList.add('on');b.classList.remove('pop');void b.offsetWidth;b.classList.add('pop');
+ try{navigator.vibrate&&navigator.vibrate(15)}catch(e){}
+ const ok=await svSendDM('❤️ a aimé ta story');
+ if(!ok){SLK.delete(id);saveSLK();b.classList.remove('on')}else toast('❤️ Story aimée');
+};
+const _ps=playStory;
+playStory=function(){_ps.apply(this,arguments);svRepUpd()};
 /*@@MOD-END*/
 /* ---------- démarrage ---------- */
 boot();
