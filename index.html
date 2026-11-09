@@ -796,6 +796,54 @@ html[data-skin=amoled] #app::before{opacity:.35}
 .wplay{flex:none;display:flex;align-items:center;gap:5px;height:40px;padding:0 14px;border:0;border-radius:20px;font-weight:800;font-size:14px;letter-spacing:.04em;color:#5b21b6;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.3)}
 .wplay .ic{width:16px;height:16px}
 @media (hover:none){.wchat::after{animation-play-state:paused}#s-chat.on .wchat::after{animation-play-state:running}}
+/* éditeur vidéo */
+#edP{position:absolute;inset:0;z-index:150;display:flex;flex-direction:column;background:#000;color:#fff;opacity:0;transition:opacity .2s}
+#edP.on{opacity:1}
+#edP .edtop{display:grid;grid-template-columns:48px 1fr 48px;align-items:center;padding:calc(env(safe-area-inset-top,0px) + 8px) 8px 6px;text-align:center}
+#edP .edtop b{font-size:16px}
+#edP .edx{width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:#fff;font-size:20px}
+#edP .edst{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:6px 56px 6px 8px}
+#edP .edw{position:relative;border-radius:14px;overflow:hidden;background:#111}
+#edP .edw video{width:100%;height:100%;object-fit:contain;display:block}
+#edP .edt{position:absolute;transform:translate(-50%,-50%);font-weight:800;text-align:center;white-space:pre-wrap;max-width:94%;padding:.1em .4em;border-radius:.35em;touch-action:none;line-height:1.2;text-shadow:0 1px 6px rgba(0,0,0,.55)}
+#edP .edt.pill{text-shadow:none}
+#edP .edtb{position:absolute;right:4px;top:6px;display:flex;flex-direction:column;gap:12px}
+#edP .edtb button{display:flex;flex-direction:column;align-items:center;gap:2px;width:50px;border:0;background:transparent;color:#fff;font-size:10px;opacity:.75}
+#edP .edtb button i{font-style:normal;display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.12);font-size:17px;font-weight:700}
+#edP .edtb button.on{opacity:1}#edP .edtb button.on i{background:linear-gradient(135deg,#d946ef,#7c3aed)}
+#edP .edpn{height:176px;box-sizing:border-box;overflow:hidden;padding:10px 14px;background:#0b0614;border-top:1px solid rgba(255,255,255,.08)}
+#edP .edtl{position:relative;height:54px;margin:12px 12px 6px;border-radius:10px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.1) 0 6px,rgba(255,255,255,.04) 6px 12px)}
+#edP .edsel{position:absolute;top:0;bottom:0;border:3px solid #d946ef;border-radius:8px;background:rgba(217,70,239,.14);box-sizing:border-box}
+#edP .edh{position:absolute;top:-4px;bottom:-4px;width:22px;margin-left:-11px;touch-action:none}
+#edP .edh::after{content:"";position:absolute;left:8px;top:0;bottom:0;width:6px;border-radius:3px;background:#fff}
+#edP .edph{position:absolute;top:-2px;bottom:-2px;width:2px;background:#fff;opacity:.8;pointer-events:none}
+#edP .edlb{text-align:center;font-size:13px;opacity:.8;margin-top:10px}
+#edP .edin{width:100%;height:42px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:#fff;font:inherit;font-size:16px;padding:0 12px;outline:0;box-sizing:border-box}
+#edP .edrow{display:flex;align-items:center;gap:10px;margin-top:10px}
+#edP .edcol{flex:1;display:flex;gap:9px;overflow:auto}
+#edP .edc{flex:none;width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.35)}
+#edP .edc.on{border-color:#fff;transform:scale(1.15)}
+#edP .edpl{flex:none;width:38px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;font-weight:800}
+#edP .edpl.on{background:#fff;color:#000}
+#edP .edrow input[type=range]{flex:1;accent-color:#d946ef}
+#edP .edsm{font-size:12px;font-weight:800}#edP .edbg{font-size:20px;font-weight:800}
+#edP .edlab{font-size:14px}#edP .edrow b{min-width:42px;text-align:right;font-size:13px}
+#edP .edhint{margin:8px 0 0;font-size:12px;opacity:.55}
+#edP .edfx{display:flex;gap:10px;overflow:auto;padding:4px 0}
+#edP .edf{flex:none;display:flex;flex-direction:column;align-items:center;gap:5px;border:0;background:transparent;color:#fff;font-size:11px;opacity:.7}
+#edP .edf span{width:60px;height:76px;border-radius:10px;background-size:cover;background-position:center;border:2px solid transparent}
+#edP .edf.on{opacity:1}#edP .edf.on span{border-color:#d946ef}
+#edP .edsp2{display:flex;gap:8px;justify-content:center;padding-top:14px}
+#edP .edsp2 button{flex:1;height:44px;border-radius:22px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:#fff;font-weight:700}
+#edP .edsp2 button.on{background:linear-gradient(135deg,#d946ef,#7c3aed);border-color:transparent}
+#edP .edft{padding:10px 16px calc(env(safe-area-inset-bottom,0px) + 14px);background:#0b0614}
+#edP .edbusy{position:absolute;inset:0;z-index:5;display:grid;place-items:center;background:rgba(0,0,0,.82);text-align:center}
+#edP .edbusy[hidden]{display:none}
+#edP .edbusy>div{display:flex;flex-direction:column;align-items:center;gap:10px}
+#edP .edbusy b{font-size:30px}#edP .edbusy span{font-size:14px;opacity:.8;line-height:1.5}
+#edP .edbusy button{margin-top:8px;height:40px;padding:0 22px;border-radius:20px;border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff}
+#edP .edsp{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.2);border-top-color:#d946ef;animation:edspin .9s linear infinite}
+@keyframes edspin{to{transform:rotate(360deg)}}
 #splash{position:absolute;inset:0;z-index:200;display:grid;place-items:center;background:radial-gradient(60% 45% at 50% 40%,hsl(calc(272 + var(--hs)) 70% 22%),#06020d 72%);transition:opacity .45s,visibility .45s}
 #splash.out{opacity:0;visibility:hidden}
 #splash .spl{display:flex;flex-direction:column;align-items:center;gap:14px;animation:splin .6s cubic-bezier(.2,.9,.3,1.2) both}
@@ -1018,6 +1066,10 @@ html[data-skin=amoled] #app::before{opacity:.35}
    <div class="row" data-go="appearance"><span class="ri" data-i="moon"></span><div class="rt"><b>Apparence</b><small id="thSub">Thème sombre / clair</small></div><span class="ico mut" data-i="chev"></span></div>
    <div class="row" data-go="install"><span class="ri" data-i="download"></span><div class="rt"><b>Installer l’application</b><small>Ajouter VYRO à l’écran d’accueil</small></div><span class="ico mut" data-i="chev"></span></div>
    <div class="row" data-go="lang"><span class="ri" data-i="globe"></span><div class="rt"><b>Langue</b></div><span class="lang">Français<span class="ico" data-i="down" data-sm></span></span></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+   <div class="row" data-go="legal"><span class="ri" data-i="shield"></span><div class="rt"><b>Confidentialité et conditions</b></div><span class="ico mut" data-i="chev"></span></div>
+   <div class="row" data-go="delacc"><span class="ri" data-i="trash"></span><div class="rt"><b style="color:#fb7185">Supprimer mon compte</b><small>Efface définitivement mes données</small></div></div>
   </div>
   <div class="card" style="margin-top:14px">
    <div class="row" data-go="logout"><span class="ri" data-i="back"></span><div class="rt"><b>Se déconnecter</b></div></div>
@@ -1921,7 +1973,7 @@ $('#feed').addEventListener('error',async e=>{
 },true);
 async function openComments(p){
  let list=[];
- const draw=l=>l.map(c=>`<div class="cmt" data-cid="${c.id||''}">${av({name:c.u,h:hue(c.u),uid:c.uid,avatar:c.av},38)}<div class="cbody"><b data-u="${c.uid||''}">@${esc(c.u)}</b><p>${esc(c.t)}</p></div>${(c.id&&(c.uid===me.id||p.mine))?`<button type="button" class="cdel" data-del="${c.id}" aria-label="Supprimer">${I('trash')}</button>`:''}</div>`).join('')||'<p class="empty" style="padding:20px 0">Aucun commentaire. Lance la discussion !</p>';
+ const draw=l=>l.map(c=>`<div class="cmt" data-cid="${c.id||''}">${av({name:c.u,h:hue(c.u),uid:c.uid,avatar:c.av},38)}<div class="cbody"><b data-u="${c.uid||''}">@${esc(c.u)}</b><p>${esc(c.t)}</p></div>${(c.id&&(c.uid===me.id||p.mine))?`<button type="button" class="cdel" data-del="${c.id}" aria-label="Supprimer">${I('trash')}</button>`:''}${(c.id&&c.uid!==me.id)?`<button type="button" class="cdel" data-rep="${c.id}" aria-label="Signaler">${I('flag')}</button>`:''}</div>`).join('')||'<p class="empty" style="padding:20px 0">Aucun commentaire. Lance la discussion !</p>';
  const sh=openSheet('Commentaires',`<div id="cList"><p class="empty" style="padding:20px 0">Chargement…</p></div><form class="cform" id="cForm"><input id="cIn" maxlength="500" placeholder="Ajouter un commentaire…" autocomplete="off"><button type="submit" aria-label="Envoyer">${I('send')}</button></form>`);
  const {data}=await sb.from('vyro_comments').select('id,user_id,body,author:vyro_profiles!vyro_comments_user_id_fkey(username,avatar_url)').eq('video_id',p.id).order('created_at').limit(100);
  list=(data||[]).filter(c=>!blocks.has(c.user_id)).map(c=>({id:c.id,uid:c.user_id,u:(c.author&&c.author.username)||'?',av:c.author&&c.author.avatar_url,t:c.body}));
@@ -1931,6 +1983,8 @@ async function openComments(p){
   if(d){const {error}=await sb.from('vyro_comments').delete().eq('id',d.dataset.del);
    if(error){toast('Suppression impossible');return}
    list=list.filter(c=>String(c.id)!==d.dataset.del);p.comments=Math.max(0,p.comments-1);$('#cList').innerHTML=draw(list);upd(p);return}
+  const rp=e.target.closest('[data-rep]');
+  if(rp){closeSheet();setTimeout(()=>reportSheet('comment',rp.dataset.rep,'ce commentaire'),250);return}
   const u=e.target.closest('[data-u]');
   if(u&&u.dataset.u){closeSheet();openProfile(u.dataset.u)}
  };
@@ -2114,6 +2168,8 @@ function go(w){
  else if(w==='edit')editProfile();
  else if(w==='plus')openPlus();
  else if(w==='logout')logout();
+ else if(w==='delacc')delAccount();
+ else if(w==='legal')legalSheet();
  else if(w==='back')back();
  else toast('Bientôt disponible 🚧');
 }
@@ -4387,6 +4443,212 @@ $('#chatList').addEventListener('click',e=>{
  e.stopImmediatePropagation();e.stopPropagation();
  toast('VYRO World arrive bientôt 🎮');
 },true);
+
+/* ---------- éditeur vidéo (avant publication) ---------- */
+const ED_FX=[['orig','Original','none'],['vivid','Vif','saturate(1.55) contrast(1.1)'],['bright','Éclat','brightness(1.13) saturate(1.15)'],['bw','Noir & blanc','grayscale(1) contrast(1.12)'],['warm','Chaud','sepia(.35) saturate(1.3) hue-rotate(-10deg)'],['cool','Froid','saturate(1.2) hue-rotate(15deg) brightness(1.03)'],['vint','Vintage','sepia(.6) contrast(.9) brightness(1.05)'],['drama','Drama','contrast(1.35) saturate(1.2) brightness(.92)'],['neon','Néon','saturate(2) hue-rotate(250deg) contrast(1.1)']];
+const ED_COL=['#ffffff','#000000','#fde047','#f472b6','#22d3ee','#a78bfa','#4ade80','#fb923c'];
+const _uplEd=uploadSheet;
+uploadSheet=function(pre){
+ pre=pre||{};
+ if(pre.file&&!pre.edited&&MEDIA_URL&&window.MediaRecorder&&HTMLCanvasElement.prototype.captureStream){edOpen(pre);return}
+ _uplEd(pre);
+};
+function edOpen(pre){
+ const old=$('#edP');if(old)old.remove();
+ const canFx=(()=>{try{return 'filter' in document.createElement('canvas').getContext('2d')}catch(e){return false}})();
+ const S={start:0,end:0,dur:0,fx:'orig',vol:1,speed:1,txt:'',col:'#ffffff',pill:false,fs:.07,tx:.5,ty:.5,tool:'trim'};
+ const url=URL.createObjectURL(pre.file);
+ const el=document.createElement('div');el.id='edP';
+ el.innerHTML=`<div class="edtop"><button type="button" class="edx" id="edX" aria-label="Fermer">✕</button><b>Modifier</b><span></span></div>
+ <div class="edst" id="edSt"><div class="edw" id="edW"><video id="edV" src="${url}" playsinline loop preload="auto"></video><div class="edt" id="edT" hidden></div></div>
+  <div class="edtb" id="edTb">
+   <button type="button" data-t="trim"><i>✂</i>Couper</button>
+   <button type="button" data-t="text"><i>Aa</i>Texte</button>
+   ${canFx?'<button type="button" data-t="fx"><i>◐</i>Filtres</button>':''}
+   <button type="button" data-t="snd"><i>♪</i>Son</button>
+   <button type="button" data-t="spd"><i>»</i>Vitesse</button>
+  </div></div>
+ <div class="edpn" id="edPn"></div>
+ <div class="edft"><button class="cta" id="edNext">Suivant</button></div>
+ <div class="edbusy" id="edBusy" hidden><div><div class="edsp"></div><b id="edPc">0%</b><span>Création de ta vidéo…<br>Garde l’appli ouverte</span><button type="button" id="edCancel">Annuler</button></div></div>`;
+ $('#app').appendChild(el);requestAnimationFrame(()=>el.classList.add('on'));
+ const V=$('#edV'),W=$('#edW'),T=$('#edT'),St=$('#edSt'),Pn=$('#edPn');
+ const close=()=>{try{V.pause()}catch(e){}URL.revokeObjectURL(url);el.classList.remove('on');setTimeout(()=>el.remove(),200)};
+ $('#edX').onclick=close;
+ const fmt=s=>{s=Math.max(0,s);return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0')};
+ /* taille du cadre vidéo */
+ const fit=()=>{
+  const vw=V.videoWidth||9,vh=V.videoHeight||16,bw=St.clientWidth-64,bh=St.clientHeight-12,k=Math.min(bw/vw,bh/vh);
+  W.style.width=Math.floor(vw*k)+'px';W.style.height=Math.floor(vh*k)+'px';drawTxt();
+ };
+ const applyFx=()=>{const f=ED_FX.find(x=>x[0]===S.fx);V.style.filter=f?f[2]:'none'};
+ const drawTxt=()=>{
+  T.hidden=!S.txt;if(!S.txt)return;
+  T.textContent=S.txt;T.style.fontSize=(S.fs*W.clientHeight)+'px';T.style.left=(S.tx*100)+'%';T.style.top=(S.ty*100)+'%';
+  T.style.color=S.col;T.classList.toggle('pill',S.pill);
+  T.style.background=S.pill?(S.col==='#000000'?'#fff':'rgba(0,0,0,.55)'):'none';
+  if(S.pill&&S.col==='#000000')T.style.color='#000';
+ };
+ V.onloadedmetadata=()=>{
+  S.dur=V.duration&&isFinite(V.duration)?V.duration:(pre.dur||10);S.end=S.dur;fit();renderPanel();
+  V.play().catch(()=>{V.muted=true;V.play().catch(()=>{})});
+  if(canFx)setTimeout(thumbs,400);
+ };
+ V.ontimeupdate=()=>{
+  if(V.currentTime>=S.end-.05||V.currentTime<S.start-.3){V.currentTime=S.start}
+  const ph=$('#edPh');if(ph&&S.dur)ph.style.left=(V.currentTime/S.dur*100)+'%';
+ };
+ window.addEventListener('resize',fit);
+ /* texte déplaçable */
+ let drag=null;
+ T.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,tx:S.tx,ty:S.ty};T.setPointerCapture(e.pointerId)});
+ T.addEventListener('pointermove',e=>{if(!drag)return;const r=W.getBoundingClientRect();
+  S.tx=Math.min(.95,Math.max(.05,drag.tx+(e.clientX-drag.x)/r.width));S.ty=Math.min(.95,Math.max(.05,drag.ty+(e.clientY-drag.y)/r.height));drawTxt()});
+ T.addEventListener('pointerup',()=>{drag=null});
+ /* miniatures filtres */
+ let thumbU={};
+ function thumbs(){
+  if(!V.videoWidth)return;
+  const c=document.createElement('canvas');c.width=60;c.height=76;const x=c.getContext('2d');
+  const vw=V.videoWidth,vh=V.videoHeight,k=Math.max(60/vw,76/vh),w=vw*k,h=vh*k;
+  ED_FX.forEach(f=>{x.filter=f[2];x.drawImage(V,(60-w)/2,(76-h)/2,w,h);thumbU[f[0]]=c.toDataURL('image/jpeg',.6)});
+  if(S.tool==='fx')renderPanel();
+ }
+ /* panneaux */
+ function renderPanel(){
+  $$('#edTb button').forEach(b=>b.classList.toggle('on',b.dataset.t===S.tool));
+  if(S.tool==='trim'){
+   Pn.innerHTML=`<div class="edtl" id="edTl"><div class="edsel" id="edSel"></div><i class="edh l" id="edHl"></i><i class="edh r" id="edHr"></i><i class="edph" id="edPh"></i></div><div class="edlb"><span id="edLb"></span></div>`;
+   trimUI();
+  }else if(S.tool==='text'){
+   Pn.innerHTML=`<input id="edIn" class="edin" maxlength="80" placeholder="Écris ton texte…" value="${esc(S.txt)}"><div class="edrow"><div class="edcol">${ED_COL.map(c=>`<button type="button" class="edc${c===S.col?' on':''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div><button type="button" class="edpl${S.pill?' on':''}" id="edPl">Aa</button></div><div class="edrow"><span class="edsm">A</span><input type="range" id="edFs" min="40" max="130" value="${Math.round(S.fs*1000)}"><span class="edbg">A</span></div><p class="edhint">Glisse le texte sur la vidéo pour le placer.</p>`;
+   $('#edIn').oninput=e=>{S.txt=e.target.value;drawTxt()};
+   $('#edFs').oninput=e=>{S.fs=e.target.value/1000;drawTxt()};
+   $('#edPl').onclick=e=>{S.pill=!S.pill;e.currentTarget.classList.toggle('on',S.pill);drawTxt()};
+   Pn.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{S.col=b.dataset.c;Pn.querySelectorAll('[data-c]').forEach(x=>x.classList.toggle('on',x===b));drawTxt()});
+  }else if(S.tool==='fx'){
+   Pn.innerHTML=`<div class="edfx">${ED_FX.map(f=>`<button type="button" class="edf${f[0]===S.fx?' on':''}" data-f="${f[0]}"><span style="${thumbU[f[0]]?`background-image:url(${thumbU[f[0]]})`:`background:#333`}"></span>${f[1]}</button>`).join('')}</div>`;
+   Pn.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{S.fx=b.dataset.f;applyFx();Pn.querySelectorAll('[data-f]').forEach(x=>x.classList.toggle('on',x===b))});
+  }else if(S.tool==='snd'){
+   Pn.innerHTML=`<div class="edrow"><span class="edlab">Son d’origine</span><input type="range" id="edVol" min="0" max="100" value="${Math.round(S.vol*100)}"><b id="edVn">${Math.round(S.vol*100)}%</b></div><p class="edhint">Mets à 0 % pour retirer le son.</p>`;
+   $('#edVol').oninput=e=>{S.vol=e.target.value/100;$('#edVn').textContent=e.target.value+'%';V.muted=S.vol===0;V.volume=S.vol};
+  }else if(S.tool==='spd'){
+   Pn.innerHTML=`<div class="edsp2">${[.5,.75,1,1.5,2].map(v=>`<button type="button" class="${v===S.speed?'on':''}" data-s="${v}">${v}×</button>`).join('')}</div>`;
+   Pn.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{S.speed=+b.dataset.s;V.playbackRate=S.speed;Pn.querySelectorAll('[data-s]').forEach(x=>x.classList.toggle('on',x===b))});
+  }
+ }
+ $('#edTb').onclick=e=>{const b=e.target.closest('[data-t]');if(!b)return;S.tool=b.dataset.t;renderPanel()};
+ function trimUI(){
+  const tl=$('#edTl'),sel=$('#edSel'),hl=$('#edHl'),hr=$('#edHr'),lb=$('#edLb');
+  const paint=()=>{const a=S.start/S.dur*100,b=S.end/S.dur*100;sel.style.left=a+'%';sel.style.width=(b-a)+'%';hl.style.left=a+'%';hr.style.left=b+'%';
+   lb.textContent=fmt(S.start)+' → '+fmt(S.end)+' · '+Math.round(S.end-S.start)+' s'};
+  paint();
+  const mv=(which)=>e=>{
+   const r=tl.getBoundingClientRect(),t=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))*S.dur;
+   if(which==='l'){S.start=Math.min(t,S.end-1);V.currentTime=S.start}else{S.end=Math.max(t,S.start+1);V.currentTime=Math.max(S.start,S.end-.6)}
+   paint()};
+  [[hl,'l'],[hr,'r']].forEach(([h,w])=>{
+   const f=mv(w);
+   h.addEventListener('pointerdown',e=>{h.setPointerCapture(e.pointerId);h._d=1;e.preventDefault()});
+   h.addEventListener('pointermove',e=>{if(h._d)f(e)});
+   h.addEventListener('pointerup',()=>{h._d=0;V.currentTime=S.start});
+  });
+ }
+ /* modifications ? */
+ const edited=()=>S.start>.05||S.end<S.dur-.05||S.fx!=='orig'||S.vol!==1||S.speed!==1||!!S.txt;
+ /* export */
+ let cancel=false;
+ $('#edCancel').onclick=()=>{cancel=true};
+ $('#edNext').onclick=async()=>{
+  const dur0=Math.round(S.dur||pre.dur||0);
+  if(!edited()){close();_uplEd(Object.assign({},pre,{edited:true,dur:pre.dur||dur0}));return}
+  try{V.pause()}catch(e){}
+  const out=await edExport(pre.file,S,canFx,p=>{$('#edPc').textContent=Math.round(p*100)+'%'},()=>cancel,()=>{$('#edBusy').hidden=false});
+  $('#edBusy').hidden=true;
+  if(!out){if(!cancel)toast('Montage impossible, essaie sans modification');cancel=false;V.play().catch(()=>{});return}
+  if(out.size>MAX_VIDEO){toast('Vidéo trop lourde après montage (20 Mo max) : raccourcis-la');V.play().catch(()=>{});return}
+  const d=Math.max(1,Math.round((S.end-S.start)/S.speed));
+  close();_uplEd(Object.assign({},pre,{file:out,dur:d,edited:true}));
+ };
+ applyFx();
+}
+async function edExport(file,S,canFx,onP,isCancel,onStart){
+ onStart();
+ const u=URL.createObjectURL(file),v=document.createElement('video');
+ v.src=u;v.playsInline=true;v.preload='auto';v.crossOrigin='anonymous';
+ let ac=null,rec=null,iv=null;
+ const cleanup=()=>{clearInterval(iv);try{v.pause()}catch(e){}try{rec&&rec.state!=='inactive'&&rec.stop()}catch(e){}try{ac&&ac.close()}catch(e){}URL.revokeObjectURL(u)};
+ try{
+  await new Promise((ok,ko)=>{v.onloadedmetadata=ok;v.onerror=()=>ko(new Error('load'))});
+  const vw=v.videoWidth,vh=v.videoHeight,k=Math.min(1,1280/Math.max(vw,vh),720/Math.min(vw,vh));
+  const W=Math.max(2,Math.round(vw*k/2)*2),H=Math.max(2,Math.round(vh*k/2)*2);
+  const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  const fx=ED_FX.find(f=>f[0]===S.fx)[2];
+  const cs=c.captureStream(30);
+  ac=new (window.AudioContext||window.webkitAudioContext)();await ac.resume();
+  try{const src=ac.createMediaElementSource(v),g=ac.createGain(),dst=ac.createMediaStreamDestination();g.gain.value=S.vol;src.connect(g);g.connect(dst);
+   const at=dst.stream.getAudioTracks()[0];if(at&&S.vol>0)cs.addTrack(at)}catch(e){}
+  const types=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  const mt=types.find(t=>{try{return MediaRecorder.isTypeSupported(t)}catch(e){return false}})||'';
+  rec=new MediaRecorder(cs,mt?{mimeType:mt,videoBitsPerSecond:3e6}:{videoBitsPerSecond:3e6});
+  const chunks=[];rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+  const done=new Promise(r=>{rec.onstop=r});
+  v.currentTime=S.start;await new Promise(r=>{v.onseeked=r;setTimeout(r,1500)});
+  const draw=()=>{
+   x.filter=canFx&&fx!=='none'?fx:'none';x.drawImage(v,0,0,W,H);x.filter='none';
+   if(S.txt){
+    const fs=S.fs*H;x.font='800 '+fs+'px Inter,system-ui,sans-serif';x.textAlign='center';x.textBaseline='middle';
+    const lines=S.txt.split('\n'),lh=fs*1.2,cx=S.tx*W,cy=S.ty*H;
+    lines.forEach((ln,i)=>{const y=cy+(i-(lines.length-1)/2)*lh;
+     if(S.pill){const w=x.measureText(ln).width+fs*.8;x.fillStyle=S.col==='#000000'?'#fff':'rgba(0,0,0,.55)';
+      x.beginPath();x.roundRect?x.roundRect(cx-w/2,y-lh/2,w,lh,fs*.35):x.rect(cx-w/2,y-lh/2,w,lh);x.fill()}
+     x.fillStyle=S.pill&&S.col==='#000000'?'#000':S.col;
+     if(!S.pill){x.shadowColor='rgba(0,0,0,.55)';x.shadowBlur=fs*.15}
+     x.fillText(ln,cx,y);x.shadowBlur=0});
+   }
+  };
+  draw();rec.start(250);v.playbackRate=S.speed;v.volume=1;await v.play();
+  const total=(S.end-S.start)/S.speed*1000,t0=performance.now();
+  await new Promise(res=>{
+   iv=setInterval(()=>{
+    draw();onP(Math.min(1,(v.currentTime-S.start)/(S.end-S.start)));
+    if(isCancel()||v.currentTime>=S.end-.04||v.ended||performance.now()-t0>total+6000){clearInterval(iv);res()}
+   },33);
+  });
+  v.pause();const cancelled=isCancel();rec.stop();await done;
+  const type=rec.mimeType||mt||'video/webm',blob=new Blob(chunks,{type});
+  cleanup();
+  if(cancelled||blob.size<1000)return null;
+  return new File([blob],'edit.'+(/mp4/.test(type)?'mp4':'webm'),{type});
+ }catch(e){cleanup();return null}
+}
+
+/* ---------- confidentialité / suppression de compte ---------- */
+function legalSheet(){
+ openSheet('Confidentialité et conditions',`<div><a class="opt" href="privacy.html" target="_blank" rel="noopener"><span>Politique de confidentialité</span></a><a class="opt" href="terms.html" target="_blank" rel="noopener"><span>Conditions d’utilisation</span></a><a class="opt" href="delete-account.html" target="_blank" rel="noopener"><span>Suppression du compte</span></a></div>
+ <p class="muted" style="font-size:13px;margin-top:12px">Une question ? Écris à @bee_dev dans l’application.</p>`);
+}
+function delAccount(){
+ openSheet('Supprimer mon compte',`<p style="margin:0 0 10px;line-height:1.45">Cette action est <b>définitive</b>. Ton profil, tes vidéos, stories, commentaires, abonnements et messages seront effacés et ne pourront pas être récupérés.</p>
+ <label class="fld">Entre ton mot de passe pour confirmer<input id="daP" type="password" autocomplete="current-password" maxlength="72"></label>
+ <p id="daE" class="aerr"></p><button class="cta" id="daGo" type="button" style="background:#e11d48">Supprimer définitivement</button>`);
+ $('#daGo').onclick=async()=>{
+  const pw=$('#daP').value,er=$('#daE'),b=$('#daGo');er.textContent='';
+  if(!pw){er.textContent='Entre ton mot de passe.';return}
+  b.disabled=true;b.textContent='Patiente…';
+  try{
+   const v=await sb.auth.signInWithPassword({email:me.username+MAIL,password:pw});
+   if(v.error){er.textContent='Mot de passe incorrect.';b.disabled=false;b.textContent='Supprimer définitivement';return}
+   const {error}=await sb.rpc('vyro_delete_account');
+   if(error){er.textContent='Suppression impossible, réessaie.';b.disabled=false;b.textContent='Supprimer définitivement';return}
+   try{await pushRemove()}catch(e){}
+   try{await sb.auth.signOut()}catch(e){}
+   try{const l=await indexedDB.databases();l.forEach(d=>{if(/^vyro/.test(d.name))indexedDB.deleteDatabase(d.name)})}catch(e){}
+   try{Object.keys(localStorage).filter(k=>/^vyro/.test(k)).forEach(k=>localStorage.removeItem(k))}catch(e){}
+   location.reload();
+  }catch(x){er.textContent='Erreur réseau. Réessaie.';b.disabled=false;b.textContent='Supprimer définitivement'}
+ };
+}
 /*@@MOD-END*/
 /* ---------- démarrage ---------- */
 boot();
