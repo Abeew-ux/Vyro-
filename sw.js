@@ -1,5 +1,5 @@
 /* VYRO — service worker : démarrage rapide, hors-ligne de base, clic sur une notification */
-const V = 'vyro-v13';
+const V = 'vyro-v15';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));
@@ -42,7 +42,7 @@ async function sendReply(e, dt) {
   const short = text.length > 90 ? text.slice(0, 89) + '…' : text;
   await self.registration.showNotification(dt.title || 'VYRO', {
     body: ok ? '✓ Toi : ' + short : '⚠️ Envoi impossible : appuie pour ouvrir VYRO',
-    tag, renotify: false, silent: true, icon: 'icon-192.png', badge: 'icon-192.png',
+    tag, renotify: false, silent: true, icon: dt.ic || 'icon-192.png', badge: 'icon-192.png',
     actions: ok ? replyActions({ t: 'msg', rt: dt.rt, ru: dt.ru }) : [],
     data: dt
   });
@@ -55,11 +55,11 @@ self.addEventListener('push', e => {
     if (cs.some(c => c.visibilityState === 'visible')) return; // appli ouverte : elle gère déjà alertes et sons
     await self.registration.showNotification(d.title || 'VYRO', {
       body: d.body || '', tag: d.tag || 'vyro', renotify: true,
-      icon: 'icon-192.png', badge: 'icon-192.png',
+      icon: d.ic || 'icon-192.png', badge: 'icon-192.png',
       vibrate: d.t === 'call' ? [400, 200, 400, 200, 400] : [120, 60, 120],
       requireInteraction: d.t === 'call', silent: false,
       actions: replyActions(d),
-      data: { cid: d.cid || null, v: d.v || null, t: d.t || 'msg', rt: d.rt || null, ru: d.ru || null, title: d.title || 'VYRO' }
+      data: { cid: d.cid || null, v: d.v || null, t: d.t || 'msg', rt: d.rt || null, ru: d.ru || null, title: d.title || 'VYRO', ic: d.ic || null }
     });
   })());
 });

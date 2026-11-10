@@ -697,7 +697,7 @@ h1,.logo span,.pname,.me .nm,.sec,#sh h3,.stats b,.cname,.vtab,.chat .r1 b{font-
 .fxt .e{font-size:30px}
 .fxt b,.frt b{font-size:13px;font-weight:600;text-align:center}
 .fxt.cur,.frt.cur{border-color:hsl(calc(271 + var(--hs)) 91% 70%);box-shadow:0 0 18px hsla(calc(271 + var(--hs)) 91% 65% / .45)}
-.lk{position:absolute;top:5px;right:6px;font-size:12px;font-style:normal;opacity:.9}
+i.lk{position:absolute;top:5px;right:6px;font-size:12px;font-style:normal;opacity:.9}
 .frg{display:grid;grid-template-columns:repeat(3,1fr);gap:16px 10px;padding-top:8px}
 .frno{padding:16px 0 12px}
 .fxt:active,.frt:active{transform:scale(.96)}
@@ -905,6 +905,42 @@ html[data-skin=amoled] #app::before{opacity:.35}
 .mur.on .mck{opacity:1}
 .mumsg{margin:18px 8px;text-align:center;opacity:.75;font-size:13.5px;line-height:1.5}
 .mure{margin-top:10px;padding:8px 16px;border-radius:999px;border:1px solid #d946ef;background:none;color:#fff;font-weight:600}
+/* rail vidéo : boutons petits façon TikTok, le coeur reste en place */
+.rail{gap:15px;right:8px}
+.rbtn{gap:2px;font-size:12px}
+.rbtn .ic{width:34px;height:34px;padding:0;border-radius:0;background:none!important;border:0!important;box-shadow:none!important;backdrop-filter:none;-webkit-backdrop-filter:none;filter:drop-shadow(0 2px 5px rgba(0,0,0,.65));transition:transform .15s}
+.rbtn.lk .ic{color:#ff2d75;fill:#ff2d75;animation:lkpop .35s ease}
+.rbtn.sv .ic{color:#facc15;fill:#facc15}
+@keyframes lkpop{0%{transform:scale(.6)}60%{transform:scale(1.25)}100%{transform:scale(1)}}
+/* paramètres : carte profil qui ne déborde plus */
+.me>div:nth-child(2){flex:1;min-width:0}
+.me .nm{min-width:0}
+.me .nm span,.me .muted{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me .bio1{max-width:100%}
+.me .btn-o{flex:none;white-space:nowrap;margin-left:0}
+@media (max-width:380px){.me .btn-o{padding:0;width:42px;justify-content:center;font-size:0;gap:0}.me .btn-o .ic{width:20px;height:20px}}
+/* stickers perso */
+.stkbig .csk{display:block;width:150px;height:150px;object-fit:cover;border-radius:24px;border:3px solid #fff;box-shadow:0 4px 14px rgba(0,0,0,.4);background:#111}
+.csb{position:relative;aspect-ratio:1;border:0;border-radius:14px;background:var(--card);padding:0;overflow:hidden;color:var(--text);-webkit-touch-callout:none;user-select:none}
+.cst img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.csv{position:absolute;right:5px;bottom:4px;font-size:11px;font-style:normal;background:rgba(0,0,0,.55);color:#fff;border-radius:8px;padding:1px 5px}
+.csnew{border:2px dashed hsl(calc(271 + var(--hs)) 91% 65%);background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.csnew span{font-size:30px;line-height:1}.csnew small{font-size:12px;opacity:.8}
+.cse{display:flex;justify-content:center;margin:4px 0 6px}
+.cse canvas{width:100%;max-width:280px;aspect-ratio:1;border-radius:24px;border:3px solid #fff;touch-action:none;background:#111;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.cseh{text-align:center;font-size:12.5px;margin:2px 0 8px}
+.csr{display:flex;align-items:center;gap:12px;margin:6px 4px;font-size:14px}
+.csr span{width:52px;flex:none}.csr input{flex:1;accent-color:#d946ef}
+#csI{display:block;text-align:center;margin-top:8px}
+/* clavier d'émojis (chat) */
+.stkg.emo{grid-template-columns:repeat(8,1fr);gap:0;padding:0 6px 10px;position:relative}
+.stkg.emo .eb{aspect-ratio:1;background:none;border:0;font-size:25px;line-height:1;padding:0;border-radius:10px;color:var(--text)}
+.stkg.emo .eb:active{background:var(--card2)}
+.ebar{grid-column:1/-1;position:sticky;top:0;z-index:2;display:flex;height:46px;box-sizing:border-box;align-items:center;gap:2px;background:var(--sheet);padding:4px 0 6px;overflow-x:auto;scrollbar-width:none}
+.ebar button{flex:none;width:34px;height:34px;font-size:19px;background:none;border:0;border-radius:10px;color:var(--text)}
+.ebar .ebs{margin-left:auto;position:sticky;right:0;background:var(--sheet);font-size:18px}
+.eh{grid-column:1/-1;font-size:12.5px;opacity:.65;padding:10px 4px 4px}
+.bigemo{font-size:44px;line-height:1.15;display:block}
 #splash{position:absolute;inset:0;z-index:200;display:grid;place-items:center;background:radial-gradient(60% 45% at 50% 40%,hsl(calc(272 + var(--hs)) 70% 22%),#06020d 72%);transition:opacity .45s,visibility .45s}
 #splash.out{opacity:0;visibility:hidden}
 #splash .spl{display:flex;flex-direction:column;align-items:center;gap:14px;animation:splin .6s cubic-bezier(.2,.9,.3,1.2) both}
@@ -1098,7 +1134,6 @@ html[data-skin=amoled] #app::before{opacity:.35}
    <div><div class="pname"><span data-name></span></div><div class="muted" data-handle></div></div></div>
   <div class="stats"><div><b id="stLikes">0</b><span>J'aime</span></div><div><b id="stFollowers">0</b><span>Abonnés</span></div><div><b id="stFollowing">0</b><span>Abonnements</span></div></div>
   <p class="pbio" data-bio></p>
-  <button class="cta" id="bEdit"><span class="ico" data-i="pencil"></span>Modifier mon profil</button>
   <div class="ptabs" id="ptabs"><button class="cur" data-g="vid">Vidéos</button><button data-g="like">J'aime</button><button data-g="fav">Favoris</button></div>
   <div class="grid" id="grid"></div>
  </div>
@@ -1171,6 +1206,7 @@ html[data-skin=amoled] #app::before{opacity:.35}
 const SB_URL='https://cetbspgxsqbaousqrara.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNldGJzcGd4c3FiYW91c3FyYXJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1MjI4MjUsImV4cCI6MjEwNjA5ODgyNX0._I_3CBRQMlFGalyRY4_Ne7TsKbj3F-nOdsI2HBEWrqk';
 const MAIL='@vyro.app';
+async function authMail(){try{const {data:{session}}=await sb.auth.getSession();if(session&&session.user&&session.user.email)return session.user.email}catch(e){}return me.username+MAIL}
 // Adresse du relais vidéo (Worker Cloudflare), sans « / » à la fin. Laisse vide tant qu'il n'est pas installé.
 // Ex : 'https://vyro-media.moncompte.workers.dev'. Vide = le bouton + crée seulement des publications test.
 const MEDIA_URL='https://vyro-media.abdou9747w.workers.dev';
@@ -1649,7 +1685,7 @@ $('#chatList').onclick=e=>{const r=e.target.closest('.chat');if(r)openThread(r.d
 
 /* ---------- chat : conversation ---------- */
 let names={},avs={},peerRead=0,typing=null,typT=0,tchan=null,typSent=0,stick=true;
-const MED_RE=/^\[med:(image|video|audio):([0-9a-f-]{36})\]$/;
+const MED_RE=/^\[med:(image|video|audio):([0-9a-f-]{36})(:s)?\]$/;
 const SYS_RE=/^\[sys:ttl:(\d+)\]$/;
 const CALL_RE=/^\[call:(audio|video):(\d+)\]$/;
 const murl=id=>MEDIA_URL+'/chatmedia/'+id+'?t='+encodeURIComponent(tok);
@@ -1708,6 +1744,7 @@ function msgHTML(m,i,arr){
   q=`<div class="qt" data-q="${m.reply_to}"><b>${rp?(rp.sender_id===me.id?'Toi':esc(names[rp.sender_id]||'')):'Message'}</b><span>${rp?esc(prev(rp.body)):'Message supprimé ou expiré'}</span></div>`}
  let body;
  if(sk)body=`<div class="stkbig">${stkHTML(sk.k,sk.key)}</div>`;
+ else if(md&&md[3]&&MEDIA_URL)body=`<div class="stkbig">${md[1]==='video'?`<video class="csk" src="${mu(md[2])}" autoplay loop muted playsinline preload="auto"></video>`:`<img class="csk" src="${mu(md[2])}" alt="Sticker" loading="lazy">`}</div>`;
  else if(md&&MEDIA_URL){
   if(md[1]==='image')body=`<img class="cimg" data-full="${mu(md[2])}" src="${mu(md[2])}" alt="Photo" loading="lazy">`;
   else if(md[1]==='video')body=`<video class="cvid" src="${mu(md[2])}" controls playsinline preload="metadata"></video>`;
@@ -1717,12 +1754,12 @@ function msgHTML(m,i,arr){
    const vav=`<span class="vav">${av({name:nm,h:hue(nm),uid:sid,avatar:pic},44,null)}<i class="vmic">${I('mic')}</i></span>`;
    body=`<div class="aw ${mine?'mine':'theirs'}">${mine?'':vav}<audio class="caud" src="${mu(md[2])}" controls preload="metadata"></audio><button type="button" class="spd" aria-label="Vitesse de lecture">1×</button>${mine?vav:''}</div>`;
   }
- }else body=`<span>${lkBody(m.body)}</span>`;
+ }else body=(typeof bigEmo==='function'&&bigEmo(m.body))?`<span class="bigemo">${esc(m.body)}</span>`:`<span>${lkBody(m.body)}</span>`;
  const rd=!mine?'':(cur.type!=='group'&&d.getTime()<=peerRead?'<i class="tk rd">✓✓</i>':m.dlv?'<i class="tk dl">✓✓</i>':'<i class="tk">✓</i>');
  const rs=cur.reacts&&cur.reacts[m.id],g={};
  if(rs)for(const u in rs){const e=rs[u];(g[e]=g[e]||{n:0,me:false}).n++;if(u===me.id)g[e].me=true}
  const rx=Object.keys(g).length?`<div class="rx">${Object.entries(g).map(([e,v])=>`<button type="button" data-rx="${e}" class="${v.me?'me':''}">${e}${v.n>1?'<i>'+v.n+'</i>':''}</button>`).join('')}</div>`:'';
- const cls=(sk?' stk':'')+(md?' med':'')+(rx?' hasrx':'');
+ const cls=((sk||(md&&md[3]))?' stk':'')+((md&&!md[3])?' med':'')+(rx?' hasrx':'');
  return h+`<div class="b ${mine?'me2':'th2'}${cls}" data-id="${m.id}">${sn}${q}${body}<small>${hm(d)}${rd}</small>${rx}</div>`;
 }
 function visibleMsgs(){
@@ -2136,8 +2173,14 @@ function renderGrid(){$('#grid').innerHTML=gridHTML(G[gtab],gtab==='vid'?'Tu n�
 $('#ptabs').onclick=e=>{const b=e.target.closest('[data-g]');if(!b)return;gtab=b.dataset.g;$$('#ptabs button').forEach(x=>x.classList.toggle('cur',x===b));renderGrid()};
 $('#grid').onclick=e=>{const t=e.target.closest('.th');if(t)openViewer(G[gtab],+t.dataset.i)};
 function editProfile(){
- openSheet('Modifier mon profil',`${MEDIA_URL?`<div class="avedit"><div class="pav"><span data-ini></span></div><div><label class="btn-o" for="eFile">Changer la photo</label><input id="eFile" type="file" accept="image/*" hidden>${me.avatar_url?'<button class="lnk" id="eDel" type="button">Retirer la photo</button>':''}<small class="muted" id="eInfo"></small></div></div>`:''}<label class="fld">Pseudo (ne peut pas être changé)<input value="@${esc(me.username)}" disabled></label><label class="fld">Nom affiché<input id="eName" maxlength="30" value="${esc(me.display_name)}"></label><label class="fld">Bio<textarea id="eBio" rows="3" maxlength="150">${esc(me.bio)}</textarea></label><button class="cta" id="eSave">Enregistrer</button>`);
+ openSheet('Modifier mon profil',`${MEDIA_URL?`<div class="avedit"><div class="pav"><span data-ini></span></div><div><label class="btn-o" for="eFile">Changer la photo</label><input id="eFile" type="file" accept="image/*" hidden>${me.avatar_url?'<button class="lnk" id="eDel" type="button">Retirer la photo</button>':''}<small class="muted" id="eInfo"></small></div></div>`:''}<label class="fld">Pseudo<input id="eUser" maxlength="20" value="${esc(me.username)}" autocapitalize="none" autocorrect="off" spellcheck="false"><small class="muted" id="eUserI">Lettres, chiffres et _ (3 à 20). Modifiable une fois tous les 30 jours.</small></label><label class="fld">Nom affiché<input id="eName" maxlength="30" value="${esc(me.display_name)}"></label><label class="fld">Bio<textarea id="eBio" rows="3" maxlength="150">${esc(me.bio)}</textarea></label><button class="cta" id="eSave">Enregistrer</button>`);
  applyNames();
+ /* pseudo : 1 changement tous les 30 jours (contrôlé par le serveur) */
+ sb.from('vyro_profiles').select('username_changed_at').eq('id',me.id).maybeSingle().then(({data})=>{
+  const at=data&&data.username_changed_at,inp=$('#eUser');if(!at||!inp)return;
+  const left=Math.ceil((new Date(at).getTime()+30*864e5-Date.now())/864e5);
+  if(left>0){inp.disabled=true;$('#eUserI').textContent='Tu pourras changer ton pseudo dans '+left+' jour'+(left>1?'s':'')+'.'}
+ });
  if($('#eFile'))$('#eFile').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;const info=$('#eInfo');
   if(!String(f.type).startsWith('image/')){info.textContent='Ce fichier n’est pas une image.';return}
@@ -2155,13 +2198,25 @@ function editProfile(){
   me.avatar_url=null;applyNames();closeSheet();toast('Photo retirée');
  };
  $('#eSave').onclick=async()=>{
-  const display_name=$('#eName').value.trim()||me.username,bio=$('#eBio').value.trim();
+  const bio=$('#eBio').value.trim(),nu=$('#eUser')&&!$('#eUser').disabled?$('#eUser').value.trim().toLowerCase().replace(/^@/,''):me.username;
+  if(nu!==me.username){
+   if(!/^[a-z0-9_]{3,20}$/.test(nu)){$('#eUserI').textContent=ERR.invalid_username;$('#eUserI').style.color='#ff6b8a';return}
+   if(!await askConfirm('Changer ton pseudo ?','Ton pseudo deviendra @'+nu+'. Tu ne pourras plus le changer pendant 30 jours.','Changer'))return;
+   const r=await sb.rpc('vyro_change_username',{p_username:nu});
+   if(r.error){
+    const m=String(r.error.message||''),w=m.match(/username_wait:(\d+)/);
+    $('#eUserI').style.color='#ff6b8a';
+    $('#eUserI').textContent=w?'Tu pourras changer ton pseudo dans '+w[1]+' jour(s).':/taken/.test(m)?'Ce pseudo est déjà pris.':/invalid/.test(m)?ERR.invalid_username:'Changement impossible, réessaie.';
+    return}
+   me.username=nu;
+  }
+  const display_name=$('#eName').value.trim()||me.username;
   const {error}=await sb.from('vyro_profiles').update({display_name,bio}).eq('id',me.id);
   if(error){toast('Enregistrement impossible');return}
   me.display_name=display_name;me.bio=bio;applyNames();closeSheet();toast('Profil mis à jour ✅');
  };
 }
-$('#bEdit').onclick=editProfile;$('[data-edit]').onclick=editProfile;
+$('[data-edit]').onclick=editProfile;
 
 /* ---------- réglages ---------- */
 let stT;
@@ -2277,24 +2332,33 @@ function parseStk(body){const m=STK_RE.exec(body||'');return m&&stkHTML(m[1],m[2
 function prev(body){
  const s=parseStk(body);if(s)return s.k==='e'?'Sticker '+s.key:'Sticker';
  body=body||'';
- const m=MED_RE.exec(body);if(m)return m[1]==='image'?'📷 Photo':m[1]==='video'?'🎥 Vidéo':'🎤 Message vocal';
+ const m=MED_RE.exec(body);if(m&&m[3])return 'Sticker';if(m)return m[1]==='image'?'📷 Photo':m[1]==='video'?'🎥 Vidéo':'🎤 Message vocal';
  const c=CALL_RE.exec(body);if(c)return '📞 Appel '+(c[1]==='video'?'vidéo':'vocal');
  if(/^\[sys:/.test(body))return '⏱ Messages éphémères';
  return body}
-const STK_TABS=[['e','😀','Émojis'],['t','Aa','Textes'],['a','✨','Néon']];
-const stkItems=k=>k==='e'?EMO.map(x=>[k,x]):(k==='t'?TXT:ART).map(x=>[k,x[0]]);
-function mountPicker(tEl,gEl,onPick){
+const STK_TABS=[['e','😀','Émojis'],['t','Aa','Textes']];
+const stkItems=k=>k==='e'?EMO.map(x=>[k,x]):TXT.map(x=>[k,x[0]]);
+function mountPicker(tEl,gEl,onPick,custom){
+ /* chat : onglets Mes stickers · Émojis (clavier) · Textes ; caméra : Émojis · Textes */
+ const TABS=custom?[['m','⭐','Mes stickers'],['e','😀','Émojis'],['t','Aa','Textes']]:STK_TABS;
  let k='e';
+ if(custom){try{const sv=localStorage.getItem('vyro_stk_tab');if(TABS.some(t=>t[0]===sv))k=sv}catch(e){}}
  const draw=()=>{
-  tEl.innerHTML=STK_TABS.map(t=>`<button type="button" data-k="${t[0]}" class="${k===t[0]?'cur':''}">${t[1]} ${t[2]}</button>`).join('');
+  tEl.innerHTML=TABS.map(t=>`<button type="button" data-k="${t[0]}" class="${k===t[0]?'cur':''}">${t[1]} ${t[2]}</button>`).join('');
+  gEl.classList.toggle('emo',!!custom&&k==='e');gEl.scrollTop=0;
+  if(custom&&k==='m'&&typeof csDraw==='function'){csDraw(gEl);return}
+  if(custom&&k==='e'&&typeof emoDraw==='function'){emoDraw(gEl);return}
   gEl.innerHTML=stkItems(k).map(([a,b])=>`<button type="button" class="stkc" data-k="${a}" data-id="${esc(b)}" aria-label="Sticker ${esc(b)}">${stkHTML(a,b)}</button>`).join('');
-  gEl.scrollTop=0;
  };
- tEl.onclick=e=>{const b=e.target.closest('[data-k]');if(b){k=b.dataset.k;draw()}};
- gEl.onclick=e=>{const b=e.target.closest('.stkc');if(b)onPick(b.dataset.k,b.dataset.id)};
- draw();
+ tEl.onclick=e=>{const b=e.target.closest('[data-k]');if(b){k=b.dataset.k;if(custom)try{localStorage.setItem('vyro_stk_tab',k)}catch(x){}draw()}};
+ gEl.onclick=e=>{
+  const c=e.target.closest('[data-cs]');if(c){if(typeof csClick==='function')csClick(c,()=>$('#stkp').classList.remove('on'));return}
+  if(typeof emoClick==='function'&&emoClick(e,gEl))return;
+  const b=e.target.closest('.stkc');if(b)onPick(b.dataset.k,b.dataset.id);
+ };
+ if(custom)setTimeout(draw,0);else draw(); /* chat : attend la fin du chargement (clavier d'émojis défini plus bas) */
 }
-mountPicker($('#stkt'),$('#stkg'),(k,key)=>{$('#stkp').classList.remove('on');sendBody(`[stk:${k}:${key}]`)});
+mountPicker($('#stkt'),$('#stkg'),(k,key)=>{$('#stkp').classList.remove('on');sendBody(`[stk:${k}:${key}]`)},true);
 $('#tStk').onclick=()=>{$('#stkp').classList.toggle('on');$('#tIn').blur()};
 
 /* ---------- caméra à effets ---------- */
@@ -3024,11 +3088,28 @@ function askConfirm(title,msg,ok){
 }
 
 /* menu d'une vidéo */
+async function dlVideo(p){
+ if(!p.fid||!MEDIA_URL){toast('Téléchargement indisponible');return}
+ if(!p.mine){
+  try{const {data}=await sb.from('vyro_profiles').select('settings').eq('id',p.uid).maybeSingle();
+   if(data&&data.settings&&data.settings.priv&&data.settings.priv.download===false){toast('Cette personne n’autorise pas le téléchargement');return}}catch(e){}
+ }
+ toast('Téléchargement…');
+ try{
+  const r=await fetch(vurl(p.id));if(!r.ok)throw new Error('http');
+  const bl=await r.blob(),ext=/webm/.test(bl.type)?'webm':'mp4',name='vyro-'+String(p.user||'video').replace(/[^\w-]/g,'')+'-'+String(p.id).slice(0,6)+'.'+ext;
+  const f=new File([bl],name,{type:bl.type||'video/mp4'});
+  if(/iPad|iPhone|iPod/.test(navigator.userAgent)&&navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f]})}catch(e){}return}
+  const u=URL.createObjectURL(bl),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),60000);toast('Vidéo enregistrée ✅');
+ }catch(e){toast('Téléchargement impossible, réessaie')}
+}
 function postMenu(p){
- const rows=p.mine?[['trash','Supprimer la vidéo','del','dng']]:[['user','Voir le profil','prof'],['flag','Signaler la vidéo','rep'],['ban','Bloquer @'+p.user,'blk','dng']];
+ const dl=p.fid?[['download','Télécharger la vidéo','dl']]:[];
+ const rows=p.mine?dl.concat([['trash','Supprimer la vidéo','del','dng']]):dl.concat([['user','Voir le profil','prof'],['flag','Signaler la vidéo','rep'],['ban','Bloquer @'+p.user,'blk','dng']]);
  const sh=openSheet('Options',rows.map(([i,t,a,c])=>`<div class="opt ${c||''}" data-act="${a}">${I(i)}<span>${esc(t)}</span></div>`).join(''));
  sh.onclick=e=>{const o=e.target.closest('[data-act]');if(!o)return;const a=o.dataset.act;closeSheet();
-  if(a==='del')delPost(p);else if(a==='prof')openProfile(p.uid);else if(a==='rep')reportSheet('video',p.id,'cette vidéo');else if(a==='blk')blockUser(p.uid,p.user)};
+  if(a==='del')delPost(p);else if(a==='dl')dlVideo(p);else if(a==='prof')openProfile(p.uid);else if(a==='rep')reportSheet('video',p.id,'cette vidéo');else if(a==='blk')blockUser(p.uid,p.user)};
 }
 async function delPost(p){
  if(!await askConfirm('Supprimer cette vidéo ?','Elle disparaîtra pour tout le monde, avec ses likes et ses commentaires. Cette action est définitive.','Supprimer'))return;
@@ -3213,7 +3294,7 @@ function sheetSecurity(){
   if(n===o){er.textContent='Le nouveau mot de passe doit être différent.';return}
   b.disabled=true;b.textContent='Patiente…';
   try{
-   const v=await sb.auth.signInWithPassword({email:me.username+MAIL,password:o});
+   const v=await sb.auth.signInWithPassword({email:await authMail(),password:o});
    if(v.error){er.textContent='Mot de passe actuel incorrect.';return}
    const u=await sb.auth.updateUser({password:n});
    if(u.error){er.textContent='Changement impossible : '+u.error.message;return}
@@ -3583,7 +3664,7 @@ function upMedia(field,blob,name,onProg){
   x.send(fd);
  }));
 }
-async function sendChatMedia(kind,blob,name,dur){
+async function sendChatMedia(kind,blob,name,dur,sticker){
  const c=cur;if(!c)return;
  const up=$('#tUp');up.hidden=false;up.firstChild.style.width='6%';
  try{
@@ -3591,7 +3672,7 @@ async function sendChatMedia(kind,blob,name,dur){
   const {data,error}=await sb.from('vyro_media').insert({conversation_id:c.id,sender_id:me.id,kind,tg_file_id:r.file_id,duration:dur||null}).select('id').single();
   if(error)throw error;
   try{await LDB.set('blobs',data.id,blob);BU.set(data.id,URL.createObjectURL(blob))}catch(e){}
-  await sendBody('[med:'+kind+':'+data.id+']',c);
+  await sendBody('[med:'+kind+':'+data.id+(sticker?':s':'')+']',c);
  }catch(x){toast(x&&x.message==='too_large'?'Fichier trop lourd (20 Mo maximum)':'Envoi impossible, réessaie')}
  finally{up.hidden=true}
 }
@@ -5064,8 +5145,9 @@ function delAccount(){
   if(!pw){er.textContent='Entre ton mot de passe.';return}
   b.disabled=true;b.textContent='Patiente…';
   try{
-   const v=await sb.auth.signInWithPassword({email:me.username+MAIL,password:pw});
+   const v=await sb.auth.signInWithPassword({email:await authMail(),password:pw});
    if(v.error){er.textContent='Mot de passe incorrect.';b.disabled=false;b.textContent='Supprimer définitivement';return}
+   try{await sb.storage.from('vyro-avatars').remove([me.id+'.jpg'])}catch(e){}
    const {error}=await sb.rpc('vyro_delete_account');
    if(error){er.textContent='Suppression impossible, réessaie.';b.disabled=false;b.textContent='Supprimer définitivement';return}
    try{await pushRemove()}catch(e){}
@@ -5172,6 +5254,217 @@ renderChats=function(){
  window.addEventListener('offline',upd);window.addEventListener('online',upd);
  if(!navigator.onLine)upd();
 })();
+
+/* ===== VYRO v3m : stickers perso (photos/vidéos stockés sur le téléphone) + petite photo publique pour les notifications ===== */
+
+/* ---------- stockage local des stickers (IndexedDB, un espace par compte) ---------- */
+const CS={
+ db:null,uid:null,
+ async open(){
+  if(this.db&&this.uid===me.id)return this.db;
+  this.uid=me.id;
+  this.db=await new Promise((ok,ko)=>{
+   const r=indexedDB.open('vyro_stk_'+me.id,1);
+   r.onupgradeneeded=()=>{r.result.createObjectStore('s',{keyPath:'id'})};
+   r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error);
+  });
+  return this.db;
+ },
+ async all(){
+  const d=await this.open();
+  return new Promise((ok,ko)=>{const q=d.transaction('s').objectStore('s').getAll();q.onsuccess=()=>ok((q.result||[]).sort((a,b)=>b.at-a.at));q.onerror=()=>ko(q.error)});
+ },
+ async put(r){
+  const d=await this.open();
+  return new Promise((ok,ko)=>{const t=d.transaction('s','readwrite');t.objectStore('s').put(r);t.oncomplete=ok;t.onerror=()=>ko(t.error)});
+ },
+ async del(id){
+  const d=await this.open();
+  return new Promise((ok,ko)=>{const t=d.transaction('s','readwrite');t.objectStore('s').delete(id);t.oncomplete=ok;t.onerror=()=>ko(t.error)});
+ }
+};
+const CS_MAX=60;
+let csUrls=[],csCache=[],csPress=null,csLong=false;
+
+async function csDraw(gEl){
+ gEl.innerHTML='<p class="mumsg" style="grid-column:1/-1">Chargement…</p>';
+ let list=[];
+ try{list=await CS.all()}catch(e){gEl.innerHTML='<p class="mumsg" style="grid-column:1/-1">Stockage indisponible sur ce navigateur.</p>';return}
+ csCache=list;csUrls.forEach(u=>{try{URL.revokeObjectURL(u)}catch(e){}});csUrls=[];
+ const tiles=list.map(r=>{const u=URL.createObjectURL(r.thumb);csUrls.push(u);return `<button type="button" class="csb cst" data-cs="${r.id}" aria-label="Mon sticker"><img src="${u}" alt="">${r.kind==='video'?'<i class="csv">▶</i>':''}</button>`}).join('');
+ gEl.innerHTML=`<button type="button" class="csb csnew" data-cs="new"><span>＋</span><small>Créer</small></button>${tiles}${list.length?'':'<p class="mumsg" style="grid-column:2/-1;margin:8px 0;text-align:left">Crée un sticker avec une photo ou une vidéo de ta galerie. Il reste sur ton téléphone.</p>'}`;
+ /* appui long = supprimer */
+ gEl.onpointerdown=e=>{
+  const t=e.target.closest('.cst');if(!t)return;csLong=false;clearTimeout(csPress);
+  csPress=setTimeout(async()=>{csLong=true;if(navigator.vibrate)try{navigator.vibrate(20)}catch(x){}
+   if(await askConfirm('Supprimer ce sticker ?','Il sera retiré de ton téléphone.','Supprimer')){await CS.del(t.dataset.cs);toast('Sticker supprimé');csDraw(gEl)}},520);
+ };
+ const stop=()=>clearTimeout(csPress);gEl.onpointerup=stop;gEl.onpointercancel=stop;gEl.onpointerleave=stop;gEl.onscroll=stop;
+}
+function csClick(el,closeFn){
+ if(csLong){csLong=false;return}
+ const id=el.dataset.cs;
+ if(id==='new'){
+  if(csCache.length>=CS_MAX){toast(CS_MAX+' stickers maximum');return}
+  const fi=document.createElement('input');fi.type='file';fi.accept='image/*,video/*';
+  fi.onchange=()=>{const f=fi.files[0];if(f)csEditor(f)};fi.click();return;
+ }
+ const r=csCache.find(x=>x.id===id);if(!r||!cur)return;
+ if(!MEDIA_URL){toast('Envoi de médias indisponible');return}
+ closeFn();
+ const ext=/webm/.test(r.blob.type)?'webm':'mp4';
+ sendChatMedia(r.kind,r.blob,r.kind==='video'?'sticker.'+ext:'sticker.jpg',r.kind==='video'?Math.round(r.dur||3):null,true);
+}
+
+/* ---------- éditeur : cadrer, zoomer, (début de la vidéo) puis enregistrer ---------- */
+async function csEditor(file){
+ const isVid=/^video\//.test(file.type)||(!file.type&&/\.(mp4|mov|webm|m4v|3gp)$/i.test(file.name||''));
+ if(!isVid&&!/^image\//.test(file.type)){toast('Choisis une photo ou une vidéo');return}
+ openSheet('Créer un sticker',`<div class="cse"><canvas id="csC" width="300" height="300"></canvas></div>
+ <p class="muted cseh">Glisse l’image pour la cadrer.</p>
+ <label class="csr"><span>Zoom</span><input type="range" id="csZ" min="100" max="300" value="100"></label>
+ ${isVid?'<label class="csr"><span>Début</span><input type="range" id="csS" min="0" max="0" step="0.1" value="0"></label><p class="muted cseh" id="csD">Le sticker dure 3 secondes maximum, en boucle.</p>':''}
+ <button class="cta" id="csGo" type="button" disabled>Ajouter à mes stickers</button><small class="muted" id="csI"></small>`);
+ const cv=$('#csC'),ctx=cv.getContext('2d'),go=$('#csGo'),inf=$('#csI');
+ let src=null,sw=0,sh=0,z=1,sx=0,sy=0,vid=null,start=0,dur=0,alive=true;
+ const side=()=>Math.min(sw,sh)/z;
+ const clamp=()=>{const s=side();sx=Math.max(0,Math.min(sw-s,sx));sy=Math.max(0,Math.min(sh-s,sy))};
+ const paint=(c,n)=>{const x=c.getContext('2d'),s=side();x.fillStyle='#000';x.fillRect(0,0,n,n);try{x.drawImage(src,sx,sy,s,s,0,0,n,n)}catch(e){}};
+ try{
+  if(isVid){
+   vid=document.createElement('video');vid.muted=true;vid.playsInline=true;vid.preload='auto';vid.src=URL.createObjectURL(file);
+   await new Promise((ok,ko)=>{vid.onloadedmetadata=ok;vid.onerror=()=>ko(new Error('vid'));setTimeout(()=>ko(new Error('timeout')),8000)});
+   src=vid;sw=vid.videoWidth;sh=vid.videoHeight;dur=vid.duration||3;
+   if(!sw||!sh)throw new Error('size');
+   const S=$('#csS');S.max=Math.max(0,dur-3).toFixed(1);if(dur<=3)S.parentNode.hidden=true;
+   if(dur<1){toast('Vidéo trop courte');closeSheet();return}
+   try{await vid.play()}catch(e){}
+  }else{
+   src=await loadBmp(file);sw=src.width||src.naturalWidth;sh=src.height||src.naturalHeight;
+  }
+ }catch(e){toast('Fichier illisible');closeSheet();return}
+ sx=(sw-side())/2;sy=(sh-side())/2;go.disabled=false;
+ const loop=()=>{
+  if(!alive||!document.body.contains(cv)){alive=false;if(vid){try{vid.pause();URL.revokeObjectURL(vid.src)}catch(e){}}return}
+  if(vid&&(vid.currentTime>start+3||vid.ended||vid.currentTime<start-.2)){try{vid.currentTime=start;vid.play()}catch(e){}}
+  paint(cv,300);requestAnimationFrame(loop);
+ };
+ loop();
+ $('#csZ').oninput=e=>{const c=[sx+side()/2,sy+side()/2];z=e.target.value/100;sx=c[0]-side()/2;sy=c[1]-side()/2;clamp()};
+ if(isVid)$('#csS').oninput=e=>{start=+e.target.value;try{vid.currentTime=start}catch(x){}};
+ let drag=null;
+ cv.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY};try{cv.setPointerCapture(e.pointerId)}catch(x){}};
+ cv.onpointermove=e=>{if(!drag)return;const k=side()/cv.getBoundingClientRect().width;sx-=(e.clientX-drag.x)*k;sy-=(e.clientY-drag.y)*k;drag={x:e.clientX,y:e.clientY};clamp()};
+ cv.onpointerup=cv.onpointercancel=()=>{drag=null};
+ go.onclick=async()=>{
+  go.disabled=true;go.textContent='Création…';
+  try{
+   const N=320,oc=document.createElement('canvas');oc.width=oc.height=N;
+   const tc=document.createElement('canvas');tc.width=tc.height=128;
+   let blob,kind='image',d=null;
+   if(!isVid){
+    paint(oc,N);blob=await new Promise(r=>oc.toBlob(r,'image/jpeg',.9));
+   }else{
+    kind='video';
+    if(!window.MediaRecorder||!oc.captureStream)throw new Error('norec');
+    const mt=['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
+    d=Math.min(3,Math.max(1,dur-start));
+    const chunks=[],rec=new MediaRecorder(oc.captureStream(24),Object.assign({videoBitsPerSecond:1200000},mt?{mimeType:mt}:{}));
+    rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+    const done=new Promise(r=>{rec.onstop=r});
+    vid.currentTime=start;try{await vid.play()}catch(e){}
+    const t0=performance.now();rec.start(200);
+    await new Promise(res=>{const tick=()=>{paint(oc,N);const el=(performance.now()-t0)/1000;inf.textContent='Création… '+Math.min(100,Math.round(el/d*100))+'%';if(el>=d)res();else requestAnimationFrame(tick)};tick()});
+    rec.stop();await done;
+    blob=new Blob(chunks,{type:(rec.mimeType||mt||'video/webm').split(';')[0]});
+    vid.currentTime=start;await new Promise(r=>setTimeout(r,120));
+   }
+   paint(tc,128);const thumb=await new Promise(r=>tc.toBlob(r,'image/jpeg',.8));
+   if(!blob||!blob.size||blob.size>8e6)throw new Error('size');
+   await CS.put({id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2)),kind,blob,thumb,dur:d,at:Date.now()});
+   alive=false;closeSheet();toast('Sticker ajouté ⭐');
+   const cur2=document.querySelector('#stkt .cur');if(cur2&&cur2.dataset.k==='m')csDraw($('#stkg'));
+  }catch(e){go.disabled=false;go.textContent='Ajouter à mes stickers';inf.textContent=e&&e.message==='norec'?'Les stickers vidéo ne sont pas pris en charge sur ce navigateur.':'Création impossible, réessaie.'}
+ };
+}
+
+/* ---------- petite photo publique (affichée dans les notifications) ---------- */
+let _pubAvBusy=false;
+async function pubAvatarSync(){
+ if(_pubAvBusy||!me||!sb.storage||!MEDIA_URL)return;
+ const key='vyro_pubav',want=me.id+':'+(me.avatar_url?String(me.avatar_url).slice(-10):'none');
+ let have='';try{have=localStorage.getItem(key)||''}catch(e){}
+ if(have===want)return;
+ _pubAvBusy=true;
+ try{
+  const bk=sb.storage.from('vyro-avatars');
+  if(!me.avatar_url){await bk.remove([me.id+'.jpg'])}
+  else{
+   const r=await fetch(aurl(me.id,me.avatar_url));if(!r.ok)throw new Error('http');
+   const jp=await squareJpeg(await r.blob(),192);
+   const u=await bk.upload(me.id+'.jpg',jp,{upsert:true,contentType:'image/jpeg',cacheControl:'3600'});
+   if(u.error)throw u.error;
+  }
+  try{localStorage.setItem(key,want)}catch(e){}
+ }catch(e){}
+ finally{_pubAvBusy=false}
+}
+{
+ const _an=applyNames;
+ applyNames=function(){const r=_an.apply(this,arguments);setTimeout(pubAvatarSync,2500);return r};
+}
+
+/* ---------- clavier d'émojis façon WhatsApp (chat) : les émojis s'ajoutent au message ---------- */
+const EMO_CATS=[
+ ['😀','Visages','😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 ☺️ 😚 😙 🥲 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶 😏 😒 🙄 😬 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 🤯 🤠 🥳 😎 🤓 🧐 😕 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 ☠️ 💩 🤡 👹 👺 👻 👽 👾 🤖 😺 😸 😹 😻 😼 😽 🙀 😿 😾 🙈 🙉 🙊'],
+ ['👋','Gestes et personnes','👋 🤚 🖐️ ✋ 🖖 👌 🤌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 👐 🤲 🤝 🙏 ✍️ 💅 🤳 💪 🦾 🦵 🦶 👂 👃 🧠 👀 👁️ 👅 👄 💋 👶 🧒 👦 👧 🧑 👱 👨 🧔 👩 🧓 👴 👵 🙍 🙎 🙅 🙆 💁 🙋 🧏 🙇 🤦 🤷 👮 💂 👷 🤴 👸 👳 🧕 🤵 👰 🤰 🤱 👼 🎅 🤶 🦸 🦹 🧙 🧚 🧛 🧜 🧝 🧞 🧟 💆 💇 🚶 🏃 💃 🕺 👯'],
+ ['❤️','Cœurs et symboles','❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 💯 💢 💥 💫 💦 💨 💬 💭 💤 ✨ ⭐ 🌟 ⚡ 🔥 ✔️ ✅ ❌ ❓ ❗ ‼️ ⚠️ 🚫 ♻️ ➕ ➖ ➡️ ⬅️ ⬆️ ⬇️ 🔴 🟠 🟡 🟢 🔵 🟣 ⚫ ⚪ 🔔 🎵 🎶 ©️ ®️ ™️ ☮️ ✝️ ☪️ ☯️'],
+ ['🐶','Animaux et nature','🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🐔 🐧 🐦 🐤 🦆 🦅 🦉 🦇 🐺 🐗 🐴 🦄 🐝 🐛 🦋 🐌 🐞 🐜 🕷️ 🦂 🐢 🐍 🦎 🐙 🦑 🦐 🦀 🐠 🐟 🐬 🐳 🐋 🦈 🐊 🐅 🐆 🦓 🦍 🐘 🦏 🐪 🐫 🦒 🐃 🐂 🐄 🐎 🐖 🐏 🐑 🐐 🦌 🐕 🐩 🐈 🐓 🦃 🕊️ 🐇 🐁 🐀 🐿️ 🦔 🌵 🎄 🌲 🌳 🌴 🌱 🌿 ☘️ 🍀 🍁 🍂 🍃 🌺 🌻 🌹 🌷 🌼 🌸 💐 🍄 🌾 🌍 🌙 ☀️ ⛅ ☁️ 🌈 ⛄ ❄️ 🌊'],
+ ['🍔','Nourriture','🍏 🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🍈 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🍆 🥑 🥦 🥒 🌶️ 🌽 🥕 🧄 🧅 🥔 🍠 🥐 🍞 🥖 🧀 🥚 🍳 🥞 🥓 🥩 🍗 🍖 🌭 🍔 🍟 🍕 🥪 🌮 🌯 🥗 🍝 🍜 🍲 🍛 🍣 🍱 🥟 🍤 🍙 🍚 🍘 🍥 🍢 🍡 🍧 🍨 🍦 🥧 🧁 🍰 🎂 🍮 🍭 🍬 🍫 🍿 🍩 🍪 🥜 🍯 🥛 ☕ 🍵 🧃 🥤 🍶 🍺 🍻 🥂 🍷 🥃 🍸 🍹 🍾'],
+ ['⚽','Activités','⚽ 🏀 🏈 ⚾ 🥎 🎾 🏐 🏉 🎱 🏓 🏸 🥊 🥋 ⛳ 🏹 🎣 🎮 🕹️ 🎲 🧩 ♟️ 🎯 🎳 🎰 🎤 🎧 🎸 🎹 🥁 🎷 🎺 🎻 🎬 🎨 🎭 🏆 🥇 🥈 🥉 🏅 🎖️ 🎗️ 🎫 🎟️ 🎪 🎉 🎊 🎈 🎁 🎀'],
+ ['🚗','Voyages','🚗 🚕 🚙 🚌 🚎 🏎️ 🚓 🚑 🚒 🚚 🚜 🏍️ 🛵 🚲 🛴 🚂 ✈️ 🛫 🛬 🚀 🛸 🚁 ⛵ 🚤 🛳️ ⚓ 🏠 🏡 🏢 🏥 🏦 🏪 🏫 🏰 🕌 ⛪ 🕋 🗼 🗽 🌆 🌃 🌉 🎡 🎢 ⛺ 🏕️ ⛰️ 🏔️ 🏝️ 🏜️ 🌋'],
+ ['💡','Objets','⌚ 📱 💻 ⌨️ 🖥️ 🖨️ 🖱️ 💽 💾 📷 📸 📹 🎥 📞 ☎️ 📺 📻 ⏰ 🔋 🔌 💡 🔦 💰 💵 💴 💶 💷 💳 💎 🔧 🔨 ⚙️ 💣 🔪 🛡️ 🔮 📿 💊 💉 🧬 🔬 🔭 📡 🧹 🧺 🔑 🗝️ 🚪 🛋️ 🛏️ 🚿 🧴 🧻 📦 📫 📝 📚 📖 📌 📎 ✂️ 🔒 🔓'],
+ ['🏁','Drapeaux','🇳🇪 🇫🇷 🇳🇬 🇬🇭 🇸🇳 🇨🇮 🇲🇱 🇧🇫 🇨🇲 🇲🇦 🇩🇿 🇹🇳 🇪🇬 🇺🇸 🇬🇧 🇧🇷 🇪🇸 🇮🇹 🇩🇪 🇨🇳 🇯🇵 🇸🇦 🇹🇷 🏳️ 🏴 🏁 🚩']
+].map(c=>[c[0],c[1],c[2].split(' ')]);
+const emoRecent=()=>{try{return JSON.parse(localStorage.getItem('vyro_emo_rec')||'[]').filter(x=>typeof x==='string').slice(0,24)}catch(e){return[]}};
+function emoDraw(gEl){
+ const rec=emoRecent();
+ const cats=(rec.length?[['🕘','Récents',rec]]:[]).concat(EMO_CATS);
+ gEl.innerHTML=`<div class="ebar">${cats.map((c,i)=>`<button type="button" data-ec="${i}" aria-label="${esc(c[1])}">${c[0]}</button>`).join('')}<button type="button" class="ebs" data-ebs="1" aria-label="Effacer">⌫</button></div>`+
+  cats.map((c,i)=>`<div class="eh" data-eh="${i}">${esc(c[1])}</div>`+c[2].map(e=>`<button type="button" class="eb" data-em="${e}">${e}</button>`).join('')).join('');
+}
+function emoClick(e,gEl){
+ const inp=$('#tIn');
+ const em=e.target.closest('[data-em]');
+ if(em){
+  const ch=em.dataset.em;
+  if(inp){
+   const s=inp.selectionStart==null?inp.value.length:inp.selectionStart,t=inp.selectionEnd==null?s:inp.selectionEnd;
+   inp.setRangeText(ch,s,t,'end');inp.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  try{const r=[ch].concat(emoRecent().filter(x=>x!==ch)).slice(0,24);localStorage.setItem('vyro_emo_rec',JSON.stringify(r))}catch(x){}
+  return true;
+ }
+ if(e.target.closest('[data-ebs]')){
+  if(inp){
+   const s=inp.selectionStart==null?inp.value.length:inp.selectionStart,t=inp.selectionEnd==null?s:inp.selectionEnd;
+   if(t>s){inp.setRangeText('',s,t,'end')}
+   else if(s>0){
+    const before=inp.value.slice(0,s);let n=1;
+    try{const seg=[...new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(before)];n=seg.length?seg[seg.length-1].segment.length:1}catch(x){n=[...before].pop().length}
+    inp.setRangeText('',s-n,s,'end');
+   }
+   inp.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  return true;
+ }
+ const ec=e.target.closest('[data-ec]');
+ if(ec){const h=gEl.querySelector('[data-eh="'+ec.dataset.ec+'"]');if(h)gEl.scrollTo({top:h.offsetTop-44,behavior:'smooth'});return true}
+ return false;
+}
+/* message composé seulement de 1 à 3 émojis : affiché en grand, comme WhatsApp */
+const BIG_EMO=/^(?:\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*\s*){1,3}$/u;
+const bigEmo=b=>typeof b==='string'&&b.length<=24&&BIG_EMO.test(b);
 /*@@MOD-END*/
 /* ---------- démarrage ---------- */
 boot();
