@@ -5688,8 +5688,8 @@ async function soundSheet(name){
  document.body.appendChild(sec);
 
  const F=$('#wgFrame'),BOX=$('#wgBox'),LD=$('#wgLoad'),BAR=$('#wgBar'),TIP=$('#wgTip'),ACT=$('#wgAct');
- const META=document.querySelector('meta[name=viewport]');let metaOld=null,fsSeen=false,t0=0,pTimer=0,loading=false;
- const TIPS=['Glisse ton doigt pour tourner la caméra','Parle aux habitants pour avoir des quêtes','Les pièces servent à acheter chez Marco','Appuie sur Menu pour changer ton look'];
+ const META=document.querySelector('meta[name=viewport]');let metaOld=null,fsSeen=false,t0=0,pTimer=0,loading=false,readyT=0;
+ const TIPS=['Glisse ton doigt à droite pour tourner la caméra','Éclipse (V) frappe tous les ennemis autour de toi','Pas fantôme (C) te rend invincible un instant','Chaînes d’ombre (X) immobilise les ennemis','Toutes les 3 vagues, un boss t’attend'];
 
  function fit(){
   if(!sec.classList.contains('on'))return;
@@ -5701,7 +5701,7 @@ async function soundSheet(name){
 
  function setBar(p){BAR.style.width=Math.min(100,p)+'%'}
  function fail(msg){
-  loading=false;clearInterval(pTimer);
+  loading=false;clearInterval(pTimer);clearTimeout(readyT);
   TIP.textContent=msg;ACT.style.display='flex';
   ACT.innerHTML='<button type="button" id="wgRetry">Réessayer</button><button type="button" class="g" id="wgQuit">Retour</button>';
   $('#wgRetry').onclick=start;$('#wgQuit').onclick=leave;
@@ -5713,11 +5713,10 @@ async function soundSheet(name){
   const uid=(me&&me.id)||'';
   F.onload=()=>{
    if(!loading)return;
-   let ok=false;try{ok=!!F.contentWindow.THREE}catch(e){}
-   if(!ok){fail('Impossible de charger le jeu. Vérifie ta connexion.');return}
-   clearInterval(pTimer);setBar(100);
-   setTimeout(()=>{LD.classList.add('out');loading=false;try{F.contentWindow.focus()}catch(e){}},Math.max(300,1500-(Date.now()-t0)));
+   let ok=false;try{ok=!!F.contentWindow.BABYLON}catch(e){}
+   if(!ok)fail('Impossible de charger le jeu. Vérifie ta connexion.');
   };
+  clearTimeout(readyT);readyT=setTimeout(()=>{if(loading)fail('Le chargement est trop long. Vérifie ta connexion.')},60000);
   F.onerror=()=>fail('Impossible de charger le jeu.');
   F.src='world.html?u='+encodeURIComponent(uid)+'&r='+Date.now();
  }
@@ -5738,7 +5737,7 @@ async function soundSheet(name){
   start();
  };
  function cleanup(){
-  loading=false;clearInterval(pTimer);
+  loading=false;clearInterval(pTimer);clearTimeout(readyT);
   try{F.onload=null;F.removeAttribute('src');F.src='about:blank'}catch(e){}
   if(metaOld!==null){META.setAttribute('content',metaOld);metaOld=null}
   try{if(screen.orientation&&screen.orientation.unlock)screen.orientation.unlock()}catch(e){}
@@ -5754,7 +5753,12 @@ async function soundSheet(name){
   if(was==='wgame'&&n!=='wgame'){cleanup();if(typeof wRender==='function')wRender()}
  };
  window.addEventListener('message',e=>{
-  if(e.source===F.contentWindow&&e.data&&e.data.vyroWorld==='exit')leave();
+  if(e.source!==F.contentWindow||!e.data)return;
+  if(e.data.vyroWorld==='exit')leave();
+  else if(e.data.vyroWorld==='ready'&&loading){
+   clearInterval(pTimer);clearTimeout(readyT);setBar(100);
+   setTimeout(()=>{LD.classList.add('out');loading=false;try{F.contentWindow.focus()}catch(e){}},Math.max(300,1500-(Date.now()-t0)));
+  }
  });
  const fsch=()=>{
   const on=!!(document.fullscreenElement||document.webkitFullscreenElement);
