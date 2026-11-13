@@ -988,6 +988,7 @@ html[data-skin=amoled] #app::before{opacity:.35}
 .wbtns{display:flex;gap:10px}.wbtns .btn-o{flex:1;justify-content:center}
 .wnote{text-align:center;opacity:.65;font-size:13px;margin:14px 6px 0}
 .wglobe{overflow:hidden;padding:0}.wglobe img{width:100%;height:100%;object-fit:cover;display:block}
+.stkbig{position:relative;display:inline-block}.stkadd{position:absolute;right:-8px;bottom:-8px;width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.85);background:rgba(24,18,48,.82);color:#fff;font-size:15px;line-height:1;display:grid;place-items:center;padding:0;cursor:pointer;z-index:2;transition:transform .15s}.stkadd:active{transform:scale(.88)}
 #splash{position:absolute;inset:0;z-index:200;display:grid;place-items:center;background:radial-gradient(60% 45% at 50% 40%,hsl(calc(272 + var(--hs)) 70% 22%),#06020d 72%);transition:opacity .45s,visibility .45s}
 #splash.out{opacity:0;visibility:hidden}
 #splash .spl{display:flex;flex-direction:column;align-items:center;gap:14px;animation:splin .6s cubic-bezier(.2,.9,.3,1.2) both}
@@ -1791,7 +1792,7 @@ function msgHTML(m,i,arr){
   q=`<div class="qt" data-q="${m.reply_to}"><b>${rp?(rp.sender_id===me.id?'Toi':esc(names[rp.sender_id]||'')):'Message'}</b><span>${rp?esc(prev(rp.body)):'Message supprimé ou expiré'}</span></div>`}
  let body;
  if(sk)body=`<div class="stkbig">${stkHTML(sk.k,sk.key)}</div>`;
- else if(md&&md[3]&&MEDIA_URL)body=`<div class="stkbig">${md[1]==='video'?`<video class="csk" src="${mu(md[2])}" autoplay loop muted playsinline preload="auto"></video>`:`<img class="csk" src="${mu(md[2])}" alt="Sticker" loading="lazy">`}</div>`;
+ else if(md&&md[3]&&MEDIA_URL)body=`<div class="stkbig">${md[1]==='video'?`<video class="csk" src="${mu(md[2])}" autoplay loop muted playsinline preload="auto"></video>`:`<img class="csk" src="${mu(md[2])}" alt="Sticker" loading="lazy">`}${mine?'':`<button type="button" class="stkadd" data-addstk="${m.id}" aria-label="Ajouter à mes stickers">⭐</button>`}</div>`;
  else if(md&&MEDIA_URL){
   if(md[1]==='image')body=`<img class="cimg" data-full="${mu(md[2])}" src="${mu(md[2])}" alt="Photo" loading="lazy">`;
   else if(md[1]==='video')body=`<video class="cvid" src="${mu(md[2])}" controls playsinline preload="metadata"></video>`;
@@ -1878,10 +1879,11 @@ async function react(m,emo){
 }
 function openMsgMenu(id){
  const m=cur&&cur.msgs.find(x=>String(x.id)===String(id));if(!m||SYS_RE.test(m.body)||CALL_RE.test(m.body))return;
- const mine=m.sender_id===me.id,txt=!parseStk(m.body)&&!MED_RE.test(m.body);
+ const mine=m.sender_id===me.id,txt=!parseStk(m.body)&&!MED_RE.test(m.body),sm=MED_RE.exec(m.body),stkm=!mine&&sm&&sm[3]&&sm[1]!=='audio';
  const mr=(cur.reacts[m.id]||{})[me.id];
  const sh=openSheet('',`<div class="rxbar">${RXE.map(e=>`<button type="button" data-e="${e}" class="${mr===e?'cur':''}">${e}</button>`).join('')}</div>
  <div class="opt" data-act="reply">${I('reply')}<span>Répondre</span></div>
+ ${stkm?`<div class="opt" data-act="addstk"><span style="width:22px;text-align:center">⭐</span><span>Ajouter à mes stickers</span></div>`:''}
  <div class="opt" data-act="pin"><span style="width:22px;text-align:center">📌</span><span>${isPinned(m.id)?'Désépingler':'Épingler en haut'}</span></div>
  ${txt?`<div class="opt" data-act="copy">${I('copy')}<span>Copier</span></div>`:''}
  <div class="opt" data-act="delme">${I('trash')}<span>Supprimer pour moi</span></div>
@@ -1892,6 +1894,7 @@ function openMsgMenu(id){
   const a=e.target.closest('[data-act]');if(!a)return;closeSheet();
   if(a.dataset.act==='reply'){setReply(m);$('#tIn').focus()}
   else if(a.dataset.act==='pin')pinToggle(m)
+  else if(a.dataset.act==='addstk')addRecvSticker(m)
   else if(a.dataset.act==='copy'){try{await navigator.clipboard.writeText(m.body);toast('Copié')}catch(x){toast('Copie impossible')}}
   else if(a.dataset.act==='del'){
    sb.from('vyro_messages').delete().eq('id',m.id).then(()=>{},()=>{});
@@ -1906,7 +1909,7 @@ function openMsgMenu(id){
 (()=>{
  const tm=$('#tMsgs');let lpT=0,lx=0,ly=0,lt=0,lid='';
  tm.addEventListener('pointerdown',e=>{
-  const b=e.target.closest('.b[data-id]');if(!b||e.target.closest('video,audio,.spd,.rx,.qt'))return;
+  const b=e.target.closest('.b[data-id]');if(!b||e.target.closest('video:not(.csk),audio,.spd,.rx,.qt'))return;
   lx=e.clientX;ly=e.clientY;clearTimeout(lpT);lpT=setTimeout(()=>{lt=-1;openMsgMenu(b.dataset.id)},430)});
  tm.addEventListener('pointermove',e=>{if(Math.abs(e.clientX-lx)>8||Math.abs(e.clientY-ly)>8)clearTimeout(lpT)});
  ['pointerup','pointercancel'].forEach(ev=>tm.addEventListener(ev,()=>clearTimeout(lpT)));
@@ -3835,6 +3838,8 @@ async function pendingInvites(){
   if(inv)rows.filter(x=>x.call_id===inv.call_id).forEach(x=>onSignal(x));
  }catch(e){}
 }
+if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',ev=>{if(ev.data&&ev.data.call&&typeof me!=='undefined'&&me)pendingInvites()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&typeof me!=='undefined'&&me)pendingInvites()});
 const sendSig=(to,kind,id,media,payload)=>sb.from('vyro_signals').insert({from_id:me.id,to_id:to,kind,call_id:id,media:media||null,payload:payload||null}).then(r=>r,()=>({error:1}));
 async function getLocal(){
  call.local=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:call.media==='video'?{facingMode:'user',width:{ideal:640},height:{ideal:480}}:false});
@@ -4634,7 +4639,7 @@ uploadSheet=function(pre){
 /* ---------- VYRO World : bouton de jeu dans Room ---------- */
 function worldRow(){
  const d=document.createElement('div');d.className='wchat';
- d.innerHTML=`<div class="wglobe"><img src="world-icon.jpg" alt="" draggable="false"></div><div class="wtx"><b>VYRO World</b></div><button type="button" class="wplay">${I('play')}JOUER</button>`;
+ d.innerHTML=`<div class="wglobe"><img src="world-icon.jpg" alt="" draggable="false"></div><div class="wtx"><b>VYRO World</b></div><button type="button" class="wplay">${window.WORLD_ON?I('play')+'JOUER':'BIENTÔT'}</button>`;
  return d;
 }
 function worldInject(){
@@ -5443,6 +5448,42 @@ async function csEditor(file){
  };
 }
 
+
+/* ---------- ajouter à mes stickers un sticker reçu ---------- */
+async function stkThumb(blob,kind){
+ const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d'),u=URL.createObjectURL(blob);
+ try{
+  let el,w,h;
+  if(kind==='video'){el=document.createElement('video');el.muted=true;el.playsInline=true;el.src=u;
+   await new Promise((ok,ko)=>{el.onloadeddata=ok;el.onerror=ko;setTimeout(ko,6000)});
+   try{el.currentTime=.1;await new Promise(r=>{el.onseeked=r;setTimeout(r,800)})}catch(e){}
+   w=el.videoWidth;h=el.videoHeight}
+  else{el=new Image();el.src=u;await new Promise((ok,ko)=>{el.onload=ok;el.onerror=ko});w=el.naturalWidth;h=el.naturalHeight}
+  const s=Math.min(w,h);g.drawImage(el,(w-s)/2,(h-s)/2,s,s,0,0,128,128);
+ }finally{URL.revokeObjectURL(u)}
+ return new Promise(r=>c.toBlob(r,'image/jpeg',.8));
+}
+async function addRecvSticker(m){
+ const x=MED_RE.exec(m.body);if(!x||!x[3]||x[1]==='audio')return;
+ try{
+  const all=await CS.all();
+  if(all.some(r=>r.src===x[2])){toast('Déjà dans tes stickers ⭐');return}
+  if(all.length>=CS_MAX){toast(CS_MAX+' stickers maximum');return}
+  let blob=null;try{blob=await LDB.get('blobs',x[2])}catch(e){}
+  if(!blob)blob=await fetchChatBlob(x[2]);
+  if(!blob){toast('Sticker introuvable');return}
+  const kind=x[1]==='video'?'video':'image',thumb=await stkThumb(blob,kind);
+  await CS.put({id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2)),kind,blob,thumb,dur:3,at:Date.now(),src:x[2]});
+  toast('Sticker ajouté ⭐');
+  const cur2=document.querySelector('#stkt .cur');if(cur2&&cur2.dataset.k==='m')csDraw($('#stkg'));
+ }catch(e){toast('Impossible d’ajouter ce sticker')}
+}
+$('#tMsgs').addEventListener('click',e=>{
+ const b=e.target.closest('[data-addstk]');if(!b)return;
+ e.stopPropagation();e.preventDefault();
+ const m=cur&&cur.msgs.find(y=>String(y.id)===b.dataset.addstk);if(m)addRecvSticker(m);
+},true);
+
 /* ---------- petite photo publique (affichée dans les notifications) ---------- */
 let _pubAvBusy=false;
 async function pubAvatarSync(){
@@ -5607,6 +5648,17 @@ async function soundSheet(name){
 #s-world .wnav button.cur{color:#fff}
 #s-world .wnav button.cur::after{content:"";position:absolute;left:18%;right:18%;bottom:0;height:3px;border-radius:2px;background:#22c55e;box-shadow:0 0 10px #22c55e}
 .wsoonbox{text-align:center;padding:18px 10px 8px}.wsoonbox .e{font-size:44px}.wsoonbox p{opacity:.7;margin:8px 0 0}
+.wchar{position:absolute;left:50%;top:56%;width:112px;height:min(240px,33vh);margin:calc(-1 * min(224px,31vh)) 0 0 -56px;z-index:1;pointer-events:none;filter:drop-shadow(0 0 18px rgba(168,85,247,.55))}
+.wchar svg{width:100%;height:100%;overflow:visible}
+.wchar .bob{animation:wbob 3.4s ease-in-out infinite}
+.wchar .al{transform-origin:30px 84px;animation:wsw 3.4s ease-in-out infinite}
+.wchar .ar{transform-origin:90px 84px;animation:wsw 3.4s ease-in-out infinite reverse}
+.wchar .cape{transform-origin:60px 84px;animation:wcape 3.4s ease-in-out infinite}
+.wchar .eye{transform-origin:center;transform-box:fill-box;animation:wblink 4.6s infinite}
+@keyframes wbob{50%{transform:translateY(-4px)}}
+@keyframes wsw{50%{transform:rotate(4deg)}}
+@keyframes wcape{50%{transform:skewX(3deg)}}
+@keyframes wblink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}
 `;
  document.head.appendChild(st);
  const sec=document.createElement('section');sec.className='screen';sec.id='s-world';
@@ -5616,7 +5668,7 @@ async function soundSheet(name){
   bag:'<svg viewBox="0 0 24 24"><path d="M9 6V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V6"/><rect x="5" y="6" width="14" height="15" rx="4"/><path d="M9 14h6M8 10h8"/></svg>',
   users:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><path d="M15.5 14.3c3 0 5.5 2 5.5 5.2"/></svg>'
  };
- sec.innerHTML=`<div class="wbg"></div><div class="wfloor"></div><div class="wring"></div><div class="wring r2"></div>
+ sec.innerHTML=`<div class="wbg"></div><div class="wfloor"></div><div class="wring"></div><div class="wring r2"></div><div class="wchar" id="wChar"></div>
  <div class="wdots">${[[12,30,0],[84,22,1.2],[22,62,2.1],[76,58,.6],[50,18,3],[90,70,1.8],[8,76,2.7]].map(d=>`<i style="left:${d[0]}%;top:${d[1]}%;animation-delay:-${d[2]}s"></i>`).join('')}</div>
   <div class="wtop"><button type="button" class="wib" data-go="back" aria-label="Retour">${I('back')}</button><div class="wpill" id="wPill"></div><button type="button" class="wib" id="wGear" aria-label="Réglages">${I('gear')}</button></div>
  <div class="wstats"><div class="wst"><span>⭐</span><b id="wLv">Niv. 1</b></div><div class="wst"><span>🐝</span><b id="wBc">0</b></div><div class="wst g"><span>💎</span><b id="wGm">0</b></div></div>
@@ -5624,8 +5676,37 @@ async function soundSheet(name){
  <div class="wnav" id="wNav"><button type="button" data-w="home" class="cur">${IC.home}Accueil</button><button type="button" data-w="shop">${IC.shop}Boutique</button><button type="button" data-w="inv">${IC.bag}Inventaire</button><button type="button" data-w="friends">${IC.users}Amis</button></div>`;
  const host=document.getElementById('s-notifs');host.parentNode.insertBefore(sec,host.nextSibling);
 
+  function wLook(){
+  let S={};try{const d=JSON.parse(localStorage.getItem('monmonde5_'+(me&&me.id||''))||'null');if(d&&d.S)S=d.S}catch(e){}
+  const hx=(c,d)=>{c=(typeof c==='number'?c:0)>>>0;let r=c>>16&255,g=c>>8&255,b=c&255;const f=d||0;r=Math.max(0,Math.min(255,Math.round(r*(1+f))));g=Math.max(0,Math.min(255,Math.round(g*(1+f))));b=Math.max(0,Math.min(255,Math.round(b*(1+f))));return'#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1)};
+  const skin=typeof S.skin==='number'?S.skin:0xf5c9a0,hair=typeof S.hair==='number'?S.hair:0xd2541c,shirt=typeof S.shirt==='number'?S.shirt:0x15151a,pants=typeof S.pants==='number'?S.pants:0x15151a;
+  const own=S.own||{cape:0,helm:0,armor:0},eq=S.eq||{cape:1,helm:1,armor:1};
+  const cape=own.cape&&eq.cape,helm=own.helm&&eq.helm,armor=own.armor&&eq.armor;
+  const st='stroke="rgba(0,0,0,.45)" stroke-width="1.5" stroke-linejoin="round"';
+  return `<svg viewBox="0 0 120 250" aria-hidden="true">
+  <ellipse cx="60" cy="243" rx="40" ry="7" fill="rgba(0,0,0,.45)"/>
+  <g class="bob">
+   ${cape?`<g class="cape"><path d="M38 86 L82 86 L90 200 L30 200 Z" fill="#c0392b" ${st}/><path d="M60 86 L60 200" stroke="rgba(0,0,0,.2)" stroke-width="2"/></g>`:''}
+   <rect x="38" y="152" width="20" height="84" rx="4" fill="${hx(pants)}" ${st}/><rect x="62" y="152" width="20" height="84" rx="4" fill="${hx(pants)}" ${st}/>
+   <rect x="38" y="222" width="20" height="14" rx="3" fill="${hx(pants,-.35)}"/><rect x="62" y="222" width="20" height="14" rx="3" fill="${hx(pants,-.35)}"/>
+   <g class="al"><rect x="14" y="84" width="20" height="62" rx="5" fill="${hx(shirt)}" ${st}/><rect x="14" y="132" width="20" height="16" rx="4" fill="${hx(skin)}" ${st}/></g>
+   <g class="ar"><rect x="86" y="84" width="20" height="62" rx="5" fill="${hx(shirt)}" ${st}/><rect x="86" y="132" width="20" height="16" rx="4" fill="${hx(skin)}" ${st}/></g>
+   <rect x="34" y="82" width="52" height="74" rx="6" fill="${armor?'#aab4c4':hx(shirt)}" ${st}/>
+   <rect x="34" y="82" width="52" height="16" rx="6" fill="rgba(255,255,255,.12)"/>
+   ${armor?'<path d="M60 90 L60 148" stroke="#6b7686" stroke-width="2"/><circle cx="60" cy="108" r="6" fill="#facc15" stroke="rgba(0,0,0,.4)"/>':''}
+   <rect x="52" y="72" width="16" height="12" fill="${hx(skin,-.08)}"/>
+   <rect x="38" y="22" width="44" height="52" rx="11" fill="${hx(skin)}" ${st}/>
+   <path d="M38 40 Q38 20 60 20 Q82 20 82 40 L82 34 Q82 14 60 14 Q38 14 38 34 Z" fill="${hx(hair)}"/>
+   <path d="M36 44 L36 28 Q36 12 60 12 Q84 12 84 28 L84 44 L78 44 L78 32 Q60 26 42 32 L42 44 Z" fill="${hx(hair)}" ${st}/>
+   <rect class="eye" x="48" y="48" width="6" height="9" rx="2" fill="#111"/><rect class="eye" x="66" y="48" width="6" height="9" rx="2" fill="#111"/>
+   <path d="M52 63 Q60 69 68 63" stroke="#111" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+   ${helm?`<path d="M34 42 L34 26 Q34 8 60 8 Q86 8 86 26 L86 42 L80 42 L80 30 L40 30 L40 42 Z" fill="#c4ccd8" ${st}/><rect x="56" y="8" width="8" height="22" fill="#9aa5b6"/>`:''}
+  </g></svg>`;
+ }
+ function wChar(){const e=$('#wChar');if(e)e.innerHTML=wLook()}
  function wRender(){
   if(!me)return;
+  wChar();
   const nm=me.display_name||me.username||'?';
   $('#wPill').innerHTML=av({name:nm,h:hue(me.username||nm),uid:me.id,avatar:me.avatar_url},40)+'<b>'+esc(nm)+'</b>';
   let bc=0;try{bc=+localStorage.getItem('vyro_bc_'+me.id)||0}catch(e){}
@@ -5655,7 +5736,10 @@ async function soundSheet(name){
  });
  $('#wGear').onclick=()=>push('settings');
  $('#wEnter').onclick=()=>worldEnterGame();
- window.openWorld=function(){wRender();worldSetTab('home');push('world')};
+ window.WORLD_ON=false; /* passer à true pour rouvrir VYRO World */
+ window.openWorld=function(){
+  if(!window.WORLD_ON){openSheet('VYRO World',`<div class="wsoonbox"><div class="e">🌍</div><b>Bientôt disponible</b><p>VYRO World est en pause pour le moment. On prépare une grosse mise à jour, reste connecté !</p></div>`);return}
+  wRender();worldSetTab('home');push('world')};
  window.wRender=wRender;
 })();
 
@@ -5689,7 +5773,7 @@ async function soundSheet(name){
 
  const F=$('#wgFrame'),BOX=$('#wgBox'),LD=$('#wgLoad'),BAR=$('#wgBar'),TIP=$('#wgTip'),ACT=$('#wgAct');
  const META=document.querySelector('meta[name=viewport]');let metaOld=null,fsSeen=false,t0=0,pTimer=0,loading=false,readyT=0;
- const TIPS=['Glisse ton doigt à droite pour tourner la caméra','Éclipse (V) frappe tous les ennemis autour de toi','Pas fantôme (C) te rend invincible un instant','Chaînes d’ombre (X) immobilise les ennemis','Toutes les 3 vagues, un boss t’attend'];
+ const TIPS=['Parle aux Capitaines ⚓ pour voyager entre les îles','Appuie sur 🗺️ pour voir la carte de l’archipel','Chaque île a ses quêtes : cherche le panneau QUEST','Attention à la lave 🌋 : elle brûle !','Les ennemis des îles lointaines sont plus forts : monte de niveau','Un boss apparaît toutes les 5 vagues'];
 
  function fit(){
   if(!sec.classList.contains('on'))return;
@@ -5713,7 +5797,7 @@ async function soundSheet(name){
   const uid=(me&&me.id)||'';
   F.onload=()=>{
    if(!loading)return;
-   let ok=false;try{ok=!!F.contentWindow.BABYLON}catch(e){}
+   let ok=false;try{ok=!!(F.contentWindow.BABYLON||F.contentWindow.THREE)}catch(e){}
    if(!ok)fail('Impossible de charger le jeu. Vérifie ta connexion.');
   };
   clearTimeout(readyT);readyT=setTimeout(()=>{if(loading)fail('Le chargement est trop long. Vérifie ta connexion.')},60000);

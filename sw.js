@@ -1,5 +1,5 @@
 /* VYRO — service worker : démarrage rapide, hors-ligne de base, clic sur une notification */
-const V = 'vyro-v23';
+const V = 'vyro-v27';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));
@@ -47,19 +47,94 @@ async function sendReply(e, dt) {
     data: dt
   });
 }
+// ---- icône ronde façon WhatsApp : photo du profil recadrée en cercle, ou initiale colorée si pas de photo
+const ICN = new Map();
+async function roundIcon(url, name) {
+  const key = (url || '') + '|' + (name || '');
+  if (ICN.has(key)) return ICN.get(key);
+  let out = url || undefined;
+  try {
+    if (typeof OffscreenCanvas !== 'undefined') {
+      const S = 128, cv = new OffscreenCanvas(S, S), g = cv.getContext('2d');
+      g.beginPath(); g.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2); g.closePath(); g.clip();
+      let ok = false;
+      if (url) {
+        try {
+          const r = await fetch(url, { mode: 'cors' });
+          if (r.ok) { const bm = await createImageBitmap(await r.blob()), m = Math.min(bm.width, bm.height); g.drawImage(bm, (bm.width - m) / 2, (bm.height - m) / 2, m, m, 0, 0, S, S); ok = true; }
+        } catch (_) {}
+      }
+      if (!ok) {
+        const nm = (name || '?').trim() || '?'; let h = 0; for (const ch of nm) h = (h * 31 + ch.charCodeAt(0)) % 360;
+        g.fillStyle = 'hsl(' + h + ',55%,45%)'; g.fillRect(0, 0, S, S);
+        g.fillStyle = '#fff'; g.font = 'bold 64px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(nm.charAt(0).toUpperCase(), S / 2, S / 2 + 4);
+      }
+      const blob = await cv.convertToBlob({ type: 'image/png' });
+      out = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(url || undefined); fr.readAsDataURL(blob); });
+    }
+  } catch (_) { out = url || undefined; }
+  if (ICN.size > 40) ICN.clear();
+  ICN.set(key, out);
+  return out;
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const missedNote = async (d, icon) => self.registration.showNotification(d.title || 'VYRO', {
+  body: '📞 Appel manqué', tag: 'missed-' + (d.from || 'x'), renotify: true, icon: icon || 'icon-192.png', badge: 'icon-192.png',
+  vibrate: [120, 60, 120], data: { t: 'missed', title: d.title || 'VYRO' }
+});
+// appel entrant : la notification sonne en boucle (~36 s) jusqu'à ce qu'on réponde, qu'on la ferme ou que l'appelant raccroche
+let CALL_END = 0;
+async function ringCall(d, icon) {
+  const t0 = Date.now();
+  const o = () => ({
+    body: d.body || '', tag: 'call', renotify: true, icon: icon || 'icon-192.png', badge: 'icon-192.png',
+    vibrate: [500, 250, 500, 250, 500, 250, 500], requireInteraction: true, silent: false,
+    actions: [{ action: 'answer', title: '📞 Répondre' }], data: { t: 'call', title: d.title || 'VYRO' }
+  });
+  await self.registration.showNotification(d.title || 'VYRO', o());
+  for (let i = 0; i < 9; i++) {
+    await wait(4000);
+    const cur = await self.registration.getNotifications({ tag: 'call' });
+    if (!cur.length || CALL_END >= t0) return;
+    await self.registration.showNotification(d.title || 'VYRO', o());
+  }
+  const cur = await self.registration.getNotifications({ tag: 'call' });
+  if (cur.length) { cur.forEach(n => n.close()); await missedNote(d, icon); }
+}
+// messages d'une même discussion : une seule notification qui s'empile (comme WhatsApp)
+async function showMsg(d, icon) {
+  const tag = d.tag || 'vyro';
+  let lines = [], count = 0;
+  try {
+    const old = await self.registration.getNotifications({ tag });
+    if (old.length) { const dd = old[0].data || {}; lines = dd.lines || (old[0].body ? [old[0].body] : []); count = dd.count || lines.length; }
+  } catch (_) {}
+  lines = lines.concat([d.body || '']).slice(-5); count += 1;
+  await self.registration.showNotification((d.title || 'VYRO') + (count > 1 ? ' (' + count + ' messages)' : ''), {
+    body: lines.join('\n'), tag, renotify: true, icon: icon || 'icon-192.png', badge: 'icon-192.png', vibrate: [120, 60, 120], silent: false,
+    actions: replyActions(d),
+    data: { cid: d.cid || null, v: d.v || null, t: d.t || 'msg', rt: d.rt || null, ru: d.ru || null, title: d.title || 'VYRO', ic: icon || null, lines, count }
+  });
+}
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data.json(); } catch (_) { d = { title: 'VYRO', body: e.data ? e.data.text() : '' }; }
   e.waitUntil((async () => {
     const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     if (cs.some(c => c.visibilityState === 'visible')) return; // appli ouverte : elle gère déjà alertes et sons
+    const icon = await roundIcon(d.ic, d.nm || d.title);
+    if (d.t === 'call') return ringCall(d, icon);
+    if (d.t === 'callend') {
+      CALL_END = Date.now();
+      (await self.registration.getNotifications({ tag: 'call' })).forEach(n => n.close());
+      return missedNote(d, icon);
+    }
+    if (d.t === 'msg') return showMsg(d, icon);
     await self.registration.showNotification(d.title || 'VYRO', {
-      body: d.body || '', tag: d.tag || 'vyro', renotify: true,
-      icon: d.ic || 'icon-192.png', badge: 'icon-192.png',
-      vibrate: d.t === 'call' ? [400, 200, 400, 200, 400] : [120, 60, 120],
-      requireInteraction: d.t === 'call', silent: false,
-      actions: replyActions(d),
-      data: { cid: d.cid || null, v: d.v || null, t: d.t || 'msg', rt: d.rt || null, ru: d.ru || null, title: d.title || 'VYRO', ic: d.ic || null }
+      body: d.body || '', tag: d.tag || 'vyro', renotify: true, icon: icon || 'icon-192.png', badge: 'icon-192.png',
+      vibrate: [120, 60, 120], silent: false,
+      data: { cid: d.cid || null, v: d.v || null, t: d.t || 'msg', title: d.title || 'VYRO', ic: icon || null }
     });
   })());
 });
@@ -67,9 +142,9 @@ self.addEventListener('notificationclick', e => {
   const dt = e.notification.data || {};
   if (e.action === 'reply' && dt.rt && dt.ru && typeof e.reply === 'string') { e.waitUntil(sendReply(e, dt)); return; }
   e.notification.close();
-  const cid = e.notification.data && e.notification.data.cid, vid = e.notification.data && e.notification.data.v;
+  const cid = dt.cid, vid = dt.v, isCall = dt.t === 'call';
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs => {
-    if (cs.length) { cs[0].focus(); if (cid) cs[0].postMessage({ open: cid }); else if (vid) cs[0].postMessage({ video: vid }); return; }
-    return self.clients.openWindow(cid ? './?open=' + encodeURIComponent(cid) : vid ? './?v=' + encodeURIComponent(vid) : './');
+    if (cs.length) { cs[0].focus(); if (isCall) cs[0].postMessage({ call: 1 }); else if (cid) cs[0].postMessage({ open: cid }); else if (vid) cs[0].postMessage({ video: vid }); return; }
+    return self.clients.openWindow(isCall ? './?call=1' : cid ? './?open=' + encodeURIComponent(cid) : vid ? './?v=' + encodeURIComponent(vid) : './');
   }));
 });
