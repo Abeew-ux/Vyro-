@@ -5939,6 +5939,7 @@ if(isNativeApp()){
  document.documentElement.classList.add('native');
  window.addEventListener('vyro-fcm',nativePushSave);
  setInterval(nativePushSave,4000);
+ setInterval(()=>{try{const c=$('meta[name=theme-color]').content;if(c&&c!==window.__bar&&window.VyroBar){window.__bar=c;window.VyroBar.set(c)}}catch(e){}},1500);
  setInterval(()=>{
   const q=window.__vyroOpenQ;
   if(q&&typeof chats!=='undefined'&&chats&&chats.length){
