@@ -381,6 +381,11 @@ jobs:
       - name: Icones de l'appli
         run: |
           set -e
+          if ! command -v convert >/dev/null 2>&1; then
+            sudo apt-get update -y >/dev/null
+            sudo apt-get install -y imagemagick >/dev/null
+          fi
+          command -v convert
           cd /tmp/cap/android/app/src/main/res
           rm -rf mipmap-anydpi-v26
           for pair in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
