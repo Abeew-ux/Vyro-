@@ -1,0 +1,411 @@
+name: Fabriquer l'APK VYRO
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/apk.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Projet Capacitor (Android)
+        env:
+          KEYSTORE_B64: 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
+        run: |
+          set -e
+          mkdir -p /tmp/cap/www && cd /tmp/cap
+          npm init -y > /dev/null
+          npm i @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          cat > capacitor.config.json <<'CAPCFG'
+          {
+            "appId": "app.vyro.chat",
+            "appName": "VYRO",
+            "webDir": "www",
+            "backgroundColor": "#0b0618",
+            "appendUserAgent": "VyroApp/1",
+            "server": {
+              "url": "https://abeew-ux.github.io/Vyro-/",
+              "androidScheme": "https",
+              "errorPath": "offline.html",
+              "allowNavigation": ["abeew-ux.github.io", "*.supabase.co", "*.workers.dev"]
+            },
+            "android": {
+              "appendUserAgent": "VyroApp/1",
+              "allowMixedContent": false
+            }
+          }
+          CAPCFG
+          cat > www/offline.html <<'OFFHTML'
+          <!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VYRO</title>
+          <style>body{margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b0618;color:#fff;font-family:system-ui,sans-serif;text-align:center;padding:24px}h1{font-size:22px;margin:0 0 8px}p{color:#a99cc8;margin:0 0 22px}button{background:linear-gradient(135deg,#a855f7,#d946ef);color:#fff;border:0;border-radius:24px;padding:12px 28px;font-size:16px;font-weight:700}</style></head>
+          <body><h1>Pas de connexion</h1><p>VYRO a besoin d'internet pour s'ouvrir.</p><button onclick="location.href='https://abeew-ux.github.io/Vyro-/'">Réessayer</button></body></html>
+          OFFHTML
+          cp www/offline.html www/index.html
+          npx cap add android
+          echo "$KEYSTORE_B64" | base64 -d > vyro.keystore
+
+      - name: Code Android (notifications, appels)
+        env:
+          GSERVICES_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          set -e
+          cd /tmp/cap
+          D=android/app/src/main/java/app/vyro/chat
+          mkdir -p $D
+          cat > $D/VyroService.java <<'JAVA1'
+          package app.vyro.chat;
+
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.graphics.Canvas;
+          import android.graphics.Color;
+          import android.graphics.Paint;
+          import android.graphics.PorterDuff;
+          import android.graphics.PorterDuffXfermode;
+          import android.media.AudioAttributes;
+          import android.media.RingtoneManager;
+          import android.net.Uri;
+          import android.os.Build;
+          import androidx.core.app.NotificationCompat;
+          import com.google.firebase.messaging.FirebaseMessagingService;
+          import com.google.firebase.messaging.RemoteMessage;
+          import java.io.InputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.util.Map;
+
+          /** Reçoit les notifications Firebase (messages « data ») même appli fermée et les affiche : messages, appels, social. */
+          public class VyroService extends FirebaseMessagingService {
+              static final int CALL_ID = 7001;
+              static final String CH_MSG = "vyro_msg_v1", CH_SOC = "vyro_social_v1", CH_CALL = "vyro_call_v1";
+
+              @Override
+              public void onNewToken(String token) { /* le jeton est renvoyé au site à chaque ouverture de l'appli */ }
+
+              @Override
+              public void onMessageReceived(RemoteMessage m) {
+                  try {
+                      Map<String, String> d = m.getData();
+                      if (d == null || d.isEmpty()) return;
+                      String t = d.get("t");
+                      if (t == null) t = "msg";
+                      Context c = getApplicationContext();
+                      NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
+                      channels(nm);
+                      if ("callend".equals(t)) nm.cancel(CALL_ID);
+                      else if (MainActivity.visible) return; // appli ouverte : le site gère déjà tout en direct
+
+                      String title = nz(d.get("title"), "VYRO"), body = nz(d.get("body"), "");
+                      String cid = nz(d.get("cid"), "");
+                      String name = nz(d.get("nm"), title);
+                      Bitmap av = avatar(d.get("ic"), name);
+                      String tag = nz(d.get("tag"), t);
+                      int id = tag.hashCode();
+
+                      if ("call".equals(t)) {
+                          Intent open = new Intent(c, MainActivity.class);
+                          open.setAction("vyro_call");
+                          open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                          open.putExtra("call", true);
+                          PendingIntent pi = PendingIntent.getActivity(c, 1, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                          Intent no = new Intent(c, VyroReceiver.class);
+                          no.setAction("vyro_decline");
+                          PendingIntent pn = PendingIntent.getBroadcast(c, 2, no, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                          NotificationCompat.Builder b = new NotificationCompat.Builder(c, CH_CALL)
+                                  .setSmallIcon(R.drawable.ic_stat_vyro)
+                                  .setContentTitle(title).setContentText(body)
+                                  .setCategory(NotificationCompat.CATEGORY_CALL)
+                                  .setPriority(NotificationCompat.PRIORITY_MAX)
+                                  .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                                  .setOngoing(true).setAutoCancel(false)
+                                  .setTimeoutAfter(45000)
+                                  .setContentIntent(pi)
+                                  .setFullScreenIntent(pi, true)
+                                  .addAction(0, "Répondre", pi)
+                                  .addAction(0, "Refuser", pn);
+                          if (av != null) b.setLargeIcon(av);
+                          Notification n = b.build();
+                          n.flags |= Notification.FLAG_INSISTENT; // la sonnerie se répète jusqu'à la réponse
+                          nm.notify(CALL_ID, n);
+                          return;
+                      }
+
+                      Intent open = new Intent(c, MainActivity.class);
+                      open.setAction("vyro_open_" + id);
+                      open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                      if (cid.length() > 0) open.putExtra("cid", cid);
+                      PendingIntent pi = PendingIntent.getActivity(c, id, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                      String ch = "msg".equals(t) || "callend".equals(t) ? CH_MSG : CH_SOC;
+                      NotificationCompat.Builder b = new NotificationCompat.Builder(c, ch)
+                              .setSmallIcon(R.drawable.ic_stat_vyro)
+                              .setContentTitle(title).setContentText(body)
+                              .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+                              .setPriority("msg".equals(t) || "callend".equals(t) ? NotificationCompat.PRIORITY_HIGH : NotificationCompat.PRIORITY_DEFAULT)
+                              .setCategory("msg".equals(t) ? NotificationCompat.CATEGORY_MESSAGE : NotificationCompat.CATEGORY_SOCIAL)
+                              .setAutoCancel(true).setContentIntent(pi).setOnlyAlertOnce(false);
+                      if (av != null) b.setLargeIcon(av);
+                      nm.notify(id, b.build());
+                  } catch (Throwable e) { /* ne jamais planter le service */ }
+              }
+
+              private static String nz(String s, String def) { return (s == null || s.length() == 0) ? def : s; }
+
+              private void channels(NotificationManager nm) {
+                  if (Build.VERSION.SDK_INT < 26) return;
+                  if (nm.getNotificationChannel(CH_MSG) == null) {
+                      NotificationChannel ch = new NotificationChannel(CH_MSG, "Messages", NotificationManager.IMPORTANCE_HIGH);
+                      ch.enableVibration(true);
+                      nm.createNotificationChannel(ch);
+                  }
+                  if (nm.getNotificationChannel(CH_SOC) == null) {
+                      nm.createNotificationChannel(new NotificationChannel(CH_SOC, "J'aime, commentaires, abonnés", NotificationManager.IMPORTANCE_DEFAULT));
+                  }
+                  if (nm.getNotificationChannel(CH_CALL) == null) {
+                      NotificationChannel ch = new NotificationChannel(CH_CALL, "Appels", NotificationManager.IMPORTANCE_HIGH);
+                      Uri ring = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+                      ch.setSound(ring, new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+                      ch.enableVibration(true);
+                      ch.setVibrationPattern(new long[]{0, 800, 600, 800, 600, 800});
+                      ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+                      nm.createNotificationChannel(ch);
+                  }
+              }
+
+              /** Photo de profil ronde ; à défaut une pastille colorée avec l'initiale. */
+              private Bitmap avatar(String url, String name) {
+                  Bitmap src = null;
+                  try {
+                      if (url != null && url.startsWith("https://")) {
+                          HttpURLConnection h = (HttpURLConnection) new URL(url).openConnection();
+                          h.setConnectTimeout(5000); h.setReadTimeout(5000);
+                          InputStream in = h.getInputStream();
+                          src = BitmapFactory.decodeStream(in);
+                          in.close();
+                      }
+                  } catch (Throwable e) { src = null; }
+                  int s = 128;
+                  Bitmap out = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888);
+                  Canvas cv = new Canvas(out);
+                  Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  if (src != null) {
+                      cv.drawCircle(s / 2f, s / 2f, s / 2f, p);
+                      p.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
+                      int w = src.getWidth(), h = src.getHeight(), side = Math.min(w, h);
+                      Bitmap sq = Bitmap.createBitmap(src, (w - side) / 2, (h - side) / 2, side, side);
+                      cv.drawBitmap(Bitmap.createScaledBitmap(sq, s, s, true), 0, 0, p);
+                  } else {
+                      int[] cols = {0xFF7C3AED, 0xFFC026D3, 0xFF2563EB, 0xFF059669, 0xFFEA580C, 0xFFDB2777};
+                      p.setColor(cols[Math.abs(name.hashCode()) % cols.length]);
+                      cv.drawCircle(s / 2f, s / 2f, s / 2f, p);
+                      p.setColor(Color.WHITE);
+                      p.setTextSize(s * 0.5f);
+                      p.setTextAlign(Paint.Align.CENTER);
+                      p.setFakeBoldText(true);
+                      String ini = name.length() > 0 ? name.substring(0, 1).toUpperCase() : "V";
+                      cv.drawText(ini, s / 2f, s / 2f - (p.descent() + p.ascent()) / 2f, p);
+                  }
+                  return out;
+              }
+          }
+          JAVA1
+          cat > $D/VyroReceiver.java <<'JAVA2'
+          package app.vyro.chat;
+
+          import android.app.NotificationManager;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+
+          /** Bouton « Refuser » de la notification d'appel : coupe la sonnerie. */
+          public class VyroReceiver extends BroadcastReceiver {
+              @Override
+              public void onReceive(Context c, Intent i) {
+                  ((NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE)).cancel(VyroService.CALL_ID);
+              }
+          }
+          JAVA2
+          cat > $D/MainActivity.java <<'JAVA3'
+          package app.vyro.chat;
+
+          import android.app.NotificationManager;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              public static volatile boolean visible = false;
+
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                      requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 77);
+                  }
+              }
+
+              @Override
+              public void onResume() {
+                  super.onResume();
+                  visible = true;
+                  pushToken(1500);
+                  pushToken(6000);
+                  handle(getIntent());
+              }
+
+              @Override
+              public void onPause() {
+                  visible = false;
+                  super.onPause();
+              }
+
+              @Override
+              protected void onNewIntent(Intent i) {
+                  super.onNewIntent(i);
+                  setIntent(i);
+                  handle(i);
+              }
+
+              private void js(final String code, long delay) {
+                  try {
+                      final WebView w = getBridge().getWebView();
+                      w.postDelayed(new Runnable() { public void run() { w.evaluateJavascript(code, null); } }, delay);
+                  } catch (Throwable e) { /* page pas prête */ }
+              }
+
+              /** Donne au site le jeton Firebase de ce téléphone (le site l'enregistre pour l'envoi des notifications). */
+              private void pushToken(long delay) {
+                  try {
+                      com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken().addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<String>() {
+                          @Override public void onSuccess(String t) {
+                              if (t == null) return;
+                              js("window.__fcmTok='" + t.replaceAll("[^A-Za-z0-9_:\\-]", "") + "';window.dispatchEvent(new Event('vyro-fcm'));", delay);
+                          }
+                      });
+                  } catch (Throwable e) { /* Firebase pas configuré : pas de notifications natives, le reste marche */ }
+              }
+
+              private void handle(Intent i) {
+                  if (i == null) return;
+                  String cid = i.getStringExtra("cid");
+                  boolean call = i.getBooleanExtra("call", false);
+                  if (cid == null && !call) return;
+                  i.removeExtra("cid");
+                  i.removeExtra("call");
+                  if (call) {
+                      ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).cancel(VyroService.CALL_ID);
+                      js("window.__vyroCall=Date.now();", 800);
+                      js("window.__vyroCall=Date.now();", 2500);
+                  }
+                  if (cid != null) {
+                      String safe = cid.replaceAll("[^0-9a-fA-F\\-]", "");
+                      js("window.__vyroOpenQ='" + safe + "';", 1200);
+                      js("window.__vyroOpenQ='" + safe + "';", 3500);
+                  }
+              }
+          }
+          JAVA3
+          cat > patch.py <<'PYPATCH'
+          import re, os, sys
+          run = os.environ.get('GITHUB_RUN_NUMBER', '1')
+          app = 'android/app'
+
+          # --- AndroidManifest
+          p = app + '/src/main/AndroidManifest.xml'
+          s = open(p).read()
+          s = re.sub(r'<activity\b', '<activity android:showWhenLocked="true" android:turnScreenOn="true"', s, count=1)
+          comp = '''
+                  <service android:name="app.vyro.chat.VyroService" android:exported="false">
+                      <intent-filter><action android:name="com.google.firebase.MESSAGING_EVENT" /></intent-filter>
+                  </service>
+                  <receiver android:name="app.vyro.chat.VyroReceiver" android:exported="false" />
+              '''
+          s = s.replace('</application>', comp + '</application>', 1)
+          perms = ['INTERNET', 'POST_NOTIFICATIONS', 'USE_FULL_SCREEN_INTENT', 'VIBRATE', 'WAKE_LOCK', 'CAMERA', 'RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'ACCESS_NETWORK_STATE']
+          add = ''.join('    <uses-permission android:name="android.permission.%s" />\n' % x for x in perms if 'android.permission.%s"' % x not in s)
+          s = s.replace('</manifest>', add + '</manifest>', 1)
+          open(p, 'w').write(s)
+
+          # --- build.gradle de l'appli : numéro de version, clé de signature fixe, Firebase
+          p = app + '/build.gradle'
+          s = open(p).read()
+          s = re.sub(r'versionCode\s+\d+', 'versionCode ' + run, s, count=1)
+          s = re.sub(r'versionName\s+"[^"]*"', 'versionName "1.0.' + run + '"', s, count=1)
+          sign = '''android {
+              signingConfigs {
+                  debug {
+                      storeFile file('../../vyro.keystore')
+                      storePassword 'vyro-test-2026'
+                      keyAlias 'vyro'
+                      keyPassword 'vyro-test-2026'
+                  }
+              }'''
+          s = re.sub(r'android\s*\{', sign, s, count=1)
+          s = re.sub(r'dependencies\s*\{', 'dependencies {\n    implementation "com.google.firebase:firebase-messaging:23.4.1"', s, count=1)
+          open(p, 'w').write(s)
+          print('patch ok, versionCode', run)
+          PYPATCH
+          python3 patch.py
+          mkdir -p android/app/src/main/res/drawable
+          cp "$GITHUB_WORKSPACE/badge.png" android/app/src/main/res/drawable/ic_stat_vyro.png
+          if [ -n "$GSERVICES_B64" ]; then echo "$GSERVICES_B64" | base64 -d > android/app/google-services.json; echo "google-services.json (secret) OK";
+          elif [ -f "$GITHUB_WORKSPACE/google-services.json" ]; then cp "$GITHUB_WORKSPACE/google-services.json" android/app/google-services.json; echo "google-services.json (depot) OK";
+          else echo "ATTENTION : pas de google-services.json -> pas de notifications natives"; fi
+
+      - name: Icones de l'appli
+        run: |
+          set -e
+          cd /tmp/cap/android/app/src/main/res
+          rm -rf mipmap-anydpi-v26
+          for pair in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            d="${pair%%:*}"; s="${pair##*:}"
+            mkdir -p mipmap-$d
+            convert "$GITHUB_WORKSPACE/icon-512.png" -resize ${s}x${s} mipmap-$d/ic_launcher.png
+            cp mipmap-$d/ic_launcher.png mipmap-$d/ic_launcher_round.png
+            rm -f mipmap-$d/ic_launcher_foreground.png
+          done
+
+      - name: Synchroniser et compiler
+        run: |
+          set -e
+          cd /tmp/cap
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/VYRO.apk"
+
+      - name: Publier l'APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: VYRO (APK Android)
+          body: Dernier APK fabriqué automatiquement. Télécharge VYRO.apk puis installe-le.
+          files: VYRO.apk
+          make_latest: true

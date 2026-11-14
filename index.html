@@ -3632,6 +3632,7 @@ async function pushEnable(){
  }catch(e){}
 }
 async function pushRemove(){
+ try{if(typeof nativePushRemove==='function')await nativePushRemove()}catch(e){}
  try{
   if(!('serviceWorker' in navigator))return;
   const reg=await navigator.serviceWorker.getRegistration();
@@ -5922,6 +5923,32 @@ async function soundSheet(name){
 (()=>{let lite=false;try{const m=navigator.deviceMemory,c=navigator.hardwareConcurrency,f=localStorage.getItem('vyro_lite');lite=!!((m&&m<=3)||(c&&c<=4));if(f==='1')lite=true;if(f==='0')lite=false}catch(e){}
  if(lite)document.documentElement.classList.add('lite');
 })();
+
+/* ---------- appli Android native (Capacitor) : jeton de notifications, ouverture depuis une notification, appels ---------- */
+const isNativeApp=()=>/VyroApp/.test(navigator.userAgent);
+async function nativePushSave(){
+ const t=window.__fcmTok;
+ if(!t||typeof me==='undefined'||!me||!me.id||window.__fcmSaved===t)return;
+ window.__fcmSaved=t;
+ try{const {error}=await sb.rpc('vyro_fcm_save',{p_token:t});if(error)window.__fcmSaved=null}catch(e){window.__fcmSaved=null}
+}
+async function nativePushRemove(){
+ try{if(window.__fcmTok){await sb.rpc('vyro_fcm_remove',{p_token:window.__fcmTok});window.__fcmSaved=null}}catch(e){}
+}
+if(isNativeApp()){
+ document.documentElement.classList.add('native');
+ window.addEventListener('vyro-fcm',nativePushSave);
+ setInterval(nativePushSave,4000);
+ setInterval(()=>{
+  const q=window.__vyroOpenQ;
+  if(q&&typeof chats!=='undefined'&&chats&&chats.length){
+   window.__vyroOpenQ=null;
+   const L=window.__vyroLast;if(L&&L.c===q&&Date.now()-L.t<9000)return;
+   const c=chats.find(x=>x.id===q);if(c){window.__vyroLast={c:q,t:Date.now()};try{openThread(q)}catch(e){}}
+  }
+  if(window.__vyroCall){const t=window.__vyroCall;window.__vyroCall=0;if(Date.now()-t<15000&&typeof me!=='undefined'&&me)try{pendingInvites()}catch(e){}}
+ },600);
+}
 /*@@MOD-END*/
 /* ---------- démarrage ---------- */
 boot();

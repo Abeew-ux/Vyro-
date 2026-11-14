@@ -1,5 +1,5 @@
 /* VYRO — service worker : démarrage rapide, hors-ligne de base, clic sur une notification */
-const V = 'vyro-v28';
+const V = 'vyro-v29';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));
