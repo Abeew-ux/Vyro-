@@ -319,4 +319,93 @@ jobs:
                   i.removeExtra("cid");
                   i.removeExtra("call");
                   if (call) {
-                      ((NotificationManager) getSystemService(Context
+                      ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).cancel(VyroService.CALL_ID);
+                      js("window.__vyroCall=Date.now();", 800);
+                      js("window.__vyroCall=Date.now();", 2500);
+                  }
+                  if (cid != null) {
+                      String safe = cid.replaceAll("[^0-9a-fA-F\\-]", "");
+                      js("window.__vyroOpenQ='" + safe + "';", 1200);
+                      js("window.__vyroOpenQ='" + safe + "';", 3500);
+                  }
+              }
+          }
+          JAVA3
+          cat > patch.py <<'PYPATCH'
+          import re, os, sys
+          run = os.environ.get('GITHUB_RUN_NUMBER', '1')
+          app = 'android/app'
+
+          # --- AndroidManifest
+          p = app + '/src/main/AndroidManifest.xml'
+          s = open(p).read()
+          s = re.sub(r'<activity\b', '<activity android:showWhenLocked="true" android:turnScreenOn="true"', s, count=1)
+          comp = '''
+                  <service android:name="app.vyro.chat.VyroService" android:exported="false">
+                      <intent-filter><action android:name="com.google.firebase.MESSAGING_EVENT" /></intent-filter>
+                  </service>
+                  <receiver android:name="app.vyro.chat.VyroReceiver" android:exported="false" />
+              '''
+          s = s.replace('</application>', comp + '</application>', 1)
+          perms = ['INTERNET', 'POST_NOTIFICATIONS', 'USE_FULL_SCREEN_INTENT', 'VIBRATE', 'WAKE_LOCK', 'CAMERA', 'RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'ACCESS_NETWORK_STATE']
+          add = ''.join('    <uses-permission android:name="android.permission.%s" />\n' % x for x in perms if 'android.permission.%s"' % x not in s)
+          s = s.replace('</manifest>', add + '</manifest>', 1)
+          open(p, 'w').write(s)
+
+          # --- build.gradle de l'appli : numéro de version, clé de signature fixe, Firebase
+          p = app + '/build.gradle'
+          s = open(p).read()
+          s = re.sub(r'versionCode\s+\d+', 'versionCode ' + run, s, count=1)
+          s = re.sub(r'versionName\s+"[^"]*"', 'versionName "1.0.' + run + '"', s, count=1)
+          sign = '''android {
+              signingConfigs {
+                  debug {
+                      storeFile file('../../vyro.keystore')
+                      storePassword 'vyro-test-2026'
+                      keyAlias 'vyro'
+                      keyPassword 'vyro-test-2026'
+                  }
+              }'''
+          s = re.sub(r'android\s*\{', sign, s, count=1)
+          s = re.sub(r'dependencies\s*\{', 'dependencies {\n    implementation "com.google.firebase:firebase-messaging:23.4.1"', s, count=1)
+          open(p, 'w').write(s)
+          print('patch ok, versionCode', run)
+          PYPATCH
+          python3 patch.py
+          mkdir -p android/app/src/main/res/drawable
+          cp "$GITHUB_WORKSPACE/badge.png" android/app/src/main/res/drawable/ic_stat_vyro.png
+          if [ -n "$GSERVICES_B64" ]; then echo "$GSERVICES_B64" | base64 -d > android/app/google-services.json; echo "google-services.json (secret) OK";
+          elif [ -f "$GITHUB_WORKSPACE/google-services.json" ]; then cp "$GITHUB_WORKSPACE/google-services.json" android/app/google-services.json; echo "google-services.json (depot) OK";
+          else echo "ATTENTION : pas de google-services.json -> pas de notifications natives"; fi
+
+      - name: Icones de l'appli
+        run: |
+          set -e
+          cd /tmp/cap/android/app/src/main/res
+          rm -rf mipmap-anydpi-v26
+          for pair in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            d="${pair%%:*}"; s="${pair##*:}"
+            mkdir -p mipmap-$d
+            convert "$GITHUB_WORKSPACE/icon-512.png" -resize ${s}x${s} mipmap-$d/ic_launcher.png
+            cp mipmap-$d/ic_launcher.png mipmap-$d/ic_launcher_round.png
+            rm -f mipmap-$d/ic_launcher_foreground.png
+          done
+
+      - name: Synchroniser et compiler
+        run: |
+          set -e
+          cd /tmp/cap
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/VYRO.apk"
+
+      - name: Publier l'APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: VYRO (APK Android)
+          body: Dernier APK fabriqué automatiquement. Télécharge VYRO.apk puis installe-le.
+          files: VYRO.apk
+          make_latest: true
