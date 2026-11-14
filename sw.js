@@ -1,5 +1,5 @@
 /* VYRO — service worker : démarrage rapide, hors-ligne de base, clic sur une notification */
-const V = 'vyro-v27';
+const V = 'vyro-v28';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));
@@ -42,7 +42,7 @@ async function sendReply(e, dt) {
   const short = text.length > 90 ? text.slice(0, 89) + '…' : text;
   await self.registration.showNotification(dt.title || 'VYRO', {
     body: ok ? '✓ Toi : ' + short : '⚠️ Envoi impossible : appuie pour ouvrir VYRO',
-    tag, renotify: false, silent: true, icon: dt.ic || 'icon-192.png', badge: 'icon-192.png',
+    tag, renotify: false, silent: true, icon: dt.ic || 'icon-192.png', badge: 'badge.png',
     actions: ok ? replyActions({ t: 'msg', rt: dt.rt, ru: dt.ru }) : [],
     data: dt
   });
@@ -80,7 +80,7 @@ async function roundIcon(url, name) {
 }
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const missedNote = async (d, icon) => self.registration.showNotification(d.title || 'VYRO', {
-  body: '📞 Appel manqué', tag: 'missed-' + (d.from || 'x'), renotify: true, icon: icon || 'icon-192.png', badge: 'icon-192.png',
+  body: '📞 Appel manqué', tag: 'missed-' + (d.from || 'x'), renotify: true, icon: icon || 'icon-192.png', badge: 'badge.png',
   vibrate: [120, 60, 120], data: { t: 'missed', title: d.title || 'VYRO' }
 });
 // appel entrant : la notification sonne en boucle (~36 s) jusqu'à ce qu'on réponde, qu'on la ferme ou que l'appelant raccroche
@@ -88,7 +88,7 @@ let CALL_END = 0;
 async function ringCall(d, icon) {
   const t0 = Date.now();
   const o = () => ({
-    body: d.body || '', tag: 'call', renotify: true, icon: icon || 'icon-192.png', badge: 'icon-192.png',
+    body: d.body || '', tag: 'call', renotify: true, icon: icon || 'icon-192.png', badge: 'badge.png',
     vibrate: [500, 250, 500, 250, 500, 250, 500], requireInteraction: true, silent: false,
     actions: [{ action: 'answer', title: '📞 Répondre' }], data: { t: 'call', title: d.title || 'VYRO' }
   });
@@ -112,7 +112,7 @@ async function showMsg(d, icon) {
   } catch (_) {}
   lines = lines.concat([d.body || '']).slice(-5); count += 1;
   await self.registration.showNotification((d.title || 'VYRO') + (count > 1 ? ' (' + count + ' messages)' : ''), {
-    body: lines.join('\n'), tag, renotify: true, icon: icon || 'icon-192.png', badge: 'icon-192.png', vibrate: [120, 60, 120], silent: false,
+    body: lines.join('\n'), tag, renotify: true, icon: icon || 'icon-192.png', badge: 'badge.png', vibrate: [120, 60, 120], silent: false,
     actions: replyActions(d),
     data: { cid: d.cid || null, v: d.v || null, t: d.t || 'msg', rt: d.rt || null, ru: d.ru || null, title: d.title || 'VYRO', ic: icon || null, lines, count }
   });
@@ -132,7 +132,7 @@ self.addEventListener('push', e => {
     }
     if (d.t === 'msg') return showMsg(d, icon);
     await self.registration.showNotification(d.title || 'VYRO', {
-      body: d.body || '', tag: d.tag || 'vyro', renotify: true, icon: icon || 'icon-192.png', badge: 'icon-192.png',
+      body: d.body || '', tag: d.tag || 'vyro', renotify: true, icon: icon || 'icon-192.png', badge: 'badge.png',
       vibrate: [120, 60, 120], silent: false,
       data: { cid: d.cid || null, v: d.v || null, t: d.t || 'msg', title: d.title || 'VYRO', ic: icon || null }
     });
