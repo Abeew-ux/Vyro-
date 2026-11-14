@@ -256,6 +256,10 @@ jobs:
           import android.content.pm.PackageManager;
           import android.os.Build;
           import android.os.Bundle;
+          import android.graphics.Color;
+          import android.view.View;
+          import android.view.Window;
+          import android.webkit.JavascriptInterface;
           import android.webkit.WebView;
           import com.getcapacitor.BridgeActivity;
 
@@ -268,6 +272,11 @@ jobs:
                   if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
                       requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 77);
                   }
+                  try {
+                      getBridge().getWebView().addJavascriptInterface(new Object() {
+                          @JavascriptInterface public void set(final String c) { bar(c); }
+                      }, "VyroBar");
+                  } catch (Throwable e) { /* pas grave */ }
               }
 
               @Override
@@ -328,6 +337,24 @@ jobs:
                       js("window.__vyroOpenQ='" + safe + "';", 1200);
                       js("window.__vyroOpenQ='" + safe + "';", 3500);
                   }
+              }
+
+              /** Colore la barre d'état et la barre de navigation comme la page (icônes sombres si le fond est clair). */
+              private void bar(final String c) {
+                  runOnUiThread(new Runnable() { public void run() {
+                      try {
+                          int col = Color.parseColor(c);
+                          Window w = getWindow();
+                          w.setStatusBarColor(col);
+                          w.setNavigationBarColor(col);
+                          boolean light = (0.299 * Color.red(col) + 0.587 * Color.green(col) + 0.114 * Color.blue(col)) > 150;
+                          View d = w.getDecorView();
+                          int f = d.getSystemUiVisibility();
+                          if (light) f |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR; else f &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                          if (Build.VERSION.SDK_INT >= 26) { if (light) f |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR; else f &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR; }
+                          d.setSystemUiVisibility(f);
+                      } catch (Throwable e) { }
+                  } });
               }
           }
           JAVA3
