@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "111102173205",
+    "project_id": "vyro-5e50f",
+    "storage_bucket": "vyro-5e50f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:111102173205:android:f520f5fc7a4af32129ee1c",
+        "android_client_info": {
+          "package_name": "app.vyro.chat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCGP5HecN6OwWOrXUdiYuDjBUcAGa2Wlk8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
