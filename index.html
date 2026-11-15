@@ -5723,7 +5723,7 @@ async function soundSheet(name){
 .wsoonbox{text-align:center;padding:18px 10px 8px}.wsoonbox .e{font-size:44px}.wsoonbox p{opacity:.7;margin:8px 0 0}
 .wchar{position:absolute;left:50%;top:56%;width:112px;height:min(240px,33vh);margin:calc(-1 * min(224px,31vh)) 0 0 -56px;z-index:1;pointer-events:none;filter:drop-shadow(0 0 18px rgba(168,85,247,.55))}
 .wchar svg{width:100%;height:100%;overflow:visible}
-.wchar img{position:absolute;left:50%;bottom:0;height:100%;width:auto;max-width:none;transform:translateX(-50%);animation:wimg 3.4s ease-in-out infinite}
+.wchar img{position:absolute;left:50%;bottom:-8%;height:125%;width:auto;max-width:none;transform:translateX(-50%);animation:wimg 3.4s ease-in-out infinite}
 @keyframes wimg{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-5px)}}
 .wchar .bob{animation:wbob 3.4s ease-in-out infinite}
 .wchar .al{transform-origin:30px 84px;animation:wsw 3.4s ease-in-out infinite}
@@ -5829,7 +5829,8 @@ async function soundSheet(name){
 #wgBox.rot{transform-origin:0 0;transform:rotate(90deg)}
 #wgFrame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#9fd3ff}
 #wgLoad{position:absolute;inset:0;z-index:2;overflow:hidden;color:#fff;text-align:center;background:#07030f;transition:opacity .6s ease,transform .6s ease}
-#wgLoad.out{opacity:0;transform:scale(1.06);pointer-events:none}
+#wgLoad.out{opacity:0;transform:scale(1.06);pointer-events:none;visibility:hidden;transition:opacity .6s ease,transform .6s ease,visibility 0s .6s}
+#s-wgame,#s-wgame *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #wgLoad .cb{position:absolute;inset:-8%;width:116%;height:116%;object-fit:cover;filter:blur(22px) brightness(.55) saturate(1.2)}
 #wgLoad .ci{position:absolute;top:0;left:50%;height:100%;aspect-ratio:1;transform:translateX(-50%);object-fit:cover;animation:wgzoom 6s ease-out both}
 @keyframes wgzoom{from{transform:translateX(-50%) scale(1.06)}to{transform:translateX(-50%) scale(1)}}

@@ -121,6 +121,7 @@ button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 #ds.down,#fl.down{transform:scale(.92)}
 #alt{display:none;font-weight:700;color:#cfe8ff;margin:2px 0;text-shadow:0 1px 2px #000}
 @media (orientation:portrait){#rot{display:block}}
+*{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 html,body{position:fixed;inset:0;width:100%;height:100%;overscroll-behavior:none;touch-action:none}.emb #rot{display:none!important}.emb #tg{display:none}#qx{display:none}.emb #qx{display:inline-block}
 </style>
 </head>
@@ -805,11 +806,11 @@ function snapChar(){
   const W=cv.width,H=cv.height,F=26;
   C.layers.set(1);S.background=null;S.fog=null;R.setClearColor(0x000000,0);
   C.fov=F;C.aspect=W/H;C.updateProjectionMatrix();
-  const ry=root.rotation.y+0.35,d=(sz.y*1.12/2)/Math.tan(F*Math.PI/360);
+  const ry=root.rotation.y+0.35,d=(sz.y*1.3/2)/Math.tan(F*Math.PI/360);
   C.position.set(ct.x+Math.sin(ry)*d,ct.y+sz.y*0.04,ct.z+Math.cos(ry)*d);C.lookAt(ct);C.updateMatrixWorld();
   R.render(S,C);
-  const sw=Math.round(H*0.56),o=document.createElement('canvas');o.width=224;o.height=400;
-  o.getContext('2d').drawImage(cv,Math.round((W-sw)/2),0,sw,H,0,0,224,400);
+  const sw=Math.round(H*0.9),o=document.createElement('canvas');o.width=360;o.height=400;
+  o.getContext('2d').drawImage(cv,Math.round((W-sw)/2),0,sw,H,0,0,360,400);
   const url=o.toDataURL('image/png');
   C.layers.set(0);S.background=sb;S.fog=sf;C.fov=ofov;C.aspect=oasp;C.updateProjectionMatrix();C.position.copy(op);C.quaternion.copy(oq);C.updateMatrixWorld();
   localStorage.setItem('vyro_world_char_'+UID,url);
