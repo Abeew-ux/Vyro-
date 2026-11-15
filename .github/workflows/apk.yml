@@ -52,6 +52,7 @@ jobs:
             }
           }
           CAPCFG
+          sed -i "s#VyroApp/1#VyroApp/${GITHUB_RUN_NUMBER}#g" capacitor.config.json
           cat > www/offline.html <<'OFFHTML'
           <!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VYRO</title>
           <style>body{margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b0618;color:#fff;font-family:system-ui,sans-serif;text-align:center;padding:24px}h1{font-size:22px;margin:0 0 8px}p{color:#a99cc8;margin:0 0 22px}button{background:linear-gradient(135deg,#a855f7,#d946ef);color:#fff;border:0;border-radius:24px;padding:12px 28px;font-size:16px;font-weight:700}</style></head>
@@ -437,7 +438,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
-          name: VYRO (APK Android)
-          body: Dernier APK fabriqué automatiquement. Télécharge VYRO.apk puis installe-le.
+          name: VYRO Android build ${{ github.run_number }}
+          body: Build ${{ github.run_number }}. Télécharge VYRO.apk puis installe-le.
           files: VYRO.apk
           make_latest: true
