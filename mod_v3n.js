@@ -33,6 +33,8 @@
 .wsoonbox{text-align:center;padding:18px 10px 8px}.wsoonbox .e{font-size:44px}.wsoonbox p{opacity:.7;margin:8px 0 0}
 .wchar{position:absolute;left:50%;top:56%;width:112px;height:min(240px,33vh);margin:calc(-1 * min(224px,31vh)) 0 0 -56px;z-index:1;pointer-events:none;filter:drop-shadow(0 0 18px rgba(168,85,247,.55))}
 .wchar svg{width:100%;height:100%;overflow:visible}
+.wchar img{position:absolute;left:50%;bottom:0;height:100%;width:auto;max-width:none;transform:translateX(-50%);animation:wimg 3.4s ease-in-out infinite}
+@keyframes wimg{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-5px)}}
 .wchar .bob{animation:wbob 3.4s ease-in-out infinite}
 .wchar .al{transform-origin:30px 84px;animation:wsw 3.4s ease-in-out infinite}
 .wchar .ar{transform-origin:90px 84px;animation:wsw 3.4s ease-in-out infinite reverse}
@@ -60,6 +62,7 @@
  const host=document.getElementById('s-notifs');host.parentNode.insertBefore(sec,host.nextSibling);
 
   function wLook(){
+  try{const im=localStorage.getItem('vyro_world_char_'+(me&&me.id||''));if(im&&/^data:image\/png;base64,/.test(im))return `<img src="${im}" alt="" draggable="false">`}catch(e){}
   let S={};try{const d=JSON.parse(localStorage.getItem('monmonde5_'+(me&&me.id||''))||'null');if(d&&d.S)S=d.S}catch(e){}
   const hx=(c,d)=>{c=(typeof c==='number'?c:0)>>>0;let r=c>>16&255,g=c>>8&255,b=c&255;const f=d||0;r=Math.max(0,Math.min(255,Math.round(r*(1+f))));g=Math.max(0,Math.min(255,Math.round(g*(1+f))));b=Math.max(0,Math.min(255,Math.round(b*(1+f))));return'#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1)};
   const skin=typeof S.skin==='number'?S.skin:0xf5c9a0,hair=typeof S.hair==='number'?S.hair:0xd2541c,shirt=typeof S.shirt==='number'?S.shirt:0x15151a,pants=typeof S.pants==='number'?S.pants:0x15151a;
@@ -90,6 +93,7 @@
  function wRender(){
   if(!me)return;
   wChar();
+  try{const t=JSON.parse(localStorage.getItem('vyro_world_stat_'+me.id)||'null');if(t&&t.lv)$('#wLv').textContent='Niv. '+t.lv}catch(e){}
   const nm=me.display_name||me.username||'?';
   $('#wPill').innerHTML=av({name:nm,h:hue(me.username||nm),uid:me.id,avatar:me.avatar_url},40)+'<b>'+esc(nm)+'</b>';
   let bc=0;try{bc=+localStorage.getItem('vyro_bc_'+me.id)||0}catch(e){}
@@ -119,7 +123,7 @@
  });
  $('#wGear').onclick=()=>push('settings');
  $('#wEnter').onclick=()=>worldEnterGame();
- window.WORLD_ON=false; /* passer à true pour rouvrir VYRO World */
+ window.WORLD_ON=true; /* false = World en pause (Bientôt disponible) */
  window.openWorld=function(){
   if(!window.WORLD_ON){openSheet('VYRO World',`<div class="wsoonbox"><div class="e">🌍</div><b>Bientôt disponible</b><p>VYRO World est en pause pour le moment. On prépare une grosse mise à jour, reste connecté !</p></div>`);return}
   wRender();worldSetTab('home');push('world')};
@@ -266,3 +270,42 @@ if(isNativeApp()){
   if(window.__vyroCall){const t=window.__vyroCall;window.__vyroCall=0;if(Date.now()-t<15000&&typeof me!=='undefined'&&me)try{pendingInvites()}catch(e){}}
  },600);
 }
+
+/* ---------- appli Android : bouton « Télécharger » + alerte de mise à jour ---------- */
+const APK_URL='https://github.com/Abeew-ux/Vyro-/releases/download/apk-latest/VYRO.apk';
+const APK_API='https://api.github.com/repos/Abeew-ux/Vyro-/releases/tags/apk-latest';
+let apkLatest=0,apkBar=null;
+const apkCur=()=>{const m=/VyroApp\/(\d+)/.exec(navigator.userAgent);return m?+m[1]:0};
+function apkGo(){try{const a=document.createElement('a');a.href=APK_URL;a.rel='noopener';if(!isNativeApp())a.download='VYRO.apk';document.body.appendChild(a);a.click();a.remove()}catch(e){location.href=APK_URL}}
+function apkUI(){
+ const nat=isNativeApp(),and=/Android/i.test(navigator.userAgent),upd=nat&&apkLatest>apkCur();
+ const row=$('#rowApk');
+ if(row){
+  row.style.display=(nat||and)?'':'none';
+  const b=row.querySelector('b'),s=row.querySelector('small');
+  if(nat){b.textContent=upd?'Mise à jour disponible':'Application Android';s.textContent=upd?'Touche pour télécharger la nouvelle version':'Tu as la dernière version'}
+  else{b.textContent='Télécharger l’appli Android';s.textContent='Messages et appels même appli fermée'}
+ }
+ let seen='';try{seen=localStorage.getItem('vyro_apk_seen')||''}catch(e){}
+ const key=nat?String(apkLatest):'web';
+ const show=(nat?upd:and)&&seen!==key;
+ const L=$('#chatList');
+ if(show&&!apkBar&&L&&L.parentNode){
+  apkBar=document.createElement('div');apkBar.className='apkbar';
+  apkBar.innerHTML=`<span class="ab-i">${I('download')}</span><div class="ab-t"><b>${nat?'Mise à jour disponible':'VYRO pour Android'}</b><small>${nat?'Une nouvelle version de l’appli est prête':'Messages et appels même appli fermée'}</small></div><button type="button" class="ab-go">Télécharger</button><button type="button" class="ab-x" aria-label="Fermer">✕</button>`;
+  L.parentNode.insertBefore(apkBar,L);
+  apkBar.querySelector('.ab-go').onclick=()=>apkGo();
+  apkBar.querySelector('.ab-x').onclick=()=>{try{localStorage.setItem('vyro_apk_seen',key)}catch(e){}apkBar.remove();apkBar=null};
+ }else if(!show&&apkBar){apkBar.remove();apkBar=null}
+}
+async function apkCheck(){
+ try{const c=sessionStorage.getItem('vyro_apk_v');if(c!==null){apkLatest=+c||0;apkUI();return}}catch(e){}
+ try{
+  const r=await fetch(APK_API,{headers:{Accept:'application/vnd.github+json'}});
+  if(r.ok){const j=await r.json();const m=/build\s*(\d+)/i.exec((j.name||'')+' '+(j.body||''));apkLatest=m?+m[1]:0;try{sessionStorage.setItem('vyro_apk_v',String(apkLatest))}catch(e){}}
+ }catch(e){}
+ apkUI();
+}
+document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('#rowApk'))apkGo()});
+setTimeout(apkCheck,2500);
+setInterval(()=>{if(document.visibilityState==='visible')apkUI()},20000);
