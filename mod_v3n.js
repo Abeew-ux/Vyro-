@@ -98,6 +98,7 @@
   $('#wPill').innerHTML=av({name:nm,h:hue(me.username||nm),uid:me.id,avatar:me.avatar_url},40)+'<b>'+esc(nm)+'</b>';
   let bc=0;try{bc=+localStorage.getItem('vyro_bc_'+me.id)||0}catch(e){}
   $('#wBc').textContent=bc.toLocaleString('fr-FR');
+  walSync().then(b=>{if(b!=null){const e=$('#wBc');if(e)e.textContent=b.toLocaleString('fr-FR')}});
  }
  window.worldSetTab=function(t){$$('#wNav button').forEach(b=>b.classList.toggle('cur',b.dataset.w===t))};
  async function wFriends(){

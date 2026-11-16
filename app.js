@@ -1,0 +1,4800 @@
+(()=>{
+/* ---------- config Supabase ---------- */
+const SB_URL='https://cetbspgxsqbaousqrara.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNldGJzcGd4c3FiYW91c3FyYXJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1MjI4MjUsImV4cCI6MjEwNjA5ODgyNX0._I_3CBRQMlFGalyRY4_Ne7TsKbj3F-nOdsI2HBEWrqk';
+const MAIL='@vyro.app';
+async function authMail(){try{const {data:{session}}=await sb.auth.getSession();if(session&&session.user&&session.user.email)return session.user.email}catch(e){}return me.username+MAIL}
+// Adresse du relais vidéo (Worker Cloudflare), sans « / » à la fin. Laisse vide tant qu'il n'est pas installé.
+// Ex : 'https://vyro-media.moncompte.workers.dev'. Vide = le bouton + crée seulement des publications test.
+const MEDIA_URL='https://vyro-media.abdou9747w.workers.dev';
+const MAX_VIDEO=20000000; // 20 Mo : limite de lecture des fichiers par les bots Telegram (même valeur que le relais)
+let tok=''; // jeton de connexion, transmis au relais pour vérifier le droit de voir chaque vidéo
+const sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const I=(n,c='')=>`<svg class="ic ${c}"><use href="#i-${n}"/></svg>`;
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1000?(n/1000).toFixed(1)+'K':String(n);
+const p2=n=>String(n).padStart(2,'0');
+const hm=d=>p2(d.getHours())+':'+p2(d.getMinutes());
+const tfmt=iso=>{const d=new Date(iso),n=new Date();if(d.toDateString()===n.toDateString())return hm(d);const y=new Date(n);y.setDate(n.getDate()-1);if(d.toDateString()===y.toDateString())return 'Hier';return p2(d.getDate())+'/'+p2(d.getMonth()+1)};
+const hue=s=>[...String(s)].reduce((a,c)=>a+c.charCodeAt(0),0)*37%360;
+const logo=s=>`<svg width="${s}" height="${s}" viewBox="0 0 48 48" fill="none" stroke-linejoin="round" stroke-linecap="round"><path d="M24 8.5c9.5 0 15.2 6 20 15.5-4.2 8.2-9.8 13.2-18.6 14" stroke="url(#lg2)" stroke-width="4.6" opacity=".78"/><path d="M45.2 24 38 19.6v8.8z" fill="url(#lg2)" stroke="url(#lg2)" stroke-width="2" opacity=".9"/><path d="M22 6.5c-8.6 0-15.5 6.6-15.5 15.2 0 4.2 1.7 8 4.4 10.7L9 41.5l8.2-3.6c1.5.5 3 .8 4.8.8 8.6 0 15.5-6.6 15.5-15.2S30.6 6.5 22 6.5z" stroke="url(#lg)" stroke-width="4.4"/><path d="M17.5 15.6c0-1.4 1.5-2.2 2.7-1.5l10.2 6.1c1.1.7 1.1 2.3 0 3L20.2 29.3c-1.2.7-2.7-.1-2.7-1.5z" fill="url(#lg)" stroke="url(#lg)" stroke-width="1.600"/></svg>`;let toastT;
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),2600)}
+const ERR={invalid_email:'Adresse email invalide.',email_taken:'Cet email est déjà utilisé. Connecte-toi, ou utilise « Mot de passe oublié ».',email_other_app:'Cet email est déjà lié à un autre compte. Utilise une autre adresse.',code_invalid:'Code incorrect.',code_expired:'Code expiré. Demande un nouveau code.',code_locked:'Trop d’essais. Demande un nouveau code.',mail_not_configured:'L’envoi des emails n’est pas encore activé. Réessaie plus tard.',mail_failed:'Impossible d’envoyer l’email. Vérifie ton adresse.',too_soon:'Attends un peu avant de redemander un code.',network:'Erreur réseau. Vérifie ta connexion.',invalid_username:'Pseudo invalide : 3 à 20 caractères (minuscules, chiffres, _).',invalid_password:'Mot de passe : 6 caractères minimum.',username_taken:'Ce pseudo est déjà pris.',server_error:'Erreur du serveur, réessaie dans un instant.',dm_closed:'Cette personne n’accepte pas de messages.',dm_followers_only:'Cette personne n’accepte que les messages de ses abonnés.',name_required:'Donne un nom au groupe.',too_many_members:'Un groupe est limité à 50 membres.',blocked:'Impossible : un blocage existe avec cette personne.',admin_only:'Seul un administrateur du groupe peut faire ça.'};
+const errMsg=e=>{const m=(e&&e.message)||'';for(const k in ERR)if(m.includes(k))return ERR[k];return 'Une erreur est survenue. Vérifie ta connexion.'};
+
+/* ---------- état ---------- */
+const THEME_KEY='vyro_theme';
+const S={theme:'dark',
+ priv:{private:false,dm:'all',comments:'all',download:true,activity:true,joined:true},
+ notif:{sound:true,messages:true,likes:true,followers:true,comments:true,mentions:true,gifts:true,updates:true}};
+try{S.theme=localStorage.getItem(THEME_KEY)||'dark'}catch(e){}
+let me=null,chats=[],cur=null,posts=[],tabV='fy',filter='all',q='',gtab='vid',chan=null;
+const following=new Set(),liked=new Set(),saved=new Set(),blocks=new Set();
+const ACC=[['Violet',0],['Rose',65],['Bleu',-55],['Vert',-120],['Orange',115]],ACC_KEY='vyro_accent';
+const SKINS=[['none','Violet néon',0,'#06020d','#a855f7','#ec4899','#22d3ee'],['cyber','Cyber',-80,'#020a12','#06b6d4','#d946ef','#3b82f6'],['sunset','Sunset',100,'#140807','#fb923c','#ec4899','#8b5cf6'],['ocean','Océan',-62,'#020a1c','#3b82f6','#14b8a6','#6366f1'],['forest','Forêt',-130,'#03100a','#22c55e','#14b8a6','#eab308'],['rose','Rose gold',62,'#14060d','#f472b6','#fb7185','#fbbf24'],['aurora','Aurore',-112,'#03100f','#34d399','#22d3ee','#a78bfa'],['galaxy','Galaxie',-12,'#05030f','#7c3aed','#2563eb','#ec4899'],['amoled','AMOLED',0,'#000000','#7c3aed','#4f46e5','#7c3aed']];
+let skin='none';try{skin=localStorage.getItem('vyro_skin')||'none'}catch(e){}
+const hexA=(h,a)=>{const n=parseInt(h.slice(1),16);return `rgba(${n>>16},${n>>8&255},${n&255},${a})`};
+let accIdx=0;try{accIdx=Math.max(0,Math.min(4,+localStorage.getItem(ACC_KEY)||0))}catch(e){}
+const mqL=window.matchMedia?matchMedia('(prefers-color-scheme: light)'):null;
+function applyTheme(){
+ const sk=SKINS.find(x=>x[0]===skin)||SKINS[0],on=sk[0]!=='none',root=document.documentElement;
+ const eff=on?'dark':(S.theme==='auto'?(mqL&&mqL.matches?'light':'dark'):S.theme);
+ root.dataset.theme=eff;root.dataset.skin=sk[0];
+ root.style.setProperty('--hs',on?sk[2]:ACC[accIdx][1]);
+ ['--bg','--b1','--b2','--b3','--sheet','--nav'].forEach(k=>root.style.removeProperty(k));
+ if(on){
+  root.style.setProperty('--bg',sk[3]);
+  root.style.setProperty('--b1',hexA(sk[4],.6));root.style.setProperty('--b2',hexA(sk[5],.34));root.style.setProperty('--b3',hexA(sk[6],.26));
+  root.style.setProperty('--sheet','color-mix(in srgb,'+sk[3]+' 86%,'+sk[4]+' 14%)');
+  root.style.setProperty('--nav','color-mix(in srgb,'+sk[3]+' 90%,'+sk[4]+' 10%)');
+ }
+ $('meta[name=theme-color]').content=on?sk[3]:(eff==='dark'?'#07030f':'#f6f1ff');
+ const st=$('#thSub');if(st)st.textContent=on?'Thème '+sk[1]:(S.theme==='auto'?'Automatique':eff==='dark'?'Thème sombre':'Thème clair')+' · '+ACC[accIdx][0];
+}
+if(mqL&&mqL.addEventListener)mqL.addEventListener('change',()=>{if(S.theme==='auto')applyTheme()});
+function applyNames(){
+ if(!me)return;
+ const nm=me.display_name||me.username;
+ $$('[data-name]').forEach(e=>e.textContent=nm);
+ $$('[data-handle]').forEach(e=>e.textContent='@'+me.username);
+ $$('[data-ini]').forEach(e=>e.textContent=nm[0].toUpperCase());
+ $$('[data-bio]').forEach(e=>e.textContent=me.bio||'');
+ $$('[data-bio1]').forEach(e=>e.textContent=(me.bio||'').split('\n')[0]);
+ $$('.pav').forEach(p=>{let i=p.querySelector('img');
+  if(me.avatar_url&&MEDIA_URL){if(!i){i=document.createElement('img');i.alt='';i.onerror=()=>i.remove();p.appendChild(i)}const u=aurl(me.id,me.avatar_url);if(i.getAttribute('src')!==u)i.src=u}
+  else if(i)i.remove()});
+}
+
+/* ---------- icônes statiques ---------- */
+$$('[data-i]').forEach(el=>{el.innerHTML=I(el.dataset.i,(el.hasAttribute('data-fill')?'fill ':'')+(el.dataset.cls||''))});
+$$('[data-sm]').forEach(el=>el.firstChild.style.cssText='width:18px;height:18px');
+$$('[data-logo]').forEach(el=>el.innerHTML=logo(+el.dataset.logo));
+
+/* ---------- navigation ---------- */
+let stack=['auth'],curScreen='auth';
+const TABOF={plus:'profile',newc:'chat',story:'chat',cam:'chat',chat:'chat',thread:'chat',videos:'videos',search:'videos',user:'videos',profile:'profile',settings:'profile',privacy:'profile',notifs:'profile',world:'chat',wgame:'chat'};
+const NONAV=['thread','auth','cam','story','search','user','newc','settings','privacy','notifs','world','wgame'];
+function show(n){
+ if(n!=='cam'&&camOn)stopCam();
+ if(n!=='story')stopStory();
+ if(n!=='thread')leaveThread();
+ curScreen=n;
+ if(n!=='videos'&&n!=='user'){const t=$('#toast');if(t&&/activer le son/.test(t.textContent))t.classList.remove('on')}
+ if(n==='chat')renderStories();
+ $$('.screen').forEach(s=>s.classList.toggle('on',s.id==='s-'+n));
+ $$('#nav button').forEach(b=>b.classList.toggle('cur',b.dataset.t===TABOF[n]));
+ $('#nav').classList.toggle('hide',NONAV.includes(n));
+ $('#nav').classList.toggle('vid',n==='videos');
+ syncPlay();
+}
+const push=n=>{stack.push(n);show(n)};
+const back=()=>{if(stack.length>1)stack.pop();show(stack[stack.length-1])};
+function tab(n){
+ stack=[n];show(n);
+ if(!me)return;
+ if(n==='chat'){loadChats();loadStories()}
+ if(n==='videos'){feedMode=false;$('#vBack').hidden=true;loadFeed()}
+ if(n==='profile')loadProfileData();
+}
+$$('#nav button').forEach(b=>b.onclick=()=>tab(b.dataset.t));
+
+/* ---------- sheets ---------- */
+let sheetHook=null;
+function openSheet(title,html){if(sheetHook){const h=sheetHook;sheetHook=null;h()}$('#sh').oninput=null;$('#sh').onclick=null;$('#sh').innerHTML=`<div class="grab"></div><h3>${title}</h3>${html}`;$('#bd').classList.add('on');$('#sh').classList.add('on');return $('#sh')}
+function closeSheet(){$('#bd').classList.remove('on');$('#sh').classList.remove('on');if(sheetHook){const h=sheetHook;sheetHook=null;h()}if(curScreen==='story')svPause(false)}
+$('#bd').onclick=closeSheet;
+
+/* ---------- authentification ---------- */
+let amode='login',apend={email:'',pw:''},acool=0,actimer=null;
+const AFN=SB_URL+'/functions/v1/vyro-auth';
+async function callAuth(body){
+ try{
+  const r=await fetch(AFN,{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+SB_KEY},body:JSON.stringify(body)});
+  const j=await r.json().catch(()=>({}));
+  return r.ok?{ok:true}:{error:j.error||'server_error'};
+ }catch(e){return {error:'network'}}
+}
+const aIn=(id,label,attrs)=>`<label class="fld">${label}<input id="${id}" ${attrs}></label>`;
+function renderAuth(){
+ const M=amode;
+ $('#aTabs').hidden=!(M==='login'||M==='signup');
+ $$('#aTabs button').forEach(x=>x.classList.toggle('cur',x.dataset.m===M));
+ const em=aIn('aEmail','Email','type="email" inputmode="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="254" placeholder="ex : toi@gmail.com"');
+ const pw=(lab,ac,ph)=>aIn('aPass',lab,`type="password" autocomplete="${ac}" maxlength="72" placeholder="${ph||'6 caractères minimum'}"`);
+ const cd=aIn('aCode','Code à 6 chiffres','inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" class="acode"');
+ let h,go,links='';
+ if(M==='login'){h=em+pw('Mot de passe','current-password');go='Se connecter';links='<button type="button" class="lnk" data-a="forgot">Mot de passe oublié ?</button>'}
+ else if(M==='signup'){h=aIn('aUser','Pseudo','autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" placeholder="ex : bee_dev"')+em+pw('Mot de passe','new-password');go='Créer mon compte';links='<small class="muted">Pseudo : minuscules, chiffres et _ (3 à 20). Un code de vérification sera envoyé à ton email.</small>'}
+ else if(M==='verify'){h=`<p class="amsg">Un code a été envoyé à <b>${esc(apend.email)}</b>. Pense à regarder les spams.</p>`+cd;go='Valider';links='<button type="button" class="lnk" data-a="resend" id="aResend"></button><button type="button" class="lnk" data-a="back">Changer d’email</button>'}
+ else if(M==='forgot'){h='<p class="amsg">Entre ton email : on t’envoie un code pour choisir un nouveau mot de passe.</p>'+em;go='Envoyer le code';links='<button type="button" class="lnk" data-a="back">Retour</button>'}
+ else{h=`<p class="amsg">Code envoyé à <b>${esc(apend.email)}</b>.</p>`+cd+pw('Nouveau mot de passe','new-password');go='Changer le mot de passe';links='<button type="button" class="lnk" data-a="resend" id="aResend"></button><button type="button" class="lnk" data-a="back">Retour</button>'}
+ $('#aBody').innerHTML=h;$('#aLinks').innerHTML=links;$('#aGo').textContent=go;$('#aErr').textContent='';
+ const e=$('#aEmail');if(e&&apend.email)e.value=apend.email;
+ tickResend();
+}
+function tickResend(){
+ clearInterval(actimer);
+ const b=$('#aResend');if(!b)return;
+ const upd=()=>{const l=Math.ceil((acool-Date.now())/1000);const bb=$('#aResend');if(!bb){clearInterval(actimer);return}
+  bb.disabled=l>0;bb.textContent=l>0?'Renvoyer le code ('+l+' s)':'Renvoyer le code'};
+ upd();actimer=setInterval(upd,1000);
+}
+$('#aTabs').onclick=e=>{const b=e.target.closest('[data-m]');if(!b)return;amode=b.dataset.m;renderAuth()};
+$('#aLinks').onclick=async e=>{
+ const b=e.target.closest('[data-a]');if(!b||b.disabled)return;const a=b.dataset.a;
+ if(a==='forgot'){amode='forgot';renderAuth()}
+ else if(a==='back'){amode=amode==='verify'?'signup':'login';renderAuth()}
+ else if(a==='resend'){
+  const r=await callAuth({action:'resend',email:apend.email,purpose:amode==='reset'?'reset':'signup'});
+  if(r.error){$('#aErr').textContent=ERR[r.error]||ERR.server_error;return}
+  acool=Date.now()+45000;tickResend();toast('Code renvoyé ✉️');
+ }
+};
+async function aLogin(email,pw,err){
+ const {error}=await sb.auth.signInWithPassword({email,password:pw});
+ if(error){
+  if(/not confirmed/i.test(error.message)){
+   apend={email,pw};
+   const r=await callAuth({action:'resend',email,purpose:'signup'});
+   acool=Date.now()+(r.error==='too_soon'?20000:45000);amode='verify';renderAuth();
+   $('#aErr').textContent='Confirme d’abord ton email avec le code reçu.';return false;
+  }
+  err.textContent=/invalid/i.test(error.message)?'Email ou mot de passe incorrect.':'Connexion impossible : '+error.message;return false;
+ }
+ await enter();return true;
+}
+$('#aForm').onsubmit=async e=>{
+ e.preventDefault();
+ const err=$('#aErr'),btn=$('#aGo');err.textContent='';
+ if(!sb){err.textContent='Impossible de charger Supabase. Vérifie ta connexion internet.';return}
+ const g=id=>{const x=$('#'+id);return x?x.value.trim():''};
+ const email=(g('aEmail')||apend.email).toLowerCase(),pw=$('#aPass')?$('#aPass').value:'',code=g('aCode'),M=amode;
+ if((M==='login'||M==='signup'||M==='forgot')&&!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){err.textContent=ERR.invalid_email;return}
+ if(M==='signup'&&!/^[a-z0-9_]{3,20}$/.test(g('aUser').toLowerCase())){err.textContent=ERR.invalid_username;return}
+ if((M==='login'||M==='signup'||M==='reset')&&pw.length<6){err.textContent=ERR.invalid_password;return}
+ if((M==='verify'||M==='reset')&&!/^\d{6}$/.test(code)){err.textContent=ERR.code_invalid;return}
+ btn.disabled=true;const old=btn.textContent;btn.textContent='Patiente…';
+ try{
+  if(M==='login')await aLogin(email,pw,err);
+  else if(M==='signup'){
+   const r=await callAuth({action:'signup',email,username:g('aUser').toLowerCase(),password:pw});
+   if(r.error){err.textContent=ERR[r.error]||ERR.server_error;return}
+   apend={email,pw};acool=Date.now()+45000;amode='verify';renderAuth();
+  }else if(M==='verify'){
+   const r=await callAuth({action:'verify',email:apend.email,code});
+   if(r.error){err.textContent=ERR[r.error]||ERR.server_error;return}
+   if(apend.pw){await aLogin(apend.email,apend.pw,err)}else{amode='login';renderAuth();toast('Email confirmé ✅ Connecte-toi')}
+  }else if(M==='forgot'){
+   const r=await callAuth({action:'forgot',email});
+   if(r.error){err.textContent=ERR[r.error]||ERR.server_error;return}
+   apend={email,pw:''};acool=Date.now()+45000;amode='reset';renderAuth();
+  }else if(M==='reset'){
+   const r=await callAuth({action:'reset',email:apend.email,code,password:pw});
+   if(r.error){err.textContent=ERR[r.error]||ERR.server_error;return}
+   toast('Mot de passe changé ✅');await aLogin(apend.email,pw,err);
+  }
+ }catch(x){err.textContent='Erreur réseau. Vérifie ta connexion.'}
+ finally{btn.disabled=false;if($('#aGo').textContent==='Patiente…')btn.textContent=old}
+};
+renderAuth();
+async function boot(){
+ applyTheme();
+ if(!sb){show('auth');$('#aErr').textContent='Impossible de charger Supabase. Vérifie ta connexion internet.';return}
+ sb.auth.onAuthStateChange((ev,s)=>{tok=s?s.access_token:''});
+ const {data}=await sb.auth.getSession();
+ if(data&&data.session)await enter();else show('auth');
+}
+async function enter(){
+ const {data:{session}}=await sb.auth.getSession();
+ if(!session){show('auth');return}
+ tok=session.access_token;
+ const {data:p}=await sb.from('vyro_profiles').select('*').eq('id',session.user.id).maybeSingle();
+ if(!p){await sb.auth.signOut();show('auth');$('#aErr').textContent='Ce compte n’existe pas sur VYRO.';return}
+ me=p;
+ const st=p.settings||{};
+ if(st.priv)Object.assign(S.priv,st.priv);
+ if(st.notif)Object.assign(S.notif,st.notif);
+ S.priv.private=!!p.is_private;
+ applyNames();renderPrivacy();renderNotifs();
+ await Promise.all([loadFollows(),loadMarks(),loadBlocks()]);
+ await localInit();
+ subscribe();initExtras();
+ tab('chat');
+}
+async function logout(){try{await pushRemove()}catch(e){}try{await sb.auth.signOut()}catch(e){}location.reload()}
+
+/* ---------- suivis / likes / favoris ---------- */
+async function loadFollows(){
+ const {data}=await sb.from('vyro_follows').select('following_id').eq('follower_id',me.id);
+ following.clear();(data||[]).forEach(r=>following.add(r.following_id));
+}
+async function loadBlocks(){
+ const {data}=await sb.from('vyro_blocks').select('blocked_id').eq('blocker_id',me.id);
+ blocks.clear();(data||[]).forEach(r=>blocks.add(r.blocked_id));
+}
+async function loadMarks(){
+ const [l,s]=await Promise.all([sb.from('vyro_likes').select('video_id').eq('user_id',me.id),sb.from('vyro_saves').select('video_id').eq('user_id',me.id)]);
+ liked.clear();saved.clear();
+ (l.data||[]).forEach(r=>liked.add(r.video_id));(s.data||[]).forEach(r=>saved.add(r.video_id));
+}
+
+/* ---------- messages stockés sur le téléphone (comme WhatsApp) ---------- */
+const LDB={
+ db:null,M:{msgs:new Map(),rx:new Map(),blobs:new Map(),meta:new Map()},
+ async init(uid){
+  this.db=null;
+  try{
+   if(!window.indexedDB)throw 0;
+   this.db=await new Promise((ok,ko)=>{const r=indexedDB.open('vyro_'+uid,1);
+    r.onupgradeneeded=()=>{const d=r.result;
+     d.createObjectStore('msgs',{keyPath:'id'}).createIndex('c','conversation_id');
+     d.createObjectStore('rx',{keyPath:'k'}).createIndex('c','conversation_id');
+     d.createObjectStore('blobs');d.createObjectStore('meta')};
+    r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error);r.onblocked=()=>ko(new Error('blocked'))});
+   await this.set('meta','probe',Date.now());
+   try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+  }catch(e){this.db=null}
+ },
+ run(s,fn){return new Promise((ok,ko)=>{const tx=this.db.transaction(s,'readwrite');tx.oncomplete=()=>ok();tx.onerror=tx.onabort=()=>ko(tx.error||new Error('idb'));fn(tx.objectStore(s))})},
+ get(s,k){if(!this.db)return Promise.resolve(this.M[s].get(k));return new Promise((ok,ko)=>{const r=this.db.transaction(s).objectStore(s).get(k);r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error)})},
+ all(s,conv){
+  if(!this.db){const a=[...this.M[s].values()];return Promise.resolve(conv?a.filter(x=>x.conversation_id===conv):a)}
+  return new Promise((ok,ko)=>{const st=this.db.transaction(s).objectStore(s);const r=conv?st.index('c').getAll(conv):st.getAll();r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error)})},
+ put(s,arr){if(!this.db){arr.forEach(x=>this.M[s].set(s==='rx'?x.k:x.id,x));return Promise.resolve()}return this.run(s,st=>{arr.forEach(x=>st.put(x))})},
+ set(s,k,v){if(!this.db){this.M[s].set(k,v);return Promise.resolve()}return this.run(s,st=>{st.put(v,k)})},
+ del(s,keys){if(!keys.length)return Promise.resolve();if(!this.db){keys.forEach(k=>this.M[s].delete(k));return Promise.resolve()}return this.run(s,st=>{keys.forEach(k=>st.delete(k))})}
+};
+const RX_RE=/^\[rx:(\d+):([^\s\[\]:]{1,16})\]$/,DEL_RE=/^\[del:(\d+)\]$/;
+const isCtl=b=>RX_RE.test(b)||DEL_RE.test(b);
+let RD={},PEND={};const BU=new Map(),inflight=new Set();
+async function localInit(){
+ await LDB.init(me.id);
+ RD=(await LDB.get('meta','rd').catch(()=>null))||{};PEND=(await LDB.get('meta','pend').catch(()=>null))||{};
+}
+const saveRD=()=>LDB.set('meta','rd',RD).catch(()=>{});
+const savePend=()=>LDB.set('meta','pend',PEND).catch(()=>{});
+const mu=id=>BU.get(id)||murl(id);
+async function prepBlobs(list){
+ for(const m of list){const x=MED_RE.exec(m.body);
+  if(x&&!BU.has(x[2])){try{const b=await LDB.get('blobs',x[2]);if(b)BU.set(x[2],URL.createObjectURL(b))}catch(e){}}}
+}
+async function fetchChatBlob(id){
+ if(!MEDIA_URL)return null;
+ try{
+  const ac=new AbortController(),t=setTimeout(()=>ac.abort(),90000);
+  const r=await fetch(murl(id),{signal:ac.signal});clearTimeout(t);
+  if(!r.ok)return null;
+  const b=await r.blob();return b.size?b:null;
+ }catch(e){return null}
+}
+async function dropMsgs(list){
+ if(!list.length)return;
+ const ids=list.map(m=>m.id),bl=[];
+ list.forEach(m=>{const x=MED_RE.exec(m.body);if(x){bl.push(x[2]);const u=BU.get(x[2]);if(u){try{URL.revokeObjectURL(u)}catch(e){}BU.delete(x[2])}}});
+ await LDB.del('msgs',ids);await LDB.del('blobs',bl);
+ const rx=(await LDB.all('rx')).filter(r=>ids.includes(r.message_id)).map(r=>r.k);
+ await LDB.del('rx',rx);
+ ids.forEach(id=>delete PEND[id]);savePend();
+}
+async function purgeLocal(){
+ const dead=[],all=await LDB.all('msgs');
+ const lim={};chats.forEach(c=>{if(c.ttl)lim[c.id]=Date.now()-c.ttl*3600e3});
+ const old=Date.now()-31*864e5;
+ all.forEach(m=>{if(m.ctl?m.ts<old:(lim[m.conversation_id]&&m.ts<lim[m.conversation_id]))dead.push(m)});
+ if(dead.length)await dropMsgs(dead);
+}
+async function refreshMeta(){
+ const all=await LDB.all('msgs'),by={};
+ all.forEach(m=>{if(!m.ctl)(by[m.conversation_id]=by[m.conversation_id]||[]).push(m)});
+ chats.forEach(c=>{
+  const a=(by[c.id]||[]).sort((x,y)=>x.ts-y.ts||x.id-y.id),l=a[a.length-1],rd=RD[c.id]||0;
+  if(l){c.last=prev(l.body);c.at=l.created_at}else c.last='Nouvelle conversation';
+  c.unread=a.filter(m=>m.sender_id!==me.id&&m.ts>rd&&!SYS_RE.test(m.body)&&!(c.type!=='group'&&blocks.has(m.sender_id))).length;
+ });
+ chats.sort((a,b)=>new Date(b.at)-new Date(a.at));
+}
+async function applyCtl(m){
+ let x=RX_RE.exec(m.body);
+ if(x){
+  const mid=+x[1],e=x[2],k=mid+':'+m.sender_id;
+  if(e==='-')await LDB.del('rx',[k]);
+  else await LDB.put('rx',[{k,message_id:mid,user_id:m.sender_id,conversation_id:m.conversation_id,emoji:e}]);
+  if(cur&&cur.id===m.conversation_id){const o=cur.reacts[mid]=cur.reacts[mid]||{};if(e==='-')delete o[m.sender_id];else o[m.sender_id]=e;renderMsgs()}
+  return;
+ }
+ x=DEL_RE.exec(m.body);
+ if(x){
+  const mid=+x[1],t=await LDB.get('msgs',mid);
+  if(t&&t.sender_id===m.sender_id&&t.conversation_id===m.conversation_id)await dropMsgs([t]);
+  if(cur&&cur.id===m.conversation_id&&cur.msgs.some(y=>y.id===mid)){cur.msgs=cur.msgs.filter(y=>y.id!==mid);renderMsgs()}
+  await refreshMeta();renderChats();
+ }
+}
+async function ingest(rows,o){
+ o=o||{};
+ rows=(rows||[]).filter(r=>r&&r.id&&!inflight.has(r.id));
+ if(!rows.length)return;
+ rows.sort((a,b)=>a.id-b.id);rows.forEach(r=>inflight.add(r.id));
+ try{
+  const known=await Promise.all(rows.map(r=>LDB.get('msgs',r.id)));
+  const ack=[],store=[];
+  for(let i=0;i<rows.length;i++){
+   const r=rows[i];
+   if(known[i]){if(o.sync&&LDB.db)ack.push(r.id);continue}
+   const m={id:r.id,conversation_id:r.conversation_id,sender_id:r.sender_id,body:r.body,created_at:r.created_at,reply_to:r.reply_to||null,ts:Date.parse(r.created_at)||Date.now()};
+   const md=MED_RE.exec(r.body);
+   if(md){
+    const have=BU.has(md[2])||await LDB.get('blobs',md[2]);
+    if(!have){
+     const b=await fetchChatBlob(md[2]);
+     if(b)await LDB.set('blobs',md[2],b);
+     else if(LDB.db)continue; /* on réessaiera : le message reste sur le serveur */
+    }
+   }
+   if(isCtl(r.body))m.ctl=1;
+   else if(m.sender_id===me.id)PEND[m.id]=o.own?Date.now():0;
+   store.push(m);
+  }
+  if(store.length){await LDB.put('msgs',store);savePend()}
+  store.forEach(m=>ack.push(m.id));
+  if(LDB.db&&ack.length)sb.rpc('vyro_ack',{p_ids:ack}).then(()=>{},()=>{});
+  const ui=[];
+  for(const m of store){if(m.ctl)await applyCtl(m);else ui.push(m)}
+  if(ui.length)await uiIngest(ui,o);
+ }finally{rows.forEach(r=>inflight.delete(r.id))}
+}
+async function uiIngest(list,o){
+ let reloaded=false;
+ if(list.some(m=>!chats.some(c=>c.id===m.conversation_id))){await loadChats();reloaded=true}
+ for(const m of list){
+  const c=chats.find(x=>x.id===m.conversation_id);if(!c)continue;
+  const mine=m.sender_id===me.id;
+  const inThread=curScreen==='thread'&&cur&&cur.id===c.id,open=inThread&&!document.hidden;
+  const sy=SYS_RE.exec(m.body);
+  if(sy){c.ttl=+sy[1];if(cur&&cur.id===c.id){cur.ttl=c.ttl;setStatus()}}
+  if(inThread){
+   await prepBlobs([m]);
+   if(!cur.msgs.some(x=>x.id===m.id)){cur.msgs.push(m);cur.msgs.sort((a,b)=>a.ts-b.ts||a.id-b.id);if(!mine){typing=null;setStatus();if(open)popIn()}renderMsgs()}
+   if(!mine&&open)markRead();
+  }
+  if(!mine&&!sy&&!(c.type!=='group'&&blocks.has(m.sender_id))&&!open){if(!reloaded)c.unread++;if(o.live)notifyMsg(c,m)}
+  if(!reloaded&&(!c.at||new Date(m.created_at)>=new Date(c.at)||c.last==='Nouvelle conversation'))bump(c,m.body,m.created_at);
+ }
+ renderChats();
+}
+function markRead(){
+ const c=cur;if(!c)return;
+ const t=c.msgs.reduce((a,m)=>Math.max(a,m.ts||0),RD[c.id]||0);
+ RD[c.id]=t;saveRD();c.unread=0;{const cc=chats.find(x=>x.id===c.id);if(cc)cc.unread=0}renderChats();
+ sb.rpc('vyro_mark_read',{p_conv:c.id});
+}
+async function postMsg(cid,body,reply){
+ const row={conversation_id:cid,sender_id:me.id,body};if(reply)row.reply_to=reply;
+ const {data,error}=await sb.from('vyro_messages').insert(row).select('id,conversation_id,sender_id,body,created_at,reply_to').single();
+ if(error)return {error};
+ await ingest([data],{own:true});
+ return {data};
+}
+async function markDelivered(ids){
+ const ms=(await Promise.all(ids.map(id=>LDB.get('msgs',id)))).filter(Boolean);
+ ms.forEach(m=>{m.dlv=1});
+ if(ms.length)await LDB.put('msgs',ms);
+ ids.forEach(id=>delete PEND[id]);savePend();
+ if(cur){let ch=false;cur.msgs.forEach(m=>{if(ids.includes(m.id)&&!m.dlv){m.dlv=1;ch=true}});if(ch)renderMsgs()}
+}
+let syncing=false,syncAgain=false;
+async function syncInbox(){
+ if(!me)return;
+ if(syncing){syncAgain=true;return}
+ syncing=true;
+ try{
+  do{
+   syncAgain=false;
+   for(let n=0;n<6;n++){
+    const {data,error}=await sb.rpc('vyro_inbox',{p_limit:300});
+    if(error)break;
+    const rows=data||[];
+    await ingest(rows,{sync:true});
+    if(rows.length<300)break;
+   }
+   const ids=Object.keys(PEND).map(Number).filter(id=>Date.now()-PEND[id]>15000);
+   for(let i=0;i<ids.length;i+=150){
+    const ch=ids.slice(i,i+150);
+    const {data,error}=await sb.from('vyro_messages').select('id').in('id',ch);
+    if(error)continue;
+    const on=new Set((data||[]).map(r=>r.id)),dl=ch.filter(id=>!on.has(id));
+    if(dl.length)await markDelivered(dl);
+   }
+  }while(syncAgain);
+ }catch(e){}
+ finally{syncing=false}
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncInbox()});
+window.addEventListener('online',()=>syncInbox());
+setInterval(()=>{if(!document.hidden&&me)syncInbox()},45000);
+
+function openFromUrl(){
+ try{
+  const q=new URLSearchParams(location.search),cid=q.get('open'),vid=q.get('v');
+  if(!cid&&!vid)return;
+  history.replaceState(null,'',location.pathname+location.hash);
+  if(vid&&/^[0-9a-f-]{36}$/i.test(vid)){openSharedVideo(vid);return}
+  if(chats.some(c=>c.id===cid))openThread(cid);
+ }catch(e){}
+}
+/* ---------- chat : liste ---------- */
+const aurl=(uid,a)=>MEDIA_URL+'/avatar/'+uid+'?t='+encodeURIComponent(tok)+'&v='+encodeURIComponent(String(a).slice(-10));
+const FRM={};
+const av=(c,size=58,fr)=>`<div class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size*.4)}px;background:linear-gradient(135deg,hsl(${c.h} 80% 62%),hsl(${(c.h+50)%360} 70% 30%))">${esc(c.type==='group'?'👥':(c.name||'?')[0].toUpperCase())}${(c.avatar&&c.uid&&MEDIA_URL)?`<img src="${aurl(c.uid,c.avatar)}" alt="" onerror="this.remove()">`:''}${typeof frameMk==='function'?frameMk(fr===undefined?(c.uid&&FRM[c.uid]):fr):''}</div>`;
+let purged=false;
+async function loadChats(){
+ const {data,error}=await sb.rpc('vyro_my_chats');
+ if(error){toast('Impossible de charger les conversations');return}
+ chats=(data||[]).map(c=>{const name=c.type==='group'?(c.name||'Groupe'):(c.peer_name||c.peer_username||'Utilisateur');
+  return {id:c.id,type:c.type==='group'?'group':'friend',name,uid:c.type==='group'?null:c.peer_id,avatar:c.type==='group'?null:c.peer_avatar,h:hue(c.peer_username||name),last:'Nouvelle conversation',at:c.last_message_at||c.created_at||new Date(0).toISOString(),unread:0,ttl:c.ttl_hours||0}});
+ if(cur){const n=chats.find(x=>x.id===cur.id);if(n){n.msgs=cur.msgs;n.reacts=cur.reacts;n.reply=cur.reply;cur=n}}
+ try{
+  if(chats.some(c=>RD[c.id]==null)){
+   const {data:mm}=await sb.from('vyro_members').select('conversation_id,last_read_at').eq('user_id',me.id);
+   (mm||[]).forEach(r=>{if(RD[r.conversation_id]==null)RD[r.conversation_id]=Date.parse(r.last_read_at)||0});saveRD();
+  }
+  await purgeLocal();await refreshMeta();
+ }catch(e){}
+ renderChats();
+ if(!purged){purged=true;sb.rpc('vyro_purge_expired');syncInbox();openFromUrl()}
+}
+function renderChats(){
+ const cnt=t=>chats.filter(c=>t==='all'||c.type===t).length;
+ $('#chips').innerHTML=[['all','Toutes'],['group','Room'],['friend','Amis']].map(([k,l])=>`<button class="chip ${filter===k?'cur':''}" data-f="${k}">${l}<em>${cnt(k)}</em></button>`).join('');
+ const list=chats.filter(c=>(filter==='all'||c.type===filter)&&c.name.toLowerCase().includes(q));
+ $('#chatList').innerHTML=list.map(c=>`<div class="chat" data-id="${c.id}">${av(c)}<div class="cm"><div class="r1"><b>${esc(c.name)}${c.ttl?`<em class="eph" title="Messages éphémères">${I('clock')}</em>`:''}</b><span class="tm ${c.unread?'hot':''}">${tfmt(c.at)}</span></div><div class="r2"><span class="lm">${esc(c.last)}</span>${c.unread?`<span class="bdg">${c.unread}</span>`:''}</div></div></div>`).join('')||`<div class="emptyart">${chats.length?'':ART_CHAT}<p>${chats.length?'Aucune conversation trouvée':'Aucune conversation pour l’instant.<br>Appuie sur + pour écrire à quelqu’un.'}</p></div>`;
+ const tot=chats.reduce((s,c)=>s+c.unread,0),nb=$('#nbChat');
+ if(nb){nb.hidden=!tot;nb.textContent=tot>99?'99+':tot}
+ document.title=(tot?'('+tot+') ':'')+'VYRO — Chat • Vidéos • Communauté';
+}
+$('#chips').onclick=e=>{const b=e.target.closest('[data-f]');if(b){filter=b.dataset.f;renderChats()}};
+$('#q').oninput=e=>{q=e.target.value.trim().toLowerCase();renderChats()};
+$('#bSearch').onclick=()=>{$('.sbar').hidden=false;$('#stories').hidden=true;$('#q').focus()};
+$('#q').onblur=()=>{if(!$('#q').value){$('.sbar').hidden=true;$('#stories').hidden=false}};
+$('#chatList').onclick=e=>{const r=e.target.closest('.chat');if(r)openThread(r.dataset.id)};
+
+/* ---------- chat : conversation ---------- */
+let names={},avs={},peerRead=0,typing=null,typT=0,tchan=null,typSent=0,stick=true;
+const MED_RE=/^\[med:(image|video|audio):([0-9a-f-]{36})(:s)?\]$/;
+const SYS_RE=/^\[sys:ttl:(\d+)\]$/;
+const CALL_RE=/^\[call:(audio|video):(\d+)\]$/;
+const murl=id=>MEDIA_URL+'/chatmedia/'+id+'?t='+encodeURIComponent(tok);
+const dur2=s=>Math.floor(s/60)+':'+p2(s%60);
+const ttlLabel=h=>!h?'':h===24?'24 h':h%24===0?(h/24)+' jours':h+' h';
+const RXE=['❤️','😂','😮','😢','👍','🙏'];
+function dayLabel(d){const n=new Date(),y=new Date(n);y.setDate(n.getDate()-1);return d.toDateString()===n.toDateString()?'Aujourd’hui':d.toDateString()===y.toDateString()?'Hier':p2(d.getDate())+'/'+p2(d.getMonth()+1)+'/'+d.getFullYear()}
+function setStatus(){
+ if(!cur)return;
+ const bl=cur.type!=='group'&&blocks.has(cur.uid);
+ const t=bl?'Contact bloqué':typing?(cur.type==='group'&&typing!==true?typing+' écrit…':'écrit…'):[(cur.type!=='group'&&typeof presText==='function'?presText(cur):''),cur.ttl?'⏱ '+ttlLabel(cur.ttl):''].filter(Boolean).join(' · ')||(cur.type==='group'?'Groupe':'');
+ const e=$('#tSt');e.textContent=t;e.classList.toggle('typ',!!typing);
+ $('#tCallA').hidden=$('#tCallV').hidden=cur.type==='group';
+}
+async function openThread(id){
+ cur=chats.find(c=>c.id===id);if(!cur)return;
+ cur.unread=0;cur.msgs=[];cur.reacts={};cur.reply=null;names={};peerRead=0;typing=null;stick=true;
+ $('#stkp').classList.remove('on');$('#tMsgs').innerHTML='';
+ $('#tAv').innerHTML=av(cur,44);$('#tName').textContent=cur.name;setStatus();if(typeof refreshPres==='function')refreshPres();setReply(null);
+ $('#tIn').value='';syncSend();
+ renderMsgs();renderChats();push('thread');joinTyping(id);
+ const mp=sb.from('vyro_members').select('user_id,last_read_at,profile:vyro_profiles!vyro_members_user_id_fkey(username,display_name,avatar_url)').eq('conversation_id',id);
+ let loc=[],rxs=[];
+ try{await purgeLocal();[loc,rxs]=await Promise.all([LDB.all('msgs',id),LDB.all('rx',id)])}catch(e){}
+ loc=loc.filter(m=>!m.ctl).sort((a,b)=>a.ts-b.ts||a.id-b.id).slice(-400);
+ if(!cur||cur.id!==id)return;
+ cur.msgs=loc;cur.reacts={};rxs.forEach(r=>{(cur.reacts[r.message_id]=cur.reacts[r.message_id]||{})[r.user_id]=r.emoji});
+ await prepBlobs(loc);
+ if(!cur||cur.id!==id)return;
+ renderMsgs();markRead();
+ const mem=await mp;
+ if(!cur||cur.id!==id)return;
+ (mem.data||[]).forEach(m=>{names[m.user_id]=(m.profile&&(m.profile.display_name||m.profile.username))||'?';avs[m.user_id]=(m.profile&&m.profile.avatar_url)||null;
+  if(m.user_id!==me.id&&cur.type!=='group')peerRead=Date.parse(m.last_read_at)||0});
+ renderMsgs();
+ syncInbox();
+}
+function leaveThread(){
+ if(tchan){try{sb.removeChannel(tchan)}catch(e){}tchan=null}
+ clearTimeout(typT);typing=null;
+ if(vr)stopVoice(false);
+ document.querySelectorAll('#tMsgs video,#tMsgs audio').forEach(v=>{try{v.pause()}catch(e){}});
+}
+function msgHTML(m,i,arr){
+ const mine=m.sender_id===me.id,d=new Date(m.created_at);let h='';
+ const pv=arr[i-1];
+ if(!pv||new Date(pv.created_at).toDateString()!==d.toDateString())h+=`<div class="dsep"><span>${dayLabel(d)}</span></div>`;
+ const sy=SYS_RE.exec(m.body);
+ if(sy)return h+`<div class="sysm">${I('clock')}${sy[1]==='0'?'Messages éphémères désactivés':'Messages éphémères : ils disparaissent après '+ttlLabel(+sy[1])}</div>`;
+ const cl=CALL_RE.exec(m.body);
+ if(cl){const vd=cl[1]==='video',n=+cl[2];return h+`<div class="sysm clog ${n?'':'miss'}">${I(vd?'video':'phone')}${n?'Appel '+(vd?'vidéo':'vocal')+' · '+dur2(n):'Appel '+(vd?'vidéo':'vocal')+' manqué'}</div>`}
+ const sk=parseStk(m.body),md=MED_RE.exec(m.body);
+ const sn=(!mine&&cur.type==='group')?`<span class="sname">${esc(names[m.sender_id]||'')}</span>`:'';
+ let q='';
+ if(m.reply_to){const rp=arr.find(x=>x.id===m.reply_to);
+  q=`<div class="qt" data-q="${m.reply_to}"><b>${rp?(rp.sender_id===me.id?'Toi':esc(names[rp.sender_id]||'')):'Message'}</b><span>${rp?esc(prev(rp.body)):'Message supprimé ou expiré'}</span></div>`}
+ let body;
+ if(sk)body=`<div class="stkbig">${stkHTML(sk.k,sk.key)}</div>`;
+ else if(md&&md[3]&&MEDIA_URL)body=`<div class="stkbig">${md[1]==='video'?`<video class="csk" src="${mu(md[2])}" autoplay loop muted playsinline preload="auto"></video>`:`<img class="csk" src="${mu(md[2])}" alt="Sticker" loading="lazy">`}${mine?'':`<button type="button" class="stkadd" data-addstk="${m.id}" aria-label="Ajouter à mes stickers">⭐</button>`}</div>`;
+ else if(md&&MEDIA_URL){
+  if(md[1]==='image')body=`<img class="cimg" data-full="${mu(md[2])}" src="${mu(md[2])}" alt="Photo" loading="lazy">`;
+  else if(md[1]==='video')body=`<video class="cvid" src="${mu(md[2])}" controls playsinline preload="metadata"></video>`;
+  else{
+   const sid=m.sender_id,nm=mine?(me.display_name||me.username||'?'):(names[sid]||(cur&&cur.name)||'?');
+   const pic=mine?me.avatar_url:(avs[sid]||(cur&&cur.type!=='group'?cur.avatar:null));
+   const vav=`<span class="vav">${av({name:nm,h:hue(nm),uid:sid,avatar:pic},44,null)}<i class="vmic">${I('mic')}</i></span>`;
+   body=`<div class="aw ${mine?'mine':'theirs'}">${mine?'':vav}<audio class="caud" src="${mu(md[2])}" controls preload="metadata"></audio><button type="button" class="spd" aria-label="Vitesse de lecture">1×</button>${mine?vav:''}</div>`;
+  }
+ }else body=(typeof bigEmo==='function'&&bigEmo(m.body))?`<span class="bigemo">${esc(m.body)}</span>`:`<span>${lkBody(m.body)}</span>`;
+ const rd=!mine?'':(cur.type!=='group'&&d.getTime()<=peerRead?'<i class="tk rd">✓✓</i>':m.dlv?'<i class="tk dl">✓✓</i>':'<i class="tk">✓</i>');
+ const rs=cur.reacts&&cur.reacts[m.id],g={};
+ if(rs)for(const u in rs){const e=rs[u];(g[e]=g[e]||{n:0,me:false}).n++;if(u===me.id)g[e].me=true}
+ const rx=Object.keys(g).length?`<div class="rx">${Object.entries(g).map(([e,v])=>`<button type="button" data-rx="${e}" class="${v.me?'me':''}">${e}${v.n>1?'<i>'+v.n+'</i>':''}</button>`).join('')}</div>`:'';
+ const cls=((sk||(md&&md[3]))?' stk':'')+((md&&!md[3])?' med':'')+(rx?' hasrx':'');
+ return h+`<div class="b ${mine?'me2':'th2'}${cls}" data-id="${m.id}">${sn}${q}${body}<small>${hm(d)}${rd}</small>${rx}</div>`;
+}
+function visibleMsgs(){
+ const lim=cur.ttl?Date.now()-cur.ttl*3600e3:0;
+ return cur.msgs.filter(m=>!(cur.type==='group'&&blocks.has(m.sender_id))&&(!lim||Date.parse(m.created_at)>lim));
+}
+function renderMsgs(){
+ const s=$('#tMsgs');if(!s||!cur)return;
+ if(typeof renderPinBar==='function')renderPinBar();
+ const arr=visibleMsgs(),keep=new Set();
+ const bottom=stick||s.scrollHeight-s.scrollTop-s.clientHeight<140;
+ const emp=s.querySelector('.empty');if(emp&&arr.length)emp.remove();
+ arr.forEach((m,i)=>{
+  const key=String(m.id),html=msgHTML(m,i,arr);keep.add(key);
+  let w=s.querySelector(`:scope>.mw[data-k="${key}"]`);
+  if(!w){w=document.createElement('div');w.className='mw';w.dataset.k=key;w.innerHTML=html;w._h=html}
+  else if(w._h!==html){w.innerHTML=html;w._h=html}
+  const at=s.children[i];if(at!==w)s.insertBefore(w,at||null);
+ });
+ [...s.querySelectorAll(':scope>.mw')].forEach(w=>{if(!keep.has(w.dataset.k))w.remove()});
+ if(!arr.length&&!s.querySelector('.empty'))s.insertAdjacentHTML('beforeend','<p class="empty">Dis bonjour 👋</p>');
+ if(bottom)s.scrollTop=s.scrollHeight;
+}
+$('#tMsgs').addEventListener('scroll',()=>{const s=$('#tMsgs');stick=s.scrollHeight-s.scrollTop-s.clientHeight<80});
+$('#tMsgs').addEventListener('load',e=>{if(e.target.tagName==='IMG'&&stick){const s=$('#tMsgs');s.scrollTop=s.scrollHeight}},true);
+function bump(c,body,at){c.last=prev(body);c.at=at;chats.sort((a,b)=>new Date(b.at)-new Date(a.at))}
+async function sendBody(t,c){
+ c=c||cur;if(!t||!c)return false;
+ const r=await postMsg(c.id,t,c.reply&&c.reply.id);
+ if(r.error){toast(r.error.code==='42501'?'Tu ne peux pas écrire à cette personne.':'Message non envoyé');return false}
+ c.reply=null;if(cur===c)setReply(null);
+ stick=true;popOut();
+ return true;
+}
+function setReply(m){
+ if(cur)cur.reply=m;
+ const b=$('#replyBar');b.hidden=!m;if(!m)return;
+ $('#rpName').textContent=m.sender_id===me.id?'Toi':(names[m.sender_id]||'');$('#rpText').textContent=prev(m.body);
+}
+$('#rpX').onclick=()=>setReply(null);
+function syncSend(){const has=$('#tIn').value.trim().length>0;$('#tSend').hidden=!has;$('#tMic').hidden=has||!MEDIA_URL}
+$('#tForm').onsubmit=async e=>{
+ e.preventDefault();
+ const t=$('#tIn').value.trim();if(!t||!cur)return;
+ $('#tIn').value='';syncSend();
+ if(!(await sendBody(t))){$('#tIn').value=t;syncSend()}
+};
+$('#tIn').addEventListener('input',()=>{
+ syncSend();
+ if(tchan&&Date.now()-typSent>2500&&$('#tIn').value){typSent=Date.now();try{tchan.send({type:'broadcast',event:'typing',payload:{uid:me.id}})}catch(e){}}
+});
+function joinTyping(id){
+ if(tchan){try{sb.removeChannel(tchan)}catch(e){}}
+ tchan=sb.channel('typing:'+id,{config:{broadcast:{self:false}}});
+ tchan.on('broadcast',{event:'typing'},m=>{
+  const u=m&&m.payload&&m.payload.uid;if(!cur||cur.id!==id||!u||u===me.id)return;
+  typing=cur.type==='group'?(names[u]||true):true;setStatus();
+  clearTimeout(typT);typT=setTimeout(()=>{typing=null;setStatus()},3200);
+ }).subscribe();
+}
+/* réactions, réponses, menu d'un message */
+async function react(m,emo){
+ const r=cur.reacts[m.id]=cur.reacts[m.id]||{},k=m.id+':'+me.id,cid=cur.id,off=r[me.id]===emo;
+ if(off){delete r[me.id];LDB.del('rx',[k])}
+ else{r[me.id]=emo;LDB.put('rx',[{k,message_id:m.id,user_id:me.id,conversation_id:cid,emoji:emo}])}
+ renderMsgs();
+ const x=await postMsg(cid,'[rx:'+m.id+':'+(off?'-':emo)+']');
+ if(x.error)toast('Réaction impossible');
+}
+function openMsgMenu(id){
+ const m=cur&&cur.msgs.find(x=>String(x.id)===String(id));if(!m||SYS_RE.test(m.body)||CALL_RE.test(m.body))return;
+ const mine=m.sender_id===me.id,txt=!parseStk(m.body)&&!MED_RE.test(m.body),sm=MED_RE.exec(m.body),stkm=!mine&&sm&&sm[3]&&sm[1]!=='audio';
+ const mr=(cur.reacts[m.id]||{})[me.id];
+ const sh=openSheet('',`<div class="rxbar">${RXE.map(e=>`<button type="button" data-e="${e}" class="${mr===e?'cur':''}">${e}</button>`).join('')}</div>
+ <div class="opt" data-act="reply">${I('reply')}<span>Répondre</span></div>
+ ${stkm?`<div class="opt" data-act="addstk"><span style="width:22px;text-align:center">⭐</span><span>Ajouter à mes stickers</span></div>`:''}
+ <div class="opt" data-act="pin"><span style="width:22px;text-align:center">📌</span><span>${isPinned(m.id)?'Désépingler':'Épingler en haut'}</span></div>
+ ${txt?`<div class="opt" data-act="copy">${I('copy')}<span>Copier</span></div>`:''}
+ <div class="opt" data-act="delme">${I('trash')}<span>Supprimer pour moi</span></div>
+ ${mine?`<div class="opt dng" data-act="del">${I('trash')}<span>Supprimer pour tous</span></div>`:`<div class="opt dng" data-act="rep">${I('flag')}<span>Signaler ce message</span></div>`}`);
+ sh.onclick=async e=>{
+  const x=e.target.closest('[data-e]');
+  if(x){closeSheet();react(m,x.dataset.e);return}
+  const a=e.target.closest('[data-act]');if(!a)return;closeSheet();
+  if(a.dataset.act==='reply'){setReply(m);$('#tIn').focus()}
+  else if(a.dataset.act==='pin')pinToggle(m)
+  else if(a.dataset.act==='addstk')addRecvSticker(m)
+  else if(a.dataset.act==='copy'){try{await navigator.clipboard.writeText(m.body);toast('Copié')}catch(x){toast('Copie impossible')}}
+  else if(a.dataset.act==='del'){
+   sb.from('vyro_messages').delete().eq('id',m.id).then(()=>{},()=>{});
+   const x=await postMsg(cur.id,'[del:'+m.id+']');
+   if(x.error){toast('Suppression impossible');return}
+   await dropMsgs([m]);cur.msgs=cur.msgs.filter(y=>y.id!==m.id);renderMsgs();await refreshMeta();renderChats();
+  }else if(a.dataset.act==='delme'){
+   await dropMsgs([m]);cur.msgs=cur.msgs.filter(y=>y.id!==m.id);renderMsgs();await refreshMeta();renderChats();
+  }else if(a.dataset.act==='rep')reportSheet('message',m.id,'ce message');
+ };
+}
+(()=>{
+ const tm=$('#tMsgs');let lpT=0,lx=0,ly=0,lt=0,lid='';
+ tm.addEventListener('pointerdown',e=>{
+  const b=e.target.closest('.b[data-id]');if(!b||e.target.closest('video:not(.csk),audio,.spd,.rx,.qt'))return;
+  lx=e.clientX;ly=e.clientY;clearTimeout(lpT);lpT=setTimeout(()=>{lt=-1;openMsgMenu(b.dataset.id)},430)});
+ tm.addEventListener('pointermove',e=>{if(Math.abs(e.clientX-lx)>8||Math.abs(e.clientY-ly)>8)clearTimeout(lpT)});
+ ['pointerup','pointercancel'].forEach(ev=>tm.addEventListener(ev,()=>clearTimeout(lpT)));
+ tm.addEventListener('scroll',()=>clearTimeout(lpT));
+ tm.addEventListener('contextmenu',e=>{if(e.target.closest('.b[data-id]')){e.preventDefault()}});
+ tm.addEventListener('click',e=>{
+  if(lt===-1){lt=0;return}
+  const rx=e.target.closest('[data-rx]');
+  if(rx){const b=rx.closest('.b'),m=cur.msgs.find(x=>String(x.id)===b.dataset.id);if(m)react(m,rx.dataset.rx);return}
+  const q=e.target.closest('[data-q]');
+  if(q){const t=tm.querySelector(`.b[data-id="${q.dataset.q}"]`);if(t){t.scrollIntoView({block:'center',behavior:'smooth'});t.classList.add('flash');setTimeout(()=>t.classList.remove('flash'),1200)}return}
+  const vl=e.target.closest('.vl');if(vl){openSharedVideo(vl.dataset.v);return}
+  const im=e.target.closest('.cimg');if(im){openMedia(im.dataset.full);return}
+  const b=e.target.closest('.b[data-id]');if(!b||e.target.closest('video,audio,.spd'))return;
+  const now=Date.now();
+  if(lid===b.dataset.id&&now-lt<340){const m=cur.msgs.find(x=>String(x.id)===b.dataset.id);if(m&&!(cur.reacts[m.id]||{})[me.id])react(m,'❤️');lt=0;return}
+  lid=b.dataset.id;lt=now;
+ });
+})();
+function openMedia(u){const v=$('#mv');v.innerHTML=`<img src="${u}" alt=""><button type="button" class="cb" aria-label="Fermer">${I('x')}</button>`;v.classList.add('on')}
+$('#mv').onclick=()=>{$('#mv').classList.remove('on');$('#mv').innerHTML=''};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&cur&&curScreen==='thread')markRead()});
+/* temps réel */
+function subscribe(){
+ if(chan)sb.removeChannel(chan);
+ chan=sb.channel('vyro-live')
+  .on('postgres_changes',{event:'INSERT',schema:'public',table:'vyro_messages'},onMsg)
+  .on('postgres_changes',{event:'DELETE',schema:'public',table:'vyro_messages'},pl=>{const id=pl.old&&pl.old.id;if(id&&PEND[id]!==undefined)markDelivered([id])})
+  .on('postgres_changes',{event:'UPDATE',schema:'public',table:'vyro_members'},pl=>{
+   const n=pl.new;if(!n||!cur||n.conversation_id!==cur.id||n.user_id===me.id||cur.type==='group')return;
+   const t=Date.parse(n.last_read_at)||0;if(t>peerRead){peerRead=t;renderMsgs()}})
+  .subscribe(st=>{if(st==='SUBSCRIBED')syncInbox()});
+}
+async function onMsg(pl){const m=pl.new;if(m)await ingest([m],{live:true})}
+
+/* ---------- nouvelle conversation / groupe ---------- */
+function newChatSheet(){
+ let mode='direct',timer,results=[];const picked=new Map();
+ const draw=()=>{
+  $('#sh').innerHTML=`<div class="grab"></div><h3>${mode==='group'?'Nouveau groupe':'Nouveau message'}</h3><div class="seg"><button data-m="direct" class="${mode==='direct'?'cur':''}">Message</button><button data-m="group" class="${mode==='group'?'cur':''}">Groupe</button></div>
+  ${mode==='group'?`<label class="fld">Nom du groupe<input id="gName" maxlength="40" placeholder="ex : Team Game"></label><div id="gPicked">${[...picked.values()].map(u=>`<span class="pill">@${esc(u.username)}</span>`).join('')}</div>`:''}
+  <label class="fld">Chercher un pseudo<input id="uQ" autocomplete="off" autocapitalize="none" placeholder="ex : bee_dev"></label>
+  <div id="uRes"></div>
+  ${mode==='group'?`<button class="cta" id="gGo" style="margin-top:12px">Créer le groupe (${picked.size})</button>`:''}`;
+  drawRes();
+ };
+ const drawRes=()=>{
+  const el=$('#uRes');if(!el)return;
+  el.innerHTML=results.map(u=>`<div class="urow ${picked.has(u.id)?'sel':''}" data-u="${u.id}">${av({name:u.display_name||u.username,h:hue(u.username),uid:u.id,avatar:u.avatar_url},42)}<div><b>${esc(u.display_name||u.username)}</b><small>@${esc(u.username)}</small></div></div>`).join('')||'<p class="empty" style="padding:16px 0">Tape un pseudo pour chercher</p>';
+ };
+ openSheet('Nouveau message','');draw();
+ const sh=$('#sh');
+ sh.oninput=e=>{if(e.target.id!=='uQ')return;clearTimeout(timer);const v=e.target.value.trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
+  timer=setTimeout(async()=>{
+   if(!v){results=[];drawRes();return}
+   const {data}=await sb.from('vyro_profiles').select('id,username,display_name,avatar_url').ilike('username','%'+v.replace(/_/g,'\\_')+'%').neq('id',me.id).limit(15);
+   results=data||[];drawRes();
+  },250)};
+ sh.onclick=async e=>{
+  const sg=e.target.closest('.seg [data-m]');
+  if(sg){mode=sg.dataset.m;picked.clear();results=[];draw();return}
+  const row=e.target.closest('[data-u]');
+  if(row){const u=results.find(x=>x.id===row.dataset.u);if(!u)return;
+   if(mode==='direct'){
+    const {data,error}=await sb.rpc('vyro_start_direct',{p_other:u.id});
+    if(error){toast(errMsg(error));return}
+    closeSheet();await loadChats();openThread(data);
+   }else{
+    picked.has(u.id)?picked.delete(u.id):picked.set(u.id,u);
+    const keep=$('#gName')?$('#gName').value:'',kq=$('#uQ').value;draw();$('#gName').value=keep;$('#uQ').value=kq;
+   }
+   return}
+  if(e.target.id==='gGo'){
+   const {data,error}=await sb.rpc('vyro_create_group',{p_name:$('#gName').value,p_members:[...picked.keys()]});
+   if(error){toast(errMsg(error));return}
+   closeSheet();await loadChats();openThread(data);
+  }
+ };
+}
+$('#bNew').onclick=$('#fab').onclick=newChatSheet;
+
+/* ---------- visuels (scènes générées) ---------- */
+let sid=0;
+const rnd=seed=>{let s=seed*9301+49297;return()=>((s=(s*9301+49297)%233280)/233280)};
+const sceneIdx=id=>[...String(id)].reduce((a,c)=>a+c.charCodeAt(0),0)%4;
+function scene(i){
+ i=((i%4)+4)%4;const k=++sid,r=rnd(i+3);
+ const c=[['#12032e','#7a1fa2','#ff4f93'],['#04061a','#10125a','#5b21b6'],['#0a0122','#3b0a6e','#d946ef'],['#080216','#2e0a5e','#a21caf']][i];
+ let stars='';for(let n=0;n<34;n++)stars+=`<circle cx="${(r()*400).toFixed(0)}" cy="${(r()*360).toFixed(0)}" r="${(r()*1.6+.4).toFixed(1)}" fill="#fff" opacity="${(r()*.7+.2).toFixed(2)}"/>`;
+ let art='';
+ if(i===0)art=`<circle cx="200" cy="400" r="130" fill="url(#g${k}s)"/><polygon points="0,560 80,450 150,540 250,420 330,520 400,470 400,700 0,700" fill="#1d0645"/><polygon points="0,620 100,540 190,610 300,520 400,600 400,700 0,700" fill="#0b0220"/>`;
+ if(i===1)art=`<g filter="url(#f${k})"><path d="M-20 300C80 150 160 380 260 220S400 160 440 260L440 380C300 330 200 450 100 360S0 400-20 380Z" fill="#22d3ee" opacity=".55"/><path d="M-20 380C100 260 180 440 280 300S400 260 440 340L440 460C320 420 220 520 120 440S20 480-20 460Z" fill="#a855f7" opacity=".65"/></g><polygon points="0,600 70,500 130,570 210,470 290,560 350,500 400,570 400,700 0,700" fill="#03030c"/>`;
+ if(i===2){art=`<circle cx="300" cy="190" r="52" fill="url(#g${k}m)"/>`;for(let n=0;n<10;n++){const h=140+r()*280,x=n*40,y=700-h;art+=`<rect x="${x}" y="${y.toFixed(0)}" width="36" height="${h.toFixed(0)}" fill="#0a0220"/>`;for(let wy=y+12;wy<680;wy+=22)for(let wx=x+6;wx<x+30;wx+=12)if(r()>.62)art+=`<rect x="${wx}" y="${wy.toFixed(0)}" width="6" height="9" fill="#f0abfc" opacity=".85"/>`}}
+ if(i===3){art=`<circle cx="250" cy="260" r="170" fill="url(#g${k}m)" opacity=".9"/>`;for(let x=-20;x<420;x+=38){const h=520+r()*70;art+=`<polygon points="${x},700 ${x+19},${h.toFixed(0)} ${x+38},700" fill="#08011a"/>`}for(let x=-5;x<420;x+=46){const h=580+r()*60;art+=`<polygon points="${x},700 ${x+23},${h.toFixed(0)} ${x+46},700" fill="#04000c"/>`}}
+ return `<svg viewBox="0 0 400 700" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c[0]}"/><stop offset=".6" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[2]}"/></linearGradient><linearGradient id="g${k}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe29a"/><stop offset="1" stop-color="#ff3d8b"/></linearGradient><radialGradient id="g${k}m"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#e9d5ff"/><stop offset="1" stop-color="#a855f7" stop-opacity="0"/></radialGradient><filter id="f${k}"><feGaussianBlur stdDeviation="22"/></filter></defs><rect width="400" height="700" fill="url(#g${k})"/>${stars}${art}</svg>`;
+}
+
+/* ---------- vidéos ---------- */
+const VCOLS='id,user_id,caption,tags,likes_count,comments_count,saves_count,created_at,tg_file_id,tg_thumb_id,sound,pages,author:vyro_profiles!vyro_videos_user_id_fkey(username,display_name,avatar_url)';
+const tagsHTML=t=>String(t||'').split(/\s+/).filter(Boolean).map(x=>`<span class="tg" data-tag="${esc(x)}">${esc(x)}</span>`).join(' ');
+const mapPost=v=>({id:v.id,uid:v.user_id,user:(v.author&&v.author.username)||'?',av:(v.author&&v.author.avatar_url)||null,cap:v.caption,tags:v.tags,likes:v.likes_count,comments:v.comments_count,saves:v.saves_count,fid:v.tg_file_id,tid:v.tg_thumb_id,sound:v.sound||null,pages:v.pages||0,mine:v.user_id===me.id});
+// le relais vérifie à chaque lecture que ce compte a le droit de voir la vidéo (comptes privés inclus)
+const vurl=id=>MEDIA_URL+'/media/'+encodeURIComponent(id)+'?t='+encodeURIComponent(tok);
+const turl=id=>MEDIA_URL+'/thumb/'+encodeURIComponent(id)+'?t='+encodeURIComponent(tok);
+function play(v){const r=v.play();if(r&&r.catch)r.catch(()=>{v.muted=true;v.play().catch(()=>{});if(!document.querySelector('#sh.on')&&(curScreen==='videos'||curScreen==='user'))toast('Touche l’écran pour activer le son')})}
+function syncPlay(){
+ const f=$('#feed');if(!f)return;
+ const i=Math.round(f.scrollTop/(f.clientHeight||1));
+ $$('#feed .post').forEach((el,k)=>{const v=el.querySelector('video,audio');if(!v)return;
+  if(k===i&&curScreen==='videos'&&!el.classList.contains('paused'))play(v);else v.pause()});
+ pgHydrate(i);pgHydrate(i+1);
+}
+async function loadFeed(){
+ // 1) requête courte via une fonction de la base ; 2) sinon l'ancienne requête en secours
+ let data=null,error=null;
+ const r=await sb.rpc('vyro_feed',{p_following:tabV==='ab',p_limit:30});
+ if(!r.error){data=(r.data||[]).map(v=>Object.assign({},v,{author:{username:v.username,display_name:v.display_name,avatar_url:v.avatar_url}}))}
+ else{
+  let qy=sb.from('vyro_videos').select(VCOLS).is('page_of',null).order('created_at',{ascending:false}).limit(30);
+  if(tabV==='ab')qy=qy.in('user_id',[...following,me.id]);
+  const r2=await qy;data=r2.data;error=r2.error||null;
+ }
+ if(error){toast('Impossible de charger les vidéos ('+String(error.message||error.code||'erreur').slice(0,60)+')');return}
+ posts=(data||[]).map(mapPost).filter(p=>!blocks.has(p.uid));renderFeed();
+}
+/* ---------- publications photo : défilement gauche/droite (comme TikTok) ---------- */
+const PGC={};
+const pgImgs=id=>`<img class="pgb" src="${turl(id)}" alt="" decoding="async" draggable="false"><img class="pgf" src="${turl(id)}" alt="" decoding="async" draggable="false">`;
+function pgHTML(p){
+ const n=p.pages,sl=['<div class="pgs">'+pgImgs(p.id)+'</div>'];
+ for(let k=1;k<n;k++)sl.push('<div class="pgs ld"></div>');
+ return `<div class="pgc" data-n="${n}"${n>1?' data-need="1"':''}><div class="pgt">${sl.join('')}</div>${n>1?`<div class="pgd">${Array.from({length:n},(_,k)=>`<i${k?'':' class="on"'}></i>`).join('')}</div><div class="pgn">1/${n}</div>`:''}</div>${p.fid?`<audio class="pga" src="${vurl(p.id)}" loop preload="none"></audio>`:''}`;
+}
+async function pgHydrate(i){
+ const art=$$('#feed .post')[i];if(!art)return;
+ const g=art.querySelector('.pgc[data-need]');if(!g)return;
+ g.removeAttribute('data-need');
+ const id=art.dataset.id;let ids=PGC[id];
+ if(!ids){try{const {data}=await sb.from('vyro_videos').select('id,page_n').eq('page_of',id).order('page_n');ids=PGC[id]=(data||[]).map(r=>r.id)}catch(e){ids=[]}}
+ g.querySelectorAll('.pgs.ld').forEach((s,k)=>{const pid=ids[k];s.classList.remove('ld');if(pid)s.innerHTML=pgImgs(pid);else s.classList.add('er')});
+ if(!ids.length)g.setAttribute('data-need','1');
+}
+document.addEventListener('scroll',e=>{
+ const t=e.target;if(!t||!t.classList||!t.classList.contains('pgt'))return;
+ const g=t.parentNode,n=+g.dataset.n||1,k=Math.max(0,Math.min(n-1,Math.round(t.scrollLeft/(t.clientWidth||1))));
+ g.querySelectorAll('.pgd i').forEach((d,j)=>d.classList.toggle('on',j===k));
+ const c=g.querySelector('.pgn');if(c)c.textContent=(k+1)+'/'+n;
+},true);
+let feedMode=false;
+function postHTML(p){
+ const lk=liked.has(p.id),sv=saved.has(p.id),fl=following.has(p.uid),h=hue(p.user);
+ const media=(p.pages>0&&MEDIA_URL)?pgHTML(p):(p.fid&&MEDIA_URL)?`<video src="${vurl(p.id)}" ${p.tid?`poster="${turl(p.id)}"`:''} loop playsinline preload="metadata"></video>`:scene(sceneIdx(p.id));
+ return `<article class="post" data-id="${p.id}"><div class="media">${media}</div><div class="shade"></div><div class="bigplay">${I('play','fill')}</div>
+ <div class="rail"><div class="rav"><div class="ravc" data-a="profile" style="background:linear-gradient(135deg,hsl(${h} 80% 60%),hsl(${(h+50)%360} 70% 32%))">${esc(p.user[0].toUpperCase())}${(p.av&&MEDIA_URL)?`<img src="${aurl(p.uid,p.av)}" alt="" onerror="this.remove()">`:''}</div>${p.mine?'':`<button class="fol ${fl?'done':''}" data-a="follow" aria-label="Suivre">${I(fl?'check':'plus')}</button>`}</div>
+  <button class="rbtn ${lk?'lk':''}" data-a="like">${I('heart')}<span>${fmt(p.likes)}</span></button>
+  <button class="rbtn" data-a="comment">${I('chat')}<span>${fmt(p.comments)}</span></button>
+  <button class="rbtn ${sv?'sv':''}" data-a="save">${I('bookmark')}<span>${fmt(p.saves)}</span></button>
+  <button class="rbtn" data-a="share">${I('share')}<span>Partager</span></button>
+  <button class="rbtn" data-a="more" aria-label="Plus d’options">${I('more')}<span>Plus</span></button></div>
+ <div class="meta"><div class="u" data-a="profile">@${esc(p.user)}</div>
+  <p>${esc(p.cap)} ${tagsHTML(p.tags)}</p><div class="sd">${I('music')}${p.sound?esc(p.sound)+' · VYRO':'Son original - '+esc(p.user)}</div></div></article>`;
+}
+function renderFeed(){
+ $('#feed').innerHTML=posts.map(postHTML).join('')||`<div class="vempty"><b style="font-size:20px">Rien ici pour l'instant</b><span>${tabV==='ab'?'Abonne-toi à des créateurs depuis « Pour toi » pour voir leurs vidéos ici.':'Sois le premier à publier avec le bouton +'}</span></div>`;
+ $('#feed').scrollTop=0;syncPlay();
+}
+let scT;$('#feed').addEventListener('scroll',()=>{clearTimeout(scT);scT=setTimeout(syncPlay,90)});
+$$('.vtab').forEach(b=>b.onclick=()=>{feedMode=false;$('#vBack').hidden=true;tabV=b.dataset.v;$$('.vtab').forEach(x=>x.classList.toggle('cur',x===b));loadFeed()});
+$('#vSearch').onclick=()=>openSearch('');
+function upd(p){const el=$(`#feed .post[data-id="${p.id}"]`);if(!el)return;
+ const b=el.querySelectorAll('.rbtn');
+ b[0].classList.toggle('lk',liked.has(p.id));b[0].lastChild.textContent=fmt(p.likes);
+ b[1].lastChild.textContent=fmt(p.comments);
+ b[2].classList.toggle('sv',saved.has(p.id));b[2].lastChild.textContent=fmt(p.saves)}
+async function toggleMark(p,set,table,field,label){
+ const was=set.has(p.id);
+ was?set.delete(p.id):set.add(p.id);p[field]+=was?-1:1;upd(p);
+ const {error}=was?await sb.from(table).delete().eq('user_id',me.id).eq('video_id',p.id):await sb.from(table).insert({user_id:me.id,video_id:p.id});
+ if(error){was?set.add(p.id):set.delete(p.id);p[field]+=was?1:-1;upd(p);toast(label+' impossible')}
+}
+const like=p=>toggleMark(p,liked,'vyro_likes','likes','J’aime');
+const save2=p=>toggleMark(p,saved,'vyro_saves','saves','Enregistrement');
+async function toggleFollow(p,btn){
+ const was=following.has(p.uid);
+ was?following.delete(p.uid):following.add(p.uid);
+ const {error}=was?await sb.from('vyro_follows').delete().eq('follower_id',me.id).eq('following_id',p.uid):await sb.from('vyro_follows').insert({follower_id:me.id,following_id:p.uid});
+ if(error){was?following.add(p.uid):following.delete(p.uid);toast('Action impossible');return}
+ $$('#feed .post').forEach(el=>{const x=posts.find(y=>String(y.id)===el.dataset.id);if(x&&x.uid===p.uid){const f=el.querySelector('.fol');if(f){f.classList.toggle('done',!was);f.innerHTML=I(!was?'check':'plus')}}});
+ toast(was?'Désabonné de @'+p.user:'Abonné à @'+p.user);
+}
+let lastTap=0;
+$('#feed').addEventListener('click',e=>{
+ const post=e.target.closest('.post');if(!post)return;const p=posts.find(x=>String(x.id)===post.dataset.id);if(!p)return;
+ const b=e.target.closest('[data-a]');
+ if(b){const a=b.dataset.a;
+  if(a==='like')like(p);
+  else if(a==='save')save2(p);
+  else if(a==='comment')openComments(p);
+  else if(a==='share'){shareSheet(p)}
+  else if(a==='follow')toggleFollow(p,b);
+  else if(a==='more')postMenu(p);
+  else if(a==='profile')openProfile(p.uid);
+  return}
+ const tg=e.target.closest('[data-tag]');
+ if(tg){openSearch(tg.dataset.tag);return}
+ const now=Date.now();
+ if(now-lastTap<320){if(!liked.has(p.id))like(p);
+  const r=post.getBoundingClientRect(),h=document.createElement('div');h.className='burst';h.style.left=(e.clientX-r.left)+'px';h.style.top=(e.clientY-r.top)+'px';h.innerHTML=I('heart');post.appendChild(h);setTimeout(()=>h.remove(),850);
+  lastTap=0;return}
+ lastTap=now;
+ const v=post.querySelector('video,audio');
+ if(v)setTimeout(()=>{ // un seul toucher : pause / lecture (ou activer le son)
+  if(lastTap!==now)return;
+  if(v.muted){v.muted=false;return}
+  if(v.paused){post.classList.remove('paused');play(v)}else{post.classList.add('paused');v.pause()}
+ },330);
+});
+/* si une vidéo ne se lit pas : on interroge le relais pour afficher la vraie raison sur la vidéo */
+$('#feed').addEventListener('error',async e=>{
+ const v=e.target;if(!v||v.tagName!=='VIDEO')return;
+ const post=v.closest('.post');if(!post||post.querySelector('.vmsg'))return;
+ let msg='Cette vidéo ne peut pas être lue sur cet appareil (format non pris en charge).';
+ try{
+  const r=await fetch(v.currentSrc||v.src,{headers:{Range:'bytes=0-1'}});
+  if(!r.ok){
+   let j={};try{j=await r.json()}catch(x){}
+   const code=j.error||('http_'+r.status);
+   msg=({unauthorized:'Session expirée : reconnecte-toi.',not_found:'Vidéo introuvable.',telegram_error:'Le relais n’arrive pas à lire la vidéo chez Telegram.',server_error:'Erreur interne du relais.'})[code]||'Erreur du relais.';
+   msg+=' ('+code+')';
+  }
+ }catch(x){msg='Impossible de joindre le relais vidéo (réseau ou adresse du relais).'}
+ const d=document.createElement('div');d.className='vmsg';d.innerHTML='<span></span><button type="button" class="vretry">Réessayer</button>';d.firstChild.textContent=msg;post.appendChild(d);
+ d.querySelector('.vretry').onclick=e=>{e.stopPropagation();d.remove();try{v.load();v.play().catch(()=>{})}catch(x){}};
+},true);
+async function openComments(p){
+ let list=[];
+ const draw=l=>l.map(c=>`<div class="cmt" data-cid="${c.id||''}">${av({name:c.u,h:hue(c.u),uid:c.uid,avatar:c.av},38)}<div class="cbody"><b data-u="${c.uid||''}">@${esc(c.u)}</b><p>${esc(c.t)}</p></div>${(c.id&&(c.uid===me.id||p.mine))?`<button type="button" class="cdel" data-del="${c.id}" aria-label="Supprimer">${I('trash')}</button>`:''}${(c.id&&c.uid!==me.id)?`<button type="button" class="cdel" data-rep="${c.id}" aria-label="Signaler">${I('flag')}</button>`:''}</div>`).join('')||'<p class="empty" style="padding:20px 0">Aucun commentaire. Lance la discussion !</p>';
+ const sh=openSheet('Commentaires',`<div id="cList"><p class="empty" style="padding:20px 0">Chargement…</p></div><form class="cform" id="cForm"><input id="cIn" maxlength="500" placeholder="Ajouter un commentaire…" autocomplete="off"><button type="submit" aria-label="Envoyer">${I('send')}</button></form>`);
+ const {data}=await sb.from('vyro_comments').select('id,user_id,body,author:vyro_profiles!vyro_comments_user_id_fkey(username,avatar_url)').eq('video_id',p.id).order('created_at').limit(100);
+ list=(data||[]).filter(c=>!blocks.has(c.user_id)).map(c=>({id:c.id,uid:c.user_id,u:(c.author&&c.author.username)||'?',av:c.author&&c.author.avatar_url,t:c.body}));
+ if($('#cList'))$('#cList').innerHTML=draw(list);
+ sh.onclick=async e=>{
+  const d=e.target.closest('[data-del]');
+  if(d){const {error}=await sb.from('vyro_comments').delete().eq('id',d.dataset.del);
+   if(error){toast('Suppression impossible');return}
+   list=list.filter(c=>String(c.id)!==d.dataset.del);p.comments=Math.max(0,p.comments-1);$('#cList').innerHTML=draw(list);upd(p);return}
+  const rp=e.target.closest('[data-rep]');
+  if(rp){closeSheet();setTimeout(()=>reportSheet('comment',rp.dataset.rep,'ce commentaire'),250);return}
+  const u=e.target.closest('[data-u]');
+  if(u&&u.dataset.u){closeSheet();openProfile(u.dataset.u)}
+ };
+ $('#cForm').onsubmit=async e=>{e.preventDefault();const t=$('#cIn').value.trim();if(!t)return;
+  const {data:ins,error}=await sb.from('vyro_comments').insert({video_id:p.id,user_id:me.id,body:t}).select('id').single();
+  if(error){toast('Commentaire non envoyé');return}
+  list.push({id:ins&&ins.id,uid:me.id,u:me.username,av:me.avatar_url,t});p.comments++;$('#cList').innerHTML=draw(list);$('#cIn').value='';upd(p)};
+}
+
+/* ---------- publier une vidéo ---------- */
+function uploadSheet(pre){
+ const real=!!MEDIA_URL;
+ openSheet('Nouvelle publication',`${real?`<label class="fld">Vidéo<input id="vFile" type="file" accept="video/*"></label><div id="vInfo" class="muted" style="font-size:13px;margin:-6px 0 12px"></div>`:''}
+ <label class="fld">Légende<textarea id="vCap" rows="3" maxlength="300" placeholder="Décris ta vidéo…"></textarea></label>
+ <label class="fld">Hashtags<input id="vTags" maxlength="100" placeholder="#VYRO #Anime"></label>
+ <div class="prog" id="vProg" hidden><i></i></div>
+ <button class="cta" id="vGo">${real?'Publier':'Publier (test, sans vidéo)'}</button>
+ <p class="muted" style="font-size:13px;margin-top:12px">${real?'Vidéo de 20 Mo maximum (environ une minute).':'L’envoi de vraies vidéos n’est pas encore activé : cette publication test affiche un visuel de démonstration, ce qui permet d’essayer likes, commentaires et abonnements.'}</p>`);
+ let file=null,dur=0;
+ if(real&&pre&&pre.file){file=pre.file;dur=pre.dur||0;const fi=$('#vFile');if(fi){fi.closest('label').style.display='none'}$('#vInfo').textContent='Vidéo prête : '+(dur?dur+' s · ':'')+(file.size/1048576).toFixed(1)+' Mo'}
+ if(real){
+  $('#vFile').onchange=e=>{
+   file=null;dur=0;const f=e.target.files[0],info=$('#vInfo');info.style.color='';
+   if(!f)return;
+   if(!String(f.type).startsWith('video/')){info.textContent='Ce fichier n’est pas une vidéo.';info.style.color='#fb7185';e.target.value='';return}
+   if(f.size>MAX_VIDEO){info.textContent='Vidéo trop lourde ('+(f.size/1048576).toFixed(1)+' Mo). Maximum : 20 Mo. Choisis une vidéo plus courte.';info.style.color='#fb7185';e.target.value='';return}
+   file=f;info.textContent=(f.size/1048576).toFixed(1)+' Mo';
+   const t=document.createElement('video'),u=URL.createObjectURL(f);t.preload='metadata';
+   t.onloadedmetadata=()=>{dur=Math.round(t.duration)||0;info.textContent=(dur?dur+' s · ':'')+(f.size/1048576).toFixed(1)+' Mo';URL.revokeObjectURL(u)};
+   t.onerror=()=>URL.revokeObjectURL(u);t.src=u;
+  };
+ }
+ $('#vGo').onclick=async()=>{
+  const caption=$('#vCap').value.trim(),tags=$('#vTags').value.trim(),btn=$('#vGo');
+  if(!caption){toast('Ajoute une légende');return}
+  let extra={};
+  if(real){
+   if(!file){toast('Choisis une vidéo');return}
+   btn.disabled=true;btn.textContent='Envoi en cours…';
+   const bar=$('#vProg');bar.hidden=false;
+   try{
+    const {data:{session}}=await sb.auth.getSession();
+    const r=await sendVideo(file,dur,session.access_token,pc=>{bar.firstChild.style.width=pc+'%'});
+    extra={tg_file_id:r.file_id,tg_thumb_id:r.thumb_id||null,duration:r.duration||dur||null};
+   }catch(x){
+    btn.disabled=false;btn.textContent='Publier';bar.hidden=true;
+    toast(x&&x.message==='too_large'?'Vidéo trop lourde (20 Mo max)':x&&x.message==='unauthorized'?'Session expirée : reconnecte-toi':'Envoi impossible, réessaie');return}
+  }
+  const {error}=await sb.from('vyro_videos').insert(Object.assign({user_id:me.id,caption,tags},extra));
+  if(error){btn.disabled=false;btn.textContent=real?'Publier':'Publier (test, sans vidéo)';toast('Publication impossible');return}
+  if(pre&&pre.onDone)try{pre.onDone()}catch(e){}
+  closeSheet();toast('Publié ✅');tabV='fy';$$('.vtab').forEach(x=>x.classList.toggle('cur',x.dataset.v==='fy'));tab('videos');
+ };
+}
+function sendVideo(file,dur,token,onProg){
+ return new Promise((ok,ko)=>{
+  // Certains téléphones donnent un type vide ou un nom sans extension : le serveur refuse alors le fichier (not_video)
+  let vf=file,vn=file.name||'video.mp4';
+  if(!/\.(mp4|mov|webm|m4v)$/i.test(vn))vn=(vn.replace(/\.[^.]*$/,'')||'video')+((file.type||'').indexOf('webm')>-1?'.webm':'.mp4');
+  if(!/^video\//.test(file.type||'')){const ext=(vn.match(/\.(\w+)$/)||[])[1]||'mp4';vf=new Blob([file],{type:ext==='webm'?'video/webm':ext==='mov'?'video/quicktime':'video/mp4'})}
+  const fd=new FormData();fd.append('video',vf,vn);fd.append('duration',String(dur||0));
+  const x=new XMLHttpRequest();x.open('POST',MEDIA_URL+'/upload');x.setRequestHeader('Authorization','Bearer '+token);
+  x.upload.onprogress=e=>{if(e.lengthComputable)onProg(Math.round(e.loaded/e.total*100))};
+  x.onerror=()=>ko(new Error('network'));
+  x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}
+   if(x.status===200&&j.file_id)ok(j);else ko(new Error(j.error||'upload_failed'))};
+  x.send(fd);
+ });
+}
+$$('.upl').forEach(b=>b.onclick=()=>{if(MEDIA_URL&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)openCam(true);else uploadSheet()});
+
+/* ---------- profil ---------- */
+const G={vid:[],like:[],fav:[]};
+async function loadProfileData(){
+ const cnt=f=>sb.from('vyro_follows').select('*',{count:'exact',head:true}).eq(f,me.id);
+ const [a,b,c,d,e]=await Promise.all([cnt('following_id'),cnt('follower_id'),
+  sb.from('vyro_videos').select(VCOLS).is('page_of',null).eq('user_id',me.id).order('created_at',{ascending:false}).limit(60),
+  sb.from('vyro_likes').select('video:vyro_videos!vyro_likes_video_id_fkey('+VCOLS+')').eq('user_id',me.id).order('created_at',{ascending:false}).limit(60),
+  sb.from('vyro_saves').select('video:vyro_videos!vyro_saves_video_id_fkey('+VCOLS+')').eq('user_id',me.id).order('created_at',{ascending:false}).limit(60)]);
+ $('#stFollowers').textContent=fmt(a.count||0);$('#stFollowing').textContent=fmt(b.count||0);
+ const mine=(c.data||[]).map(mapPost);$('#stLikes').textContent=fmt(mine.reduce((s,v)=>s+v.likes,0));
+ G.vid=mine;G.like=(d.data||[]).filter(x=>x.video).map(x=>mapPost(x.video)).filter(x=>!blocks.has(x.uid));G.fav=(e.data||[]).filter(x=>x.video).map(x=>mapPost(x.video)).filter(x=>!blocks.has(x.uid));
+ renderGrid();
+}
+const gridHTML=(l,empty)=>l.map((x,i)=>`<div class="th" data-i="${i}">${(x.tid&&MEDIA_URL)?`<img src="${turl(x.id)}" alt="" loading="lazy" onerror="this.remove()">`:scene(sceneIdx(x.id))}<span>${I('play','fill')}${fmt(x.likes)}</span></div>`).join('')||`<div class="emptyg">${ART_VIDEO}<p>${empty||'Rien ici pour l’instant'}</p></div>`;
+function renderGrid(){$('#grid').innerHTML=gridHTML(G[gtab],gtab==='vid'?'Tu n’as pas encore publié de vidéo.<br>Appuie sur + pour commencer.':'')}
+$('#ptabs').onclick=e=>{const b=e.target.closest('[data-g]');if(!b)return;gtab=b.dataset.g;$$('#ptabs button').forEach(x=>x.classList.toggle('cur',x===b));renderGrid()};
+$('#grid').onclick=e=>{const t=e.target.closest('.th');if(t)openViewer(G[gtab],+t.dataset.i)};
+function editProfile(){
+ openSheet('Modifier mon profil',`${MEDIA_URL?`<div class="avedit"><div class="pav"><span data-ini></span></div><div><label class="btn-o" for="eFile">Changer la photo</label><input id="eFile" type="file" accept="image/*" hidden>${me.avatar_url?'<button class="lnk" id="eDel" type="button">Retirer la photo</button>':''}<small class="muted" id="eInfo"></small></div></div>`:''}<label class="fld">Pseudo<input id="eUser" maxlength="20" value="${esc(me.username)}" autocapitalize="none" autocorrect="off" spellcheck="false"><small class="muted" id="eUserI">Lettres, chiffres et _ (3 à 20). Modifiable une fois tous les 30 jours.</small></label><label class="fld">Nom affiché<input id="eName" maxlength="30" value="${esc(me.display_name)}"></label><label class="fld">Bio<textarea id="eBio" rows="3" maxlength="150">${esc(me.bio)}</textarea></label><button class="cta" id="eSave">Enregistrer</button>`);
+ applyNames();
+ /* pseudo : 1 changement tous les 30 jours (contrôlé par le serveur) */
+ sb.from('vyro_profiles').select('username_changed_at').eq('id',me.id).maybeSingle().then(({data})=>{
+  const at=data&&data.username_changed_at,inp=$('#eUser');if(!at||!inp)return;
+  const left=Math.ceil((new Date(at).getTime()+30*864e5-Date.now())/864e5);
+  if(left>0){inp.disabled=true;$('#eUserI').textContent='Tu pourras changer ton pseudo dans '+left+' jour'+(left>1?'s':'')+'.'}
+ });
+ if($('#eFile'))$('#eFile').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;const info=$('#eInfo');
+  if(!String(f.type).startsWith('image/')){info.textContent='Ce fichier n’est pas une image.';return}
+  info.textContent='Envoi…';
+  try{
+   const b=await squareJpeg(f,512),{data:{session}}=await sb.auth.getSession(),r=await sendImage(b,session.access_token);
+   const {error}=await sb.from('vyro_profiles').update({avatar_url:'tg:'+r.file_id}).eq('id',me.id);
+   if(error)throw error;
+   me.avatar_url='tg:'+r.file_id;applyNames();info.textContent='Photo mise à jour ✅';
+  }catch(x){info.textContent='Envoi impossible, réessaie.'}
+ };
+ if($('#eDel'))$('#eDel').onclick=async()=>{
+  const {error}=await sb.from('vyro_profiles').update({avatar_url:null}).eq('id',me.id);
+  if(error){toast('Impossible de retirer la photo');return}
+  me.avatar_url=null;applyNames();closeSheet();toast('Photo retirée');
+ };
+ $('#eSave').onclick=async()=>{
+  const bio=$('#eBio').value.trim(),nu=$('#eUser')&&!$('#eUser').disabled?$('#eUser').value.trim().toLowerCase().replace(/^@/,''):me.username;
+  if(nu!==me.username){
+   if(!/^[a-z0-9_]{3,20}$/.test(nu)){$('#eUserI').textContent=ERR.invalid_username;$('#eUserI').style.color='#ff6b8a';return}
+   if(!await askConfirm('Changer ton pseudo ?','Ton pseudo deviendra @'+nu+'. Tu ne pourras plus le changer pendant 30 jours.','Changer'))return;
+   const r=await sb.rpc('vyro_change_username',{p_username:nu});
+   if(r.error){
+    const m=String(r.error.message||''),w=m.match(/username_wait:(\d+)/);
+    $('#eUserI').style.color='#ff6b8a';
+    $('#eUserI').textContent=w?'Tu pourras changer ton pseudo dans '+w[1]+' jour(s).':/taken/.test(m)?'Ce pseudo est déjà pris.':/invalid/.test(m)?ERR.invalid_username:'Changement impossible, réessaie.';
+    return}
+   me.username=nu;
+  }
+  const display_name=$('#eName').value.trim()||me.username;
+  const {error}=await sb.from('vyro_profiles').update({display_name,bio}).eq('id',me.id);
+  if(error){toast('Enregistrement impossible');return}
+  me.display_name=display_name;me.bio=bio;applyNames();closeSheet();toast('Profil mis à jour ✅');
+ };
+}
+$('[data-edit]').onclick=editProfile;
+
+/* ---------- réglages ---------- */
+let stT;
+function saveRemote(){
+ clearTimeout(stT);
+ stT=setTimeout(async()=>{if(!me)return;
+  const {error}=await sb.from('vyro_profiles').update({settings:{priv:S.priv,notif:S.notif},is_private:!!S.priv.private}).eq('id',me.id);
+  if(error)toast('Réglages non enregistrés')},600);
+}
+const sw=(sc,k,v)=>`<label class="sw"><input type="checkbox" data-s="${sc}" data-k="${k}" ${v?'checked':''}><i></i></label>`;
+const sel=(sc,k,v)=>`<select class="sel" data-s="${sc}" data-k="${k}">${[['all','Tout le monde'],['followers','Abonnés'],['none','Personne']].map(([a,b])=>`<option value="${a}" ${v===a?'selected':''}>${b}</option>`).join('')}</select>`;
+const row=(ic,t,sub,right)=>`<div class="row sm"><span class="ri">${I(ic)}</span><div class="rt"><b>${t}</b>${sub?`<small>${sub}</small>`:''}</div>${right}</div>`;
+function renderPrivacy(){
+ const p=S.priv;
+ $('#privBody').innerHTML=`<div class="sec">${I('shield')}Vie privée</div><div class="card">
+ ${row('eye','Compte privé','Seuls vos abonnés peuvent voir vos vidéos et votre profil.',sw('priv','private',p.private))}
+ ${row('users','Qui peut vous envoyer un message ?','',sel('priv','dm',p.dm))}
+ ${row('at','Qui peut commenter vos vidéos ?','',sel('priv','comments',p.comments))}
+ ${row('download','Autoriser le téléchargement de mes vidéos','',sw('priv','download',p.download))}</div>
+ <div class="sec">${I('bars')}Visibilité</div><div class="card">
+ ${row('heart','Statut « en ligne » et activité','Si désactivé, tu ne vois pas celui des autres non plus.',sw('priv','activity',p.activity))}
+ ${row('cal','Afficher ma date d’inscription','',sw('priv','joined',p.joined))}</div>
+ <div class="sec">${I('ban')}Sécurité</div><div class="card"><div class="row sm" data-go="blocked"><span class="ri">${I('ban')}</span><div class="rt"><b>Comptes bloqués</b><small>${blocks.size?blocks.size+' compte'+(blocks.size>1?'s':''):'Aucun'}</small></div><span class="ico mut">${I('chev')}</span></div></div>`;
+}
+const NK=['messages','likes','followers','comments','mentions','gifts'];
+function renderNotifs(){
+ const n=S.notif,all=NK.every(k=>n[k]);
+ $('#notifBody').innerHTML=`${permRow()}<div class="card">${row('bell','Tout activer / désactiver','',sw('notif','all',all))}</div>
+ <div class="card" style="margin-top:12px">
+ ${row('chat','Nouveaux messages','',sw('notif','messages',n.messages))}
+ ${row('heart','Likes sur mes vidéos','',sw('notif','likes',n.likes))}
+ ${row('userplus','Nouveaux abonnés','',sw('notif','followers',n.followers))}
+ ${row('chat','Commentaires','',sw('notif','comments',n.comments))}
+ ${row('at','Mentions (@)','',sw('notif','mentions',n.mentions))}
+ ${row('gift','Cadeaux et BeeCoins','',sw('notif','gifts',n.gifts))}</div>
+ <div class="sec">${I('gear')}Sons et système</div><div class="card">
+ ${row('bell','Sons dans l’application','Bips à l’envoi et à la réception',sw('notif','sound',n.sound!==false))}
+ ${row('download','Mises à jour de l’application','',sw('notif','updates',n.updates))}</div>
+ <p class="muted" style="font-size:13px;padding:10px 6px">Les réglages sont enregistrés. Active les notifications ci-dessus pour recevoir tes messages et appels même quand VYRO est fermée (sur iPhone : installe d’abord VYRO sur l’écran d’accueil).</p>`;
+}
+document.addEventListener('change',e=>{
+ const el=e.target,sc=el.dataset&&el.dataset.s;if(!sc)return;
+ const k=el.dataset.k,v=el.type==='checkbox'?el.checked:el.value;
+ if(k==='all'){NK.forEach(x=>S.notif[x]=v);renderNotifs()}else{S[sc][k]=v;if(sc==='notif')renderNotifs()}
+ saveRemote();
+ if(sc==='priv'&&k==='activity'&&typeof pingNow==='function')pingNow(true);
+});
+function sheetTheme(){
+ const o=(v,ic,tx)=>`<div class="opt" data-th="${v}">${I(ic)}<span>${tx}</span>${S.theme===v?I('check'):''}</div>`;
+ openSheet('Apparence',o('dark','moon','Thème sombre')+o('light','sun','Thème clair')+o('auto','gear','Automatique (comme le téléphone)')+
+  `<div class="shdr">Thèmes boostés</div><div class="skg">${SKINS.map(k=>`<button type="button" data-sk="${k[0]}" class="${k[0]===skin?'sel':''}"><i style="background:radial-gradient(60% 70% at 25% 25%,${k[4]},transparent 70%),radial-gradient(60% 70% at 80% 30%,${k[5]},transparent 70%),radial-gradient(70% 60% at 55% 95%,${k[6]},transparent 70%),${k[3]}"></i><span>${k[1]}</span></button>`).join('')}</div>`+
+  `<div class="shdr">Couleur de l’appli</div><div class="accs">${ACC.map((a,i)=>`<button type="button" data-ac="${i}" class="${i===accIdx?'sel':''}" aria-label="${a[0]}" style="background:linear-gradient(135deg,hsl(${285+a[1]} 85% 66%),hsl(${262+a[1]} 80% 52%))">${i===accIdx?'✓':''}</button>`).join('')}</div>`);
+ $$('#sh [data-th]').forEach(x=>x.onclick=()=>{skin='none';try{localStorage.setItem('vyro_skin','none')}catch(e){}S.theme=x.dataset.th;try{localStorage.setItem(THEME_KEY,S.theme)}catch(e){}applyTheme();closeSheet()});
+ $$('#sh [data-sk]').forEach(x=>x.onclick=()=>{skin=x.dataset.sk;try{localStorage.setItem('vyro_skin',skin)}catch(e){}applyTheme();$$('#sh [data-sk]').forEach(y=>y.classList.toggle('sel',y===x))});
+ $$('#sh [data-ac]').forEach(x=>x.onclick=()=>{skin='none';try{localStorage.setItem('vyro_skin','none')}catch(e){}accIdx=+x.dataset.ac;try{localStorage.setItem(ACC_KEY,accIdx)}catch(e){}applyTheme();$$('#sh [data-ac]').forEach(y=>{y.classList.toggle('sel',y===x);y.textContent=y===x?'✓':''})});
+}
+/* ---------- BeeCoins : portefeuille réel (tables beecoin_*) + recharge par code ---------- */
+async function walSync(){
+ if(!me||!me.id)return null;
+ try{
+  const {data,error}=await sb.from('beecoin_wallets').select('balance').eq('user_id',me.id).maybeSingle();
+  if(error)return null;
+  const b=data?+data.balance:0;
+  try{localStorage.setItem('vyro_bc_'+me.id,String(b))}catch(e){}
+  return b;
+ }catch(e){return null}
+}
+function sheetWallet(){
+ let bal=0;try{bal=+localStorage.getItem('vyro_bc_'+(me&&me.id||''))||0}catch(e){}
+ const sh=openSheet('Mon portefeuille',`<div class="wal"><div class="wbal"><span class="wcoin">🐝</span><div><b id="walBal">${bal.toLocaleString('fr-FR')}</b><small>BeeCoins</small></div></div>
+ <div class="walcode"><label for="walIn">Code de recharge</label><div class="walrow"><input id="walIn" type="text" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="24" placeholder="Ex : A1B2C3D4E5F6"><button type="button" id="walGo" class="btn-o">Valider</button></div><small id="walMsg"></small></div>
+ <div class="wsec">Historique</div><div id="walHist" class="walhist"><small>Chargement…</small></div>
+ <p class="wnote">Achète un code de recharge, puis entre-le ici. Les cadeaux aux créateurs arrivent bientôt.</p></div>`);
+ const bump=b=>{const e=$('#walBal');if(e)e.textContent=b.toLocaleString('fr-FR');const h=$('#wBc');if(h)h.textContent=b.toLocaleString('fr-FR')};
+ const hist=async()=>{
+  const box=$('#walHist');if(!box)return;
+  try{
+   const {data,error}=await sb.from('beecoin_transactions').select('delta,label,kind,created_at').eq('user_id',me.id).order('created_at',{ascending:false}).limit(15);
+   if(error)throw error;
+   if(!data||!data.length){box.innerHTML='<small>Aucune opération pour le moment.</small>';return}
+   box.innerHTML=data.map(t=>{const d=+t.delta,dt=new Date(t.created_at).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
+    return `<div class="walh"><div><b>${esc(t.label||t.kind||'')}</b><small>${dt}</small></div><span class="${d>=0?'pos':'neg'}">${d>=0?'+':''}${d.toLocaleString('fr-FR')}</span></div>`}).join('');
+  }catch(e){const b=$('#walHist');if(b)b.innerHTML='<small>Historique indisponible.</small>'}
+ };
+ walSync().then(b=>{if(b!=null)bump(b)});hist();
+ let busy=false,fails=0,lockT=0;
+ const msg=(t,ok)=>{const m=$('#walMsg');if(m){m.textContent=t;m.className=ok?'ok':'err'}};
+ const go=async()=>{
+  if(busy)return;
+  const inp=$('#walIn');if(!inp)return;
+  const code=inp.value.replace(/[^0-9a-zA-Z]/g,'').toUpperCase();
+  if(code.length<6){msg('Entre ton code de recharge.',false);return}
+  if(Date.now()<lockT){msg('Trop d’essais. Réessaie dans quelques secondes.',false);return}
+  busy=true;$('#walGo').disabled=true;msg('Vérification…',true);
+  try{
+   const before=await walSync();
+   const {data,error}=await sb.rpc('beecoin_redeem_code',{p_code:code});
+   if(error)throw error;
+   const nb=+data;let add=before!=null?nb-before:0;
+   try{localStorage.setItem('vyro_bc_'+me.id,String(nb))}catch(e){}
+   bump(nb);inp.value='';fails=0;
+   msg(add>0?`+${add.toLocaleString('fr-FR')} BeeCoins ajoutés 🎉`:'Code accepté 🎉',true);
+   hist();
+  }catch(e){
+   const m=String((e&&e.message)||'');
+   if(m.includes('code_invalide')){fails++;if(fails>=5){lockT=Date.now()+30000;fails=0}msg('Code invalide ou déjà utilisé.',false)}
+   else if(m.includes('non_connecte'))msg('Reconnecte-toi puis réessaie.',false);
+   else msg('Impossible de valider le code. Vérifie ta connexion.',false);
+  }
+  busy=false;const g=$('#walGo');if(g)g.disabled=false;
+ };
+ $('#walGo').onclick=go;
+ $('#walIn').addEventListener('keydown',e=>{if(e.key==='Enter')go()});
+}
+function sheetLang(){
+ openSheet('Langue',`<div class="opt">${I('globe')}<span>Français</span>${I('check')}</div><div class="opt" style="opacity:.5"><span>English — bientôt</span></div>`);
+}
+function go(w){
+ if(['settings','privacy','notifs'].includes(w))push(w);
+ else if(w==='security')sheetSecurity();
+ else if(w==='follows')sheetFollows();
+ else if(w==='blocked')sheetBlocked();
+ else if(w==='install')installApp();
+ else if(w==='notifperm')askNotifPerm();
+ else if(w==='cam')openCam();
+ else if(w==='appearance')sheetTheme();
+ else if(w==='lang')sheetLang();
+ else if(w==='edit')editProfile();
+ else if(w==='plus')openPlus();
+ else if(w==='wallet')sheetWallet();
+ else if(w==='logout')logout();
+ else if(w==='delacc')delAccount();
+ else if(w==='legal')legalSheet();
+ else if(w==='back')back();
+ else toast('Bientôt disponible 🚧');
+}
+document.addEventListener('click',e=>{const t=e.target.closest('[data-go]');if(t)go(t.dataset.go)});
+
+/*@@MOD-START*/
+/* ---------- stickers intégrés ---------- */
+const EMO=['😂','🥹','😍','😎','🤩','😭','🥳','😡','🤯','😴','🙏','👍','👏','🔥','💜','💯','🎉','👀','🤝','💪','😈','🥶','🤔','🙌'];
+const TXT=[['LOL','#a855f7'],['MDR','#ec4899'],['OMG','#f59e0b'],['GG','#22c55e'],['WTF','#ef4444'],['OUI','#06b6d4'],['NON','#f43f5e'],['BRAVO','#eab308'],['SALUT','#8b5cf6'],['MERCI','#14b8a6'],['BISOUS','#ec4899'],['BOSS','#7c3aed'],['TOP','#10b981'],['BAH ALORS','#f97316'],['ZZZ','#6366f1'],['VYRO','#a855f7']];
+const ART=[
+ ['heart','<path d="M50 90C20 68 6 50 6 33 6 19 17 9 30 9c8 0 15 4 20 11 5-7 12-11 20-11 13 0 24 10 24 24 0 17-14 35-44 57z"/>','#ec4899'],
+ ['star','<path d="M50 6l12 31 33 2-26 21 9 32-28-18-28 18 9-32L5 39l33-2z"/>','#facc15'],
+ ['bolt','<path d="M60 4 18 56h27l-9 40 46-56H53z"/>','#fbbf24'],
+ ['flame','<path d="M50 4c5 18 26 28 26 54a26 26 0 0 1-52 0c0-11 5-18 11-24 1 9 5 12 9 13-3-15 0-31 6-43z"/><path d="M50 56c8 8 13 15 13 23a13 13 0 0 1-26 0c0-8 6-13 13-23z" fill="#fde047" stroke="none"/>','#f97316'],
+ ['crown','<path d="M10 72 3 26l26 20 21-34 21 34 26-20-7 46z"/><path d="M10 78h80v12H10z"/>','#f59e0b'],
+ ['diamond','<path d="M27 12h46l23 27-46 52L4 39z"/><path d="M4 39h92M38 12l-8 27 20 52 20-52-8-27" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="3"/>','#22d3ee'],
+ ['sparkle','<path d="M50 4c3 27 19 43 46 46-27 3-43 19-46 46-3-27-19-43-46-46C31 47 47 31 50 4z"/>','#a78bfa'],
+ ['moon','<path d="M66 6A46 46 0 1 0 94 68 38 38 0 0 1 66 6z"/>','#c4b5fd']
+];
+const STK_RE=/^\[stk:([eta]):([^\]]{1,24})\]$/;
+const STK_DIM={t:[240,120],a:[112,112]};
+function stkSvg(k,key){
+ if(k==='t'){
+  const t=TXT.find(x=>x[0]===key);if(!t)return '';
+  const fs=Math.max(24,Math.min(74,Math.floor(200/(key.length*.68))));
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 120"><g transform="rotate(-7 120 60)"><text x="120" y="${Math.round(60+fs*.35)}" text-anchor="middle" font-family="Arial Black,Impact,Arial,sans-serif" font-weight="900" font-size="${fs}" fill="${t[1]}" stroke="#fff" stroke-width="14" stroke-linejoin="round" paint-order="stroke">${esc(key)}</text></g></svg>`;
+ }
+ if(k==='a'){
+  const a=ART.find(x=>x[0]===key);if(!a)return '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 112 112"><g fill="${a[2]}" stroke="#fff" stroke-width="8" stroke-linejoin="round" paint-order="stroke">${a[1]}</g></svg>`;
+ }
+ return '';
+}
+function stkHTML(k,key){
+ if(k==='e')return EMO.includes(key)?`<span class="stk-e">${key}</span>`:'';
+ const s=stkSvg(k,key);return s?`<span class="stk-s">${s}</span>`:'';
+}
+function parseStk(body){const m=STK_RE.exec(body||'');return m&&stkHTML(m[1],m[2])?{k:m[1],key:m[2]}:null}
+function prev(body){
+ const s=parseStk(body);if(s)return s.k==='e'?'Sticker '+s.key:'Sticker';
+ body=body||'';
+ const m=MED_RE.exec(body);if(m&&m[3])return 'Sticker';if(m)return m[1]==='image'?'📷 Photo':m[1]==='video'?'🎥 Vidéo':'🎤 Message vocal';
+ const c=CALL_RE.exec(body);if(c)return '📞 Appel '+(c[1]==='video'?'vidéo':'vocal');
+ if(/^\[sys:/.test(body))return '⏱ Messages éphémères';
+ return body}
+const STK_TABS=[['e','😀','Émojis'],['t','Aa','Textes']];
+const stkItems=k=>k==='e'?EMO.map(x=>[k,x]):TXT.map(x=>[k,x[0]]);
+function mountPicker(tEl,gEl,onPick,custom){
+ /* chat : onglets Mes stickers · Émojis (clavier) · Textes ; caméra : Émojis · Textes */
+ const TABS=custom?[['m','⭐','Mes stickers'],['e','😀','Émojis'],['t','Aa','Textes']]:STK_TABS;
+ let k='e';
+ if(custom){try{const sv=localStorage.getItem('vyro_stk_tab');if(TABS.some(t=>t[0]===sv))k=sv}catch(e){}}
+ const draw=()=>{
+  tEl.innerHTML=TABS.map(t=>`<button type="button" data-k="${t[0]}" class="${k===t[0]?'cur':''}">${t[1]} ${t[2]}</button>`).join('');
+  gEl.classList.toggle('emo',!!custom&&k==='e');gEl.scrollTop=0;
+  if(custom&&k==='m'&&typeof csDraw==='function'){csDraw(gEl);return}
+  if(custom&&k==='e'&&typeof emoDraw==='function'){emoDraw(gEl);return}
+  gEl.innerHTML=stkItems(k).map(([a,b])=>`<button type="button" class="stkc" data-k="${a}" data-id="${esc(b)}" aria-label="Sticker ${esc(b)}">${stkHTML(a,b)}</button>`).join('');
+ };
+ tEl.onclick=e=>{const b=e.target.closest('[data-k]');if(b){k=b.dataset.k;if(custom)try{localStorage.setItem('vyro_stk_tab',k)}catch(x){}draw()}};
+ gEl.onclick=e=>{
+  const c=e.target.closest('[data-cs]');if(c){if(typeof csClick==='function')csClick(c,()=>$('#stkp').classList.remove('on'));return}
+  if(typeof emoClick==='function'&&emoClick(e,gEl))return;
+  const b=e.target.closest('.stkc');if(b)onPick(b.dataset.k,b.dataset.id);
+ };
+ if(custom)setTimeout(draw,0);else draw(); /* chat : attend la fin du chargement (clavier d'émojis défini plus bas) */
+}
+mountPicker($('#stkt'),$('#stkg'),(k,key)=>{$('#stkp').classList.remove('on');sendBody(`[stk:${k}:${key}]`)},true);
+$('#tStk').onclick=()=>{$('#stkp').classList.toggle('on');$('#tIn').blur()};
+
+/* ---------- caméra à effets ---------- */
+const MP='https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/';
+const CW=576,CH=1024,REC_MAX=30000;
+const SWATCH='linear-gradient(135deg,#fca5a5,#fde68a 35%,#86efac 55%,#93c5fd 75%,#c4b5fd)';
+const FX=[
+ {id:'none',n:'Normal',f:''},
+ {id:'bw',n:'Noir',f:'grayscale(1) contrast(1.15)'},
+ {id:'neon',n:'Néon',f:'saturate(2) contrast(1.15) hue-rotate(-25deg) brightness(1.05)',tint:['rgba(168,85,247,.32)','soft-light']},
+ {id:'vintage',n:'Vintage',f:'sepia(.55) contrast(1.1) saturate(1.2) brightness(.95)',vig:1},
+ {id:'ice',n:'Glacé',f:'hue-rotate(150deg) saturate(1.3) brightness(1.08)',tint:['rgba(56,189,248,.16)','soft-light']},
+ {id:'warm',n:'Chaud',f:'sepia(.3) saturate(1.7) hue-rotate(-12deg) brightness(1.05)',tint:['rgba(251,146,60,.2)','soft-light']},
+ {id:'neg',n:'Négatif',f:'invert(1)'},
+ {id:'glitch',n:'Glitch',f:'saturate(1.4) contrast(1.1)',g:'📺'},
+ {id:'pixel',n:'Pixel',f:'saturate(1.3)',g:'👾'},
+ {id:'mirror',n:'Miroir',f:'',g:'🪞'}
+];
+let camOn=false,camMode='f',fxId='none',maskId='',facing='user',mirror=true,camStream=null,raf=0,lastDraw=0,lastHint=0;
+let rec=null,recChunks=[],recT0=0,recording=false,holdT=0,cap=null;
+const items=[];let csel=null;
+const camV=$('#camV'),camC=$('#camC'),camX=camC.getContext('2d');
+const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+
+/* filtres : ctx.filter si disponible, sinon calcul par matrice */
+const FILTER_OK=(()=>{try{const c=document.createElement('canvas');c.width=c.height=1;const x=c.getContext('2d');x.filter='grayscale(1)';x.fillStyle='#f00';x.fillRect(0,0,1,1);const d=x.getImageData(0,0,1,1).data;return d[0]===d[1]&&d[1]===d[2]&&d[0]>0}catch(e){return false}})();
+function fxMatrix(f){
+ let M=[1,0,0,0,0,1,0,0,0,0,1,0];
+ const mul=B=>{const R=[];for(let r=0;r<3;r++)for(let c=0;c<4;c++){let v=0;for(let k=0;k<3;k++)v+=B[r*4+k]*M[k*4+c];if(c===3)v+=B[r*4+3];R.push(v)}M=R};
+ f.replace(/([a-z-]+)\(([^)]+)\)/g,(_,n,raw)=>{
+  const v=parseFloat(raw),a=Math.min(1,Math.max(0,v));
+  if(n==='grayscale'){const i=1-a;mul([.2126+.7874*i,.7152-.7152*i,.0722-.0722*i,0,.2126-.2126*i,.7152+.2848*i,.0722-.0722*i,0,.2126-.2126*i,.7152-.7152*i,.0722+.9278*i,0])}
+  else if(n==='sepia'){const i=1-a;mul([.393+.607*i,.769-.769*i,.189-.189*i,0,.349-.349*i,.686+.314*i,.168-.168*i,0,.272-.272*i,.534-.534*i,.131+.869*i,0])}
+  else if(n==='saturate'){mul([.213+.787*v,.715-.715*v,.072-.072*v,0,.213-.213*v,.715+.285*v,.072-.072*v,0,.213-.213*v,.715-.715*v,.072+.928*v,0])}
+  else if(n==='hue-rotate'){const r=v*Math.PI/180,c=Math.cos(r),s=Math.sin(r);mul([.213+c*.787-s*.213,.715-c*.715-s*.715,.072-c*.072+s*.928,0,.213-c*.213+s*.143,.715+c*.285+s*.14,.072-c*.072-s*.283,0,.213-c*.213-s*.787,.715-c*.715+s*.715,.072+c*.928+s*.072,0])}
+  else if(n==='brightness'){mul([v,0,0,0,0,v,0,0,0,0,v,0])}
+  else if(n==='contrast'){const o=.5-.5*v;mul([v,0,0,o,0,v,0,o,0,0,v,o])}
+  else if(n==='invert'){const k=1-2*a;mul([k,0,0,a,0,k,0,a,0,0,k,a])}
+  return _;
+ });
+ return M;
+}
+function matrixPass(x,W,H,fx){
+ const M=fx.mx||(fx.mx=fxMatrix(fx.f)),id=x.getImageData(0,0,W,H),d=id.data;
+ for(let i=0;i<d.length;i+=4){const r=d[i],g=d[i+1],b=d[i+2];
+  d[i]=M[0]*r+M[1]*g+M[2]*b+M[3]*255;d[i+1]=M[4]*r+M[5]*g+M[6]*b+M[7]*255;d[i+2]=M[8]*r+M[9]*g+M[10]*b+M[11]*255}
+ x.putImageData(id,0,0);
+}
+let pxC=null;
+function pixelPass(x,W,H){
+ const bs=Math.max(8,Math.round(W/48)),w=Math.ceil(W/bs),h=Math.ceil(H/bs);
+ if(!pxC)pxC=document.createElement('canvas');
+ if(pxC.width!==w||pxC.height!==h){pxC.width=w;pxC.height=h}
+ pxC.getContext('2d').drawImage(x.canvas,0,0,w,h);
+ x.save();x.imageSmoothingEnabled=false;x.drawImage(pxC,0,0,w,h,0,0,w*bs,h*bs);x.restore();
+}
+function glitchPass(x,W,H){
+ for(let i=0;i<5;i++){const y=Math.random()*H|0,h=10+(Math.random()*H*.06|0),dx=(Math.random()-.5)*W*.12;x.drawImage(x.canvas,0,y,W,h,dx,y,W,h)}
+ x.save();x.globalCompositeOperation='screen';
+ for(let i=0;i<2;i++){x.fillStyle=i?'rgba(0,255,255,.10)':'rgba(255,0,90,.10)';x.fillRect(0,Math.random()*H,W,4+Math.random()*10)}
+ x.restore();
+}
+function mirrorPass(x,W,H){x.save();x.translate(W,0);x.scale(-1,1);x.drawImage(x.canvas,0,0,W/2,H,0,0,W/2,H);x.restore()}
+
+/* ---------- masques de visage (MediaPipe Face Mesh, chargé seulement à la demande) ---------- */
+const KP=[1,10,13,14,33,61,152,234,263,291,454];
+let fmState='idle',fm=null,fmBusy=false,face=null,faceAt=0,lastSend=0;
+const loadScript=src=>new Promise((ok,ko)=>{const s=document.createElement('script');s.src=src;s.crossOrigin='anonymous';s.onload=ok;s.onerror=()=>ko(new Error('script'));document.head.appendChild(s)});
+async function initFace(){
+ if(fmState==='loading'||fmState==='ready')return;
+ fmState='loading';
+ try{
+  await Promise.race([(async()=>{
+   if(!window.FaceMesh)await loadScript(MP+'face_mesh.js');
+   fm=new window.FaceMesh({locateFile:f=>MP+f});
+   fm.setOptions({maxNumFaces:1,refineLandmarks:false,minDetectionConfidence:.5,minTrackingConfidence:.5});
+   fm.onResults(onFace);
+   await fm.initialize();
+  })(),new Promise((_,ko)=>setTimeout(()=>ko(new Error('timeout')),60000))]);
+  fmState='ready';
+ }catch(e){fmState='fail';fm=null;toast('Masques indisponibles. Les filtres et stickers marchent.')}
+}
+function onFace(r){
+ const L=r&&r.multiFaceLandmarks&&r.multiFaceLandmarks[0];
+ if(!L){face=null;return}
+ const n={};
+ for(const i of KP){const l=L[i],o=face&&face[i];n[i]=o?{x:o.x+(l.x-o.x)*.6,y:o.y+(l.y-o.y)*.6}:{x:l.x,y:l.y}}
+ face=n;faceAt=performance.now();
+}
+const TAU=Math.PI*2;
+function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath()}
+function heart(x,cx,cy,z){x.beginPath();x.moveTo(cx,cy+z*.9);x.bezierCurveTo(cx-z*1.6,cy-z*.1,cx-z*.7,cy-z*1.1,cx,cy-z*.4);x.bezierCurveTo(cx+z*.7,cy-z*1.1,cx+z*1.6,cy-z*.1,cx,cy+z*.9);x.closePath()}
+function spark(x,cx,cy,r){x.beginPath();x.moveTo(cx,cy-r);x.quadraticCurveTo(cx,cy,cx+r,cy);x.quadraticCurveTo(cx,cy,cx,cy+r);x.quadraticCurveTo(cx,cy,cx-r,cy);x.quadraticCurveTo(cx,cy,cx,cy-r);x.closePath()}
+function whiskers(x,g,y){const s=g.s;x.save();x.strokeStyle='rgba(255,255,255,.95)';x.lineWidth=s*.014;x.lineCap='round';
+ for(const sg of[-1,1])for(const d of[-.07,0,.07]){x.beginPath();x.moveTo(sg*.13*s,y+d*s*.35);x.lineTo(sg*.5*s,y+d*s);x.stroke()}x.restore()}
+const MASKS=[
+ {id:'glasses',n:'Lunettes',g:'🕶️',draw(x,g){const s=g.s;x.save();x.translate(0,.02*s);x.shadowColor='#d946ef';x.shadowBlur=s*.07;x.lineWidth=s*.022;x.strokeStyle='#f0abfc';x.fillStyle='rgba(24,6,48,.82)';
+  for(const sg of[-1,1]){rr(x,sg*.215*s-.17*s,-.1*s,.34*s,.2*s,.07*s);x.fill();x.stroke()}
+  x.beginPath();x.moveTo(-.045*s,-.03*s);x.quadraticCurveTo(0,-.07*s,.045*s,-.03*s);x.moveTo(-.385*s,-.05*s);x.lineTo(-.5*s,-.09*s);x.moveTo(.385*s,-.05*s);x.lineTo(.5*s,-.09*s);x.stroke();
+  x.shadowBlur=0;x.strokeStyle='rgba(255,255,255,.35)';x.lineWidth=s*.015;for(const sg of[-1,1]){x.beginPath();x.moveTo(sg*.215*s-.1*s,-.06*s);x.lineTo(sg*.215*s-.02*s,-.06*s);x.stroke()}
+  x.restore()}},
+ {id:'cat',n:'Chat',g:'🐱',draw(x,g){const s=g.s,fy=g.FH.y;
+  for(const sg of[-1,1]){
+   x.beginPath();x.moveTo(sg*.5*s,fy+.14*s);x.lineTo(sg*.42*s,fy-.34*s);x.lineTo(sg*.1*s,fy+.02*s);x.closePath();x.fillStyle='#a78bfa';x.fill();x.lineWidth=s*.02;x.strokeStyle='#fff';x.lineJoin='round';x.stroke();
+   x.beginPath();x.moveTo(sg*.44*s,fy+.07*s);x.lineTo(sg*.41*s,fy-.2*s);x.lineTo(sg*.2*s,fy+.02*s);x.closePath();x.fillStyle='#f9a8d4';x.fill()}
+  const ny=g.NO.y;x.beginPath();x.moveTo(-.055*s,ny-.035*s);x.lineTo(.055*s,ny-.035*s);x.lineTo(0,ny+.025*s);x.closePath();x.fillStyle='#f472b6';x.fill();
+  whiskers(x,g,ny+.04*s)}},
+ {id:'dog',n:'Chien',g:'🐶',draw(x,g){const s=g.s,fy=g.FH.y;
+  for(const sg of[-1,1]){x.save();x.translate(sg*.52*s,fy+.22*s);x.rotate(sg*.22);x.beginPath();x.ellipse(0,0,.13*s,.27*s,0,0,TAU);x.fillStyle='#92400e';x.fill();x.lineWidth=s*.016;x.strokeStyle='#451a03';x.stroke();x.restore()}
+  const ny=g.NO.y;x.beginPath();x.ellipse(0,ny-.005*s,.075*s,.052*s,0,0,TAU);x.fillStyle='#111';x.fill();x.beginPath();x.ellipse(-.02*s,ny-.02*s,.02*s,.011*s,0,0,TAU);x.fillStyle='rgba(255,255,255,.7)';x.fill();
+  if(g.open>.03){const h=Math.min(.2,g.open*2.2)*s;rr(x,-.065*s,g.MB.y-.01*s,.13*s,h,.06*s);x.fillStyle='#fb7185';x.fill();x.beginPath();x.moveTo(0,g.MB.y);x.lineTo(0,g.MB.y+h*.7);x.strokeStyle='#be123c';x.lineWidth=s*.008;x.stroke()}}},
+ {id:'crown',n:'Couronne',g:'👑',draw(x,g){const s=g.s,y0=g.FH.y+.03*s;
+  x.save();x.translate(0,y0);x.scale(1.25,1.25);x.translate(0,-y0);
+  x.beginPath();x.moveTo(-.28*s,y0);x.lineTo(-.33*s,y0-.3*s);x.lineTo(-.15*s,y0-.15*s);x.lineTo(0,y0-.36*s);x.lineTo(.15*s,y0-.15*s);x.lineTo(.33*s,y0-.3*s);x.lineTo(.28*s,y0);x.closePath();
+  const gr=x.createLinearGradient(0,y0-.36*s,0,y0);gr.addColorStop(0,'#fde047');gr.addColorStop(1,'#d97706');x.fillStyle=gr;x.fill();x.lineWidth=s*.02;x.strokeStyle='#fff';x.lineJoin='round';x.stroke();
+  [[-.33,-.3,'#ef4444'],[0,-.36,'#3b82f6'],[.33,-.3,'#22c55e']].forEach(([a,b,c])=>{x.beginPath();x.arc(a*s,y0+b*s,.03*s,0,TAU);x.fillStyle=c;x.fill();x.lineWidth=s*.008;x.strokeStyle='#fff';x.stroke()});x.restore()}},
+ {id:'hero',n:'Héros',g:'🦸',draw(x,g){const s=g.s;x.beginPath();
+  x.moveTo(-.55*s,-.06*s);x.quadraticCurveTo(-.5*s,-.21*s,-.25*s,-.17*s);x.quadraticCurveTo(0,-.1*s,.25*s,-.17*s);x.quadraticCurveTo(.5*s,-.21*s,.55*s,-.06*s);x.quadraticCurveTo(.5*s,.17*s,.25*s,.14*s);x.quadraticCurveTo(0,.06*s,-.25*s,.14*s);x.quadraticCurveTo(-.5*s,.17*s,-.55*s,-.06*s);x.closePath();
+  for(const sg of[-1,1]){x.moveTo(sg*.21*s+.115*s,-.01*s);x.ellipse(sg*.21*s,-.01*s,.115*s,.06*s,sg*-.12,0,TAU)}
+  x.fillStyle='rgba(109,40,217,.94)';x.fill('evenodd');x.lineWidth=s*.014;x.strokeStyle='#e9d5ff';x.stroke()}},
+ {id:'hearts',n:'Cœurs',g:'😍',draw(x,g){const s=g.s,k=1+.12*Math.sin(g.t*7);
+  x.lineWidth=s*.012;x.strokeStyle='#fff';x.fillStyle='#ff2d75';
+  for(const sg of[-1,1]){heart(x,sg*.21*s,-.005*s,.085*s*k);x.fill();x.stroke()}
+  for(let i=0;i<4;i++){const p=(g.t*.45+i/4)%1,hx=Math.sin(i*2.1+g.t)*.32*s,hy=g.FH.y-.05*s-p*.5*s;x.globalAlpha=1-p;heart(x,hx,hy,.04*s);x.fillStyle='#fb7185';x.fill()}
+  x.globalAlpha=1}},
+ {id:'bunny',n:'Lapin',g:'🐰',draw(x,g){const s=g.s,fy=g.FH.y;
+  for(const sg of[-1,1]){x.save();x.translate(sg*.2*s,fy-.3*s);x.rotate(sg*.16);
+   x.beginPath();x.ellipse(0,0,.1*s,.4*s,0,0,TAU);x.fillStyle='#fff';x.fill();x.lineWidth=s*.016;x.strokeStyle='#e9d5ff';x.stroke();
+   x.beginPath();x.ellipse(0,.02*s,.052*s,.3*s,0,0,TAU);x.fillStyle='#f9a8d4';x.fill();x.restore()}
+  const ny=g.NO.y;x.beginPath();x.arc(0,ny-.01*s,.035*s,0,TAU);x.fillStyle='#f472b6';x.fill();whiskers(x,g,ny+.03*s)}},
+ {id:'rainbow',n:'Arc-en-ciel',g:'🌈',draw(x,g){if(g.open<.04)return;
+  const s=g.s,cols=['#ef4444','#f97316','#facc15','#22c55e','#3b82f6','#8b5cf6'],my=(g.MT.y+g.MB.y)/2,len=s*(.9+Math.min(g.open,.2)*2),w=s*.036;
+  x.lineCap='round';x.lineWidth=w*1.05;
+  cols.forEach((c,i)=>{x.beginPath();for(let t=0;t<=1.001;t+=.1){const px=(i-2.5)*w+Math.sin(t*6+g.t*8)*s*.03*t,py=my+t*len;t?x.lineTo(px,py):x.moveTo(px,py)}x.strokeStyle=c;x.stroke()})}},
+ {id:'blush',n:'Blush',g:'💗',draw(x,g){const s=g.s,cy=g.NO.y;
+  for(const sg of[-1,1]){const cx=sg*.3*s,gr=x.createRadialGradient(cx,cy,0,cx,cy,.14*s);gr.addColorStop(0,'rgba(244,114,182,.8)');gr.addColorStop(1,'rgba(244,114,182,0)');x.fillStyle=gr;x.beginPath();x.arc(cx,cy,.14*s,0,TAU);x.fill()}
+  x.fillStyle='#fff';x.shadowColor='#f0abfc';x.shadowBlur=s*.04;
+  for(let i=0;i<6;i++){const a=g.t*1.2+i*TAU/6,r=.62*s,k=.025+.018*Math.sin(g.t*4+i*2);spark(x,Math.cos(a)*r,-.05*s+Math.sin(a)*r*.7,k*s*1.6)}
+  x.fill();x.shadowBlur=0}}
+];
+function drawMask(x,W,k,ox,oy,vw,vh,now){
+ if(!maskId||!face||now-faceAt>500)return;
+ const m=MASKS.find(a=>a.id===maskId);if(!m)return;
+ const P=i=>[face[i].x*vw*k+ox,face[i].y*vh*k+oy];
+ const le=P(33),re=P(263),a=P(234),b=P(454);
+ const mid=[(le[0]+re[0])/2,(le[1]+re[1])/2],roll=Math.atan2(re[1]-le[1],re[0]-le[0]),c=Math.cos(roll),sn=Math.sin(roll);
+ const loc=p=>{const dx=p[0]-mid[0],dy=p[1]-mid[1];return{x:dx*c+dy*sn,y:-dx*sn+dy*c}};
+ const s=Math.hypot(b[0]-a[0],b[1]-a[1]);if(!(s>8))return;
+ const MT=loc(P(13)),MB=loc(P(14));
+ const g={s,t:now/1000,FH:loc(P(10)),CH:loc(P(152)),NO:loc(P(1)),MT,MB,open:Math.abs(MB.y-MT.y)/s};
+ x.save();if(mirror){x.translate(W,0);x.scale(-1,1)}x.translate(mid[0],mid[1]);x.rotate(roll);
+ try{m.draw(x,g)}catch(e){}
+ x.restore();
+}
+
+/* ---------- stickers posés sur la caméra ---------- */
+const imgCache=new Map();
+function stkImg(k,key){
+ const id=k+':'+key;if(imgCache.has(id))return imgCache.get(id);
+ let im=null;
+ if(k==='e'){
+  const n=256,c=document.createElement('canvas');c.width=c.height=n;const x=c.getContext('2d');
+  x.font=`${Math.round(n*.66)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;x.textAlign='center';x.textBaseline='middle';x.shadowColor='#fff';x.shadowBlur=0;
+  for(let a=0;a<16;a++){x.shadowOffsetX=Math.cos(a/16*TAU)*9;x.shadowOffsetY=Math.sin(a/16*TAU)*9;x.fillText(key,n/2,n/2+n*.04)}
+  x.shadowColor='transparent';x.fillText(key,n/2,n/2+n*.04);im=c;
+ }else{
+  const svg=stkSvg(k,key);if(svg){const d=STK_DIM[k];im=new Image();im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg.replace('<svg ',`<svg width="${d[0]*3}" height="${d[1]*3}" `))}
+ }
+ imgCache.set(id,im);return im;
+}
+const imSize=im=>[im.naturalWidth||im.width||0,im.naturalHeight||im.height||0];
+function drawStickers(x,W,H,live){
+ for(const it of items){
+  const im=stkImg(it.k,it.key);if(!im)continue;const [iw,ih]=imSize(im);if(!iw)continue;
+  const w=it.s*W,h=w*ih/iw;
+  x.save();x.translate(it.x*W,it.y*H);x.rotate(it.r);
+  x.shadowColor='rgba(0,0,0,.35)';x.shadowBlur=w*.04;x.shadowOffsetY=w*.02;
+  x.drawImage(im,-w/2,-h/2,w,h);x.shadowColor='transparent';
+  if(live&&it===csel){x.setLineDash([10,8]);x.lineWidth=3;x.strokeStyle='rgba(255,255,255,.9)';x.strokeRect(-w/2-8,-h/2-8,w+16,h+16)}
+  x.restore();
+ }
+}
+function addItem(k,key){
+ if(items.length>=12){toast('12 stickers maximum');return}
+ const it={k,key,x:.5,y:.42,s:k==='e'?.3:(k==='t'?.55:.32),r:(Math.random()-.5)*.25};
+ items.push(it);csel=it;updDel();
+}
+function hit(p){
+ const W=camC.width,H=camC.height;
+ for(let i=items.length-1;i>=0;i--){
+  const it=items[i],im=stkImg(it.k,it.key);if(!im)continue;const [iw,ih]=imSize(im);if(!iw)continue;
+  const w=it.s*W,h=w*ih/iw,dx=p.x*W-it.x*W,dy=p.y*H-it.y*H,c=Math.cos(-it.r),s=Math.sin(-it.r);
+  const lx=dx*c-dy*s,ly=dx*s+dy*c;
+  if(Math.abs(lx)<=w/2+14&&Math.abs(ly)<=h/2+14)return it;
+ }
+ return null;
+}
+function updDel(){$('#camDel').hidden=!csel}
+
+/* ---------- rendu d'une image ---------- */
+function renderScene(x,W,H,live,now){
+ const v=camV,vw=v.videoWidth,vh=v.videoHeight;
+ x.fillStyle='#0b0414';x.fillRect(0,0,W,H);
+ if(vw&&vh){
+  const fx=FX.find(f=>f.id===fxId)||FX[0],k=Math.max(W/vw,H/vh),dw=vw*k,dh=vh*k,ox=(W-dw)/2,oy=(H-dh)/2;
+  x.save();
+  if(mirror){x.translate(W,0);x.scale(-1,1)}
+  if(fx.f&&FILTER_OK)x.filter=fx.f;
+  x.drawImage(v,ox,oy,dw,dh);
+  x.restore();
+  if(fx.f&&!FILTER_OK)matrixPass(x,W,H,fx);
+  if(fx.id==='pixel')pixelPass(x,W,H);
+  else if(fx.id==='glitch')glitchPass(x,W,H);
+  else if(fx.id==='mirror')mirrorPass(x,W,H);
+  if(fx.tint){x.save();x.globalCompositeOperation=fx.tint[1];x.fillStyle=fx.tint[0];x.fillRect(0,0,W,H);x.restore()}
+  if(fx.vig){const gr=x.createRadialGradient(W/2,H/2,Math.min(W,H)*.35,W/2,H/2,Math.max(W,H)*.75);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,.55)');x.fillStyle=gr;x.fillRect(0,0,W,H)}
+  drawMask(x,W,k,ox,oy,vw,vh,now);
+ }
+ drawStickers(x,W,H,live);
+}
+
+/* ---------- boucle caméra ---------- */
+function startLoop(){if(raf||!camOn)return;raf=requestAnimationFrame(loop)}
+function stopLoop(){if(raf)cancelAnimationFrame(raf);raf=0}
+function loop(now){
+ raf=0;if(!camOn)return;
+ raf=requestAnimationFrame(loop);
+ if(now-lastDraw<28)return;lastDraw=now;
+ if(maskId&&fmState==='ready'&&!fmBusy&&camV.readyState>=2&&now-lastSend>66){
+  fmBusy=true;lastSend=now;
+  Promise.resolve().then(()=>fm.send({image:camV})).catch(()=>{}).then(()=>{fmBusy=false});
+ }
+ renderScene(camX,CW,CH,true,now);
+ if(now-lastHint>250){lastHint=now;updHint(now)}
+ if(recording){
+  const p=Math.min(1,(now-recT0)/REC_MAX);
+  $('#camPr').style.strokeDashoffset=String(239*(1-p));
+  if(p>=1)stopRec();
+ }
+}
+function updHint(now){
+ let t='';
+ if(maskId){
+  if(fmState==='loading')t='Chargement des masques… (première fois, quelques Mo)';
+  else if(fmState==='fail')t='Masques indisponibles. Touche un masque pour réessayer.';
+  else if(fmState==='ready'){
+   if(!face||now-faceAt>600)t='Montre ton visage 🙂';
+   else if(maskId==='rainbow'&&!(face[14].y-face[13].y>.02))t='Ouvre la bouche 😮';
+  }
+ }
+ const h=$('#camHint');if(h.textContent!==t){h.textContent=t;h.classList.toggle('on',!!t)}
+}
+
+/* ---------- ouverture / fermeture ---------- */
+let postMode=false;
+function applyPost(){
+ $('#camGal').hidden=false;$('#pvPost').hidden=!postMode;$('#pvStory').hidden=postMode;
+ $('#camDraft').hidden=!postMode;$('#pvDraft').hidden=!postMode;if(postMode)updDraftBtn();
+ $('.camtip').textContent=postMode?'Maintiens pour filmer · ou ouvre ta galerie':'Appuie : photo · Maintiens : vidéo · ou galerie';
+}
+function openCam(post){
+ postMode=post===true;applyPost();
+ camOn=true;camMode='f';csel=null;items.length=0;updDel();$('#camStkP').classList.remove('on');
+ push('cam');fit();renderStrip();setRail();startCam();
+}
+function goPublish(f,dur){back();setTimeout(()=>uploadSheet({file:f,dur:dur}),320)}
+$('#camGal').onclick=()=>$('#camFile').click();
+$('#camFile').onchange=e=>{
+ const f=e.target.files[0];e.target.value='';
+ if(!f)return;
+ if(!postMode){storyFromFile(f);return}
+ if(!String(f.type).startsWith('video/')){toast('Choisis une vidéo');return}
+ if(f.size>MAX_VIDEO){toast('Vidéo trop lourde ('+(f.size/1048576).toFixed(1)+' Mo). Maximum : 20 Mo');return}
+ const t=document.createElement('video'),u=URL.createObjectURL(f);let done=false;
+ const go=d=>{if(done)return;done=true;URL.revokeObjectURL(u);goPublish(f,d)};
+ t.preload='metadata';t.onloadedmetadata=()=>go(Math.round(t.duration)||0);t.onerror=()=>go(0);t.src=u;
+};
+async function storyFromFile(f){
+ try{
+  let blob,kind,dur=0;
+  if(String(f.type).startsWith('image/')){kind='image';blob=await fitJpeg(f,1080,1920)}
+  else if(String(f.type).startsWith('video/')){
+   if(f.size>MAX_VIDEO){toast('Vidéo trop lourde (max 20 Mo)');return}
+   dur=await vidDur(f);if(dur>60){toast('Vidéo trop longue : 60 s maximum');return}
+   kind='video';blob=f;
+  }else{toast('Choisis une photo ou une vidéo');return}
+  toast('Publication de ta story…');
+  await publishStory(blob,kind,dur,()=>{});
+  back();toast('Story publiée ✅');
+ }catch(x){toast('Publication impossible, réessaie')}
+}
+$('#pvPost').onclick=()=>{
+ if(!cap||cap.type!=='video')return;
+ const f=capFile(),d=cap.dur;goPublish(f,d);
+};
+function camMsg(t){const m=$('#camMsg');m.classList.toggle('on',!!t);$('#camMsgT').textContent=t||''}
+async function startCam(){
+ stopStream();camMsg('');
+ if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){camMsg('Caméra indisponible ici (il faut un navigateur récent et une page en https).');return}
+ const get=a=>navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}},audio:a});
+ let st;
+ try{st=await get(true)}catch(e){
+  try{st=await get(false)}catch(e2){if(camOn)camMsg(e2&&e2.name==='NotAllowedError'?'Autorise la caméra dans ton navigateur, puis réessaie.':'Impossible d’ouvrir la caméra.');return}
+ }
+ if(!camOn){st.getTracks().forEach(t=>t.stop());return}
+ camStream=st;mirror=facing==='user';
+ camV.srcObject=st;try{await camV.play()}catch(e){}
+ startLoop();
+}
+function stopStream(){if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}camV.srcObject=null}
+function stopCam(){
+ camOn=false;stopLoop();
+ if(recording){try{rec.onstop=null;rec.stop()}catch(e){}recording=false;rec=null}
+ clearTimeout(holdT);holdT=0;
+ stopStream();closePreview(true);$('#camShut').classList.remove('rec');
+}
+function fit(){
+ const r=$('#camStage').getBoundingClientRect();if(!r.width)return;
+ let w=r.width,h=w*16/9;if(h>r.height){h=r.height;w=h*9/16}
+ camC.style.width=w+'px';camC.style.height=h+'px';
+}
+addEventListener('resize',fit);
+document.addEventListener('visibilitychange',()=>{
+ if(curScreen!=='cam')return;
+ if(document.hidden){if(!recording){stopLoop();stopStream()}}
+ else if(camOn&&!camStream&&!cap)startCam();
+});
+
+/* ---------- bandeau d'effets / boutons ---------- */
+function renderStrip(){
+ const el=$('#camStrip');
+ if(camMode==='f')el.innerHTML=FX.map(f=>`<button data-fx="${f.id}" class="${f.id===fxId?'cur':''}"><i><b style="background:${SWATCH};${f.f?`filter:${f.f}`:''}">${f.g||''}</b></i>${f.n}</button>`).join('');
+ else if(camMode==='m')el.innerHTML=[{id:'',n:'Aucun',g:'🚫'}].concat(MASKS).map(m=>`<button data-mk="${m.id}" class="${m.id===maskId?'cur':''}"><i><b>${m.g}</b></i>${m.n}</button>`).join('');
+ else el.innerHTML='';
+ el.hidden=camMode==='s';
+ const c=el.querySelector('.cur');if(c&&c.scrollIntoView)try{c.scrollIntoView({inline:'center',block:'nearest'})}catch(e){}
+}
+function setRail(){$$('#camRail [data-m]').forEach(b=>b.classList.toggle('cur',b.dataset.m===camMode))}
+$('#camStrip').onclick=e=>{
+ const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.fx!=null){fxId=b.dataset.fx}
+ else if(b.dataset.mk!=null){
+  maskId=b.dataset.mk;
+  if(maskId){if(fmState==='fail')fmState='idle';initFace()}
+ }
+ renderStrip();
+};
+$('#camRail').onclick=e=>{
+ const b=e.target.closest('button');if(!b)return;
+ if(b.id==='camFlip'){facing=facing==='user'?'environment':'user';startCam();return}
+ const m=b.dataset.m;if(!m)return;
+ if(m==='s'){const p=$('#camStkP');p.classList.toggle('on');camMode=p.classList.contains('on')?'s':'f'}
+ else{camMode=m;$('#camStkP').classList.remove('on')}
+ renderStrip();setRail();
+};
+mountPicker($('#camStkT'),$('#camStkG'),(k,key)=>{addItem(k,key);$('#camStkP').classList.remove('on');camMode='f';renderStrip();setRail()});
+$('#camX').onclick=()=>back();
+$('#camDel').onclick=()=>{const i=items.indexOf(csel);if(i>=0)items.splice(i,1);csel=null;updDel()};
+$('#camRetry').onclick=()=>startCam();
+
+/* ---------- gestes sur les stickers ---------- */
+const ptrs=new Map();let gst=null;
+const nrm=e=>{const r=camC.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height}};
+camC.addEventListener('pointerdown',e=>{
+ try{camC.setPointerCapture(e.pointerId)}catch(_){}
+ const p=nrm(e);ptrs.set(e.pointerId,p);
+ if(ptrs.size===1){
+  const h=hit(p);csel=h;
+  if(h){items.splice(items.indexOf(h),1);items.push(h);gst={m:'drag',dx:h.x-p.x,dy:h.y-p.y}}else gst=null;
+  updDel();
+ }else if(ptrs.size===2&&csel){
+  const [a,b]=[...ptrs.values()];
+  gst={m:'pinch',d0:Math.hypot((a.x-b.x)*CW,(a.y-b.y)*CH)||1,a0:Math.atan2((b.y-a.y)*CH,(b.x-a.x)*CW),s0:csel.s,r0:csel.r};
+ }
+});
+camC.addEventListener('pointermove',e=>{
+ if(!ptrs.has(e.pointerId))return;
+ const p=nrm(e);ptrs.set(e.pointerId,p);
+ if(!csel||!gst)return;
+ if(gst.m==='drag'&&ptrs.size===1){csel.x=Math.min(1,Math.max(0,p.x+gst.dx));csel.y=Math.min(1,Math.max(0,p.y+gst.dy))}
+ else if(gst.m==='pinch'&&ptrs.size>=2){
+  const [a,b]=[...ptrs.values()],d=Math.hypot((a.x-b.x)*CW,(a.y-b.y)*CH)||1,an=Math.atan2((b.y-a.y)*CH,(b.x-a.x)*CW);
+  csel.s=Math.min(1.3,Math.max(.1,gst.s0*d/gst.d0));csel.r=gst.r0+(an-gst.a0);
+ }
+});
+const pend=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2&&gst&&gst.m==='pinch')gst=null;if(!ptrs.size)gst=null};
+camC.addEventListener('pointerup',pend);camC.addEventListener('pointercancel',pend);
+camC.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* ---------- photo / vidéo ---------- */
+const camReady=()=>camStream&&camV.videoWidth>0;
+function flash(){const f=$('#camFlash');f.classList.add('on');setTimeout(()=>f.classList.remove('on'),120)}
+function takePhoto(){
+ if(!camReady()){toast('La caméra n’est pas prête');return}
+ flash();
+ const W=1080,H=1920,oc=document.createElement('canvas');oc.width=W;oc.height=H;
+ renderScene(oc.getContext('2d'),W,H,false,performance.now());
+ oc.toBlob(b=>{if(!b){toast('Capture impossible');return}showPreview('image',b)},'image/jpeg',.92);
+}
+function startRec(){
+ if(!camReady())return false;
+ if(!window.MediaRecorder||!camC.captureStream){toast('Vidéo non supportée ici : photo seulement');return false}
+ const cs=camC.captureStream(30),a=camStream.getAudioTracks()[0];
+ if(a)cs.addTrack(a.clone());
+ const types=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+ const mt=types.find(t=>{try{return MediaRecorder.isTypeSupported(t)}catch(e){return false}})||'';
+ try{rec=new MediaRecorder(cs,mt?{mimeType:mt,videoBitsPerSecond:4e6}:{videoBitsPerSecond:4e6})}catch(e){toast('Enregistrement impossible');return false}
+ recChunks=[];
+ rec.ondataavailable=e=>{if(e.data&&e.data.size)recChunks.push(e.data)};
+ rec.onstop=()=>{
+  const type=(rec&&rec.mimeType)||mt||'video/webm',b=new Blob(recChunks,{type}),dur=Math.max(1,Math.round((performance.now()-recT0)/1000));rec=null;recChunks=[];
+  if(b.size<1000){toast('Vidéo trop courte');return}
+  showPreview('video',b,dur);
+ };
+ try{rec.start(250)}catch(e){toast('Enregistrement impossible');rec=null;return false}
+ recT0=performance.now();return true;
+}
+function stopRec(){
+ if(!recording)return;
+ recording=false;$('#camShut').classList.remove('rec');$('#camPr').style.strokeDashoffset='239';
+ try{rec.stop()}catch(e){}
+}
+const shut=$('#camShut');
+shut.addEventListener('pointerdown',e=>{
+ e.preventDefault();try{shut.setPointerCapture(e.pointerId)}catch(_){}
+ if(recording||holdT)return;
+ holdT=setTimeout(()=>{holdT=0;if(startRec()){recording=true;shut.classList.add('rec')}},350);
+});
+shut.addEventListener('pointerup',()=>{if(holdT){clearTimeout(holdT);holdT=0;if(postMode)toast('Maintiens le bouton pour filmer');else takePhoto()}else if(recording)stopRec()});
+shut.addEventListener('pointercancel',()=>{if(holdT){clearTimeout(holdT);holdT=0}else if(recording)stopRec()});
+shut.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* ---------- aperçu + enregistrement dans la galerie ---------- */
+function capFile(){
+ const ext=cap.type==='image'?'jpg':(cap.blob.type.includes('mp4')?'mp4':'webm'),d=new Date();
+ const nm=`vyro_${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}_${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}.${ext}`;
+ return new File([cap.blob],nm,{type:cap.blob.type.split(';')[0]});
+}
+function showPreview(type,blob,dur){
+ if(cap)URL.revokeObjectURL(cap.url);
+ cap={type,blob,dur:dur||0,url:URL.createObjectURL(blob)};
+ $('#pvBox').innerHTML=type==='image'?`<img src="${cap.url}" alt="">`:`<video src="${cap.url}" autoplay loop playsinline controls></video>`;
+ const v=$('#pvBox video');if(v){const p=v.play();if(p&&p.catch)p.catch(()=>{})}
+ $('#camPv').classList.add('on');
+ $('#pvShare').hidden=!(navigator.canShare&&navigator.share);
+ stopLoop();
+}
+function closePreview(quiet){
+ if(cap){URL.revokeObjectURL(cap.url);cap=null}
+ $('#pvBox').innerHTML='';$('#camPv').classList.remove('on');
+ if(!quiet)startLoop();
+}
+async function saveCap(forceShare){
+ if(!cap)return;
+ const f=capFile();
+ if((forceShare||isIOS)&&navigator.canShare&&navigator.canShare({files:[f]})){
+  try{await navigator.share({files:[f]});if(!forceShare)toast('Choisis « Enregistrer » pour la galerie');return}catch(e){if(e&&e.name==='AbortError')return}
+ }
+ const a=document.createElement('a');a.href=cap.url;a.download=f.name;document.body.appendChild(a);a.click();a.remove();
+ toast('Enregistré ✔ Regarde dans ta galerie ou tes Téléchargements');
+}
+$('#pvSave').onclick=()=>saveCap(false);
+$('#pvShare').onclick=()=>saveCap(true);
+$('#pvRetake').onclick=()=>closePreview(false);
+
+
+
+/* ---------- brouillons de vidéos (sur ce téléphone) ---------- */
+async function draftList(){try{return (await LDB.get('meta','drafts'))||[]}catch(e){return[]}}
+async function updDraftBtn(){const n=(await draftList()).length;const b=$('#camDrN');if(b)b.textContent=n?'Brouillons ('+n+')':'Brouillons'}
+async function draftSave(f,dur){
+ const id='d'+Date.now();
+ await LDB.set('blobs','draft:'+id,{blob:f,dur:dur||0,at:Date.now(),type:f.type||'video/webm'});
+ const l=await draftList();l.unshift(id);
+ for(const old of l.slice(10))await LDB.del('blobs',['draft:'+old]);
+ await LDB.set('meta','drafts',l.slice(0,10));
+}
+$('#pvDraft').onclick=async()=>{
+ if(!cap||cap.type!=='video')return;
+ try{await draftSave(capFile(),cap.dur);toast('Brouillon enregistré ✔');back()}catch(e){toast('Enregistrement impossible')}
+};
+$('#camDraft').onclick=async()=>{
+ const l=await draftList();
+ const recs=(await Promise.all(l.map(async id=>({id,r:await LDB.get('blobs','draft:'+id)})))).filter(x=>x.r&&x.r.blob);
+ const row=x=>`<div class="opt" data-d="${x.id}"><div class="rt"><b>Brouillon${x.r.dur?' · '+x.r.dur+' s':''}</b><small>${new Date(x.r.at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · ${(x.r.blob.size/1048576).toFixed(1)} Mo</small></div><button type="button" class="dbt" data-pub>Publier</button><button type="button" class="dbt" data-del aria-label="Supprimer">🗑</button></div>`;
+ const sh=openSheet('Mes brouillons',`<div class="dfl">${recs.map(row).join('')||'<p class="muted">Aucun brouillon pour l’instant.</p>'}</div>`);
+ sh.onclick=async e=>{
+  const o=e.target.closest('[data-d]');if(!o)return;const id=o.dataset.d;
+  if(e.target.closest('[data-del]')){
+   await LDB.del('blobs',['draft:'+id]);await LDB.set('meta','drafts',(await draftList()).filter(x=>x!==id));o.remove();updDraftBtn();return}
+  if(e.target.closest('[data-pub]')){
+   const r=await LDB.get('blobs','draft:'+id);if(!r)return;
+   const ext=/mp4/.test(r.type)?'mp4':'webm',f=new File([r.blob],'draft.'+ext,{type:r.type});
+   closeSheet();back();
+   setTimeout(()=>uploadSheet({file:f,dur:r.dur,onDone:async()=>{await LDB.del('blobs',['draft:'+id]);await LDB.set('meta','drafts',(await draftList()).filter(x=>x!==id))}}),320);
+  }
+ };
+};
+
+
+/* ---------- photo de profil : outils d'images ---------- */
+async function loadBmp(file){
+ try{return await createImageBitmap(file,{imageOrientation:'from-image'})}catch(e){}
+ return new Promise((ok,ko)=>{const im=new Image(),u=URL.createObjectURL(file);im.onload=()=>{URL.revokeObjectURL(u);ok(im)};im.onerror=()=>{URL.revokeObjectURL(u);ko(new Error('image'))};im.src=u});
+}
+const toJpeg=(c,q)=>new Promise((ok,ko)=>c.toBlob(b=>b?ok(b):ko(new Error('encode')),'image/jpeg',q));
+async function squareJpeg(file,n){
+ const b=await loadBmp(file),w=b.width||b.naturalWidth,h=b.height||b.naturalHeight,s=Math.min(w,h),c=document.createElement('canvas');
+ c.width=c.height=n;c.getContext('2d').drawImage(b,(w-s)/2,(h-s)/2,s,s,0,0,n,n);
+ return toJpeg(c,.88);
+}
+async function fitJpeg(file,mw,mh){
+ const b=await loadBmp(file),w=b.width||b.naturalWidth,h=b.height||b.naturalHeight,k=Math.min(1,mw/w,mh/h),c=document.createElement('canvas');
+ c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(b,0,0,c.width,c.height);
+ return toJpeg(c,.9);
+}
+function sendImage(blob,token,onProg){
+ return new Promise((ok,ko)=>{
+  const fd=new FormData();fd.append('image',blob,'photo.jpg');
+  const x=new XMLHttpRequest();x.open('POST',MEDIA_URL+'/upload');x.setRequestHeader('Authorization','Bearer '+token);
+  if(onProg)x.upload.onprogress=e=>{if(e.lengthComputable)onProg(Math.round(e.loaded/e.total*100))};
+  x.onerror=()=>ko(new Error('network'));
+  x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}if(x.status===200&&j.file_id)ok(j);else ko(new Error(j.error||'upload_failed'))};
+  x.send(fd);
+ });
+}
+const vidDur=f=>new Promise(ok=>{const v=document.createElement('video'),u=URL.createObjectURL(f);v.preload='metadata';v.onloadedmetadata=()=>{ok(Math.round(v.duration)||0);URL.revokeObjectURL(u)};v.onerror=()=>{ok(0);URL.revokeObjectURL(u)};v.src=u});
+
+/* ---------- stories ---------- */
+let stories=[];
+const seen=new Set();
+try{JSON.parse(localStorage.getItem('vyro_seen')||'[]').slice(-400).forEach(x=>seen.add(x))}catch(e){}
+const saveSeen=()=>{try{localStorage.setItem('vyro_seen',JSON.stringify([...seen].slice(-400)))}catch(e){}};
+const surl=id=>MEDIA_URL+'/story/'+id+'?t='+encodeURIComponent(tok);
+const ago=iso=>{const m=Math.max(0,Math.round((Date.now()-new Date(iso))/60000));return m<1?'à l’instant':m<60?'il y a '+m+' min':'il y a '+Math.floor(m/60)+' h'};
+const unseen=g=>g.items.some(i=>!seen.has(i.id));
+async function loadStories(){
+ if(!me||!MEDIA_URL)return;
+ const [{data,error},vw]=await Promise.all([sb.from('vyro_stories').select('id,user_id,kind,duration,created_at,profile:vyro_profiles!vyro_stories_user_id_fkey(username,display_name,avatar_url)').order('created_at',{ascending:true}).limit(300),
+  sb.from('vyro_story_views').select('story_id').eq('viewer_id',me.id).limit(500)]);
+ if(error)return;
+ if(vw&&vw.data){vw.data.forEach(r=>seen.add(r.story_id));saveSeen()}
+ (data||[]).forEach(s=>{if(s.user_id===me.id)seen.add(s.id)});
+ const m=new Map();
+ (data||[]).forEach(s=>{let g=m.get(s.user_id);if(!g){const p=s.profile||{};g={uid:s.user_id,name:p.display_name||p.username||'?',avatar:p.avatar_url,items:[]};m.set(s.user_id,g)}g.items.push({id:s.id,kind:s.kind,dur:s.duration,at:s.created_at})});
+ stories=[...m.values()];renderStories();
+}
+function storyOrder(){
+ const mine=stories.find(g=>g.uid===me.id),rest=stories.filter(g=>g.uid!==me.id);
+ rest.sort((a,b)=>(unseen(b)-unseen(a))||(new Date(b.items[b.items.length-1].at)-new Date(a.items[a.items.length-1].at)));
+ return (mine?[mine]:[]).concat(rest);
+}
+function renderStories(){
+ const el=$('#stories');if(!el||!me)return;
+ const order=storyOrder(),mine=order.find(g=>g.uid===me.id),others=order.filter(g=>g.uid!==me.id);
+ const myAv=av({name:me.display_name||me.username,h:hue(me.username),uid:me.id,avatar:me.avatar_url},58);
+ el.innerHTML=`<button class="st ${mine?(unseen(mine)?'':'seen'):'none'}" data-u="${me.id}"><span class="ring"><span class="avw">${myAv}<span class="pl" data-add>${I('plus')}</span></span></span><small>Ma story</small></button>`
+  +others.map(g=>`<button class="st ${unseen(g)?'':'seen'}" data-u="${g.uid}"><span class="ring">${av({name:g.name,h:hue(g.name),uid:g.uid,avatar:g.avatar},58)}</span><small>${esc(g.name)}</small></button>`).join('')
+  +(others.length?'':'<p class="sthint">Les stories de tes contacts et abonnements apparaîtront ici.</p>');
+}
+$('#stories').onclick=e=>{
+ const b=e.target.closest('.st');if(!b)return;
+ const mine=b.dataset.u===me.id;
+ if(mine&&(e.target.closest('[data-add]')||!stories.some(g=>g.uid===me.id)))addStory();
+ else openStories(b.dataset.u);
+};
+setInterval(()=>{if(curScreen==='chat'&&me)loadStories()},90000);
+
+/* visionneuse */
+const sv={list:[],gi:0,ii:0,raf:0,paused:false};
+function openStories(uid){
+ const order=storyOrder(),gi=order.findIndex(g=>g.uid===uid);if(gi<0)return;
+ sv.list=order;sv.gi=gi;
+ const first=order[gi].items.findIndex(i=>!seen.has(i.id));sv.ii=first<0?0:first;
+ push('story');playStory();
+}
+const viewSent=new Set();
+async function storyViews(g,it){
+ const b=$('#svViews');if(!b)return;
+ b.hidden=g.uid!==me.id;if(b.hidden)return;
+ b.innerHTML=I('eye')+'<span>…</span>';b.dataset.id=it.id;
+ const {count}=await sb.from('vyro_story_views').select('*',{count:'exact',head:true}).eq('story_id',it.id);
+ if(b.dataset.id===it.id)b.innerHTML=I('eye')+'<span>'+(count||0)+' vue'+((count||0)>1?'s':'')+'</span>';
+}
+$('#svViews').onclick=async()=>{
+ const id=$('#svViews').dataset.id;if(!id)return;
+ svPause(true);
+ const sh=openSheet('Vues de ta story','<div id="vwBody"><p class="empty" style="padding:20px 0">Chargement…</p></div>');
+ const {data}=await sb.rpc('vyro_story_viewers',{p_story:id});
+ const l=data||[];
+ if($('#vwBody'))$('#vwBody').innerHTML=l.map(u=>`<div class="urow" data-u="${u.viewer_id}">${av({name:u.display_name||u.username,h:hue(u.username),uid:u.viewer_id,avatar:u.avatar_url},44)}<div><b>${esc(u.display_name||u.username)}</b><small>@${esc(u.username)} · ${ago(u.viewed_at)}</small></div></div>`).join('')||'<p class="empty" style="padding:20px 0">Personne n’a encore vu cette story.</p>';
+ sh.onclick=e=>{const u=e.target.closest('[data-u]');if(u){closeSheet();back();openProfile(u.dataset.u)}};
+};
+function stopStory(){
+ cancelAnimationFrame(sv.raf);sv.raf=0;
+ const v=$('#svBox video');if(v){try{v.pause();v.removeAttribute('src');v.load()}catch(e){}}
+}
+function playStory(){
+ stopStory();
+ const g=sv.list[sv.gi];if(!g){back();return}
+ const it=g.items[sv.ii];if(!it){nextStory();return}
+ seen.add(it.id);saveSeen();
+ if(g.uid!==me.id&&!viewSent.has(it.id)){viewSent.add(it.id);sb.from('vyro_story_views').insert({story_id:it.id,viewer_id:me.id}).then(()=>{},()=>{})}
+ storyViews(g,it);
+ $('#svAv').innerHTML=av({name:g.name,h:hue(g.name),uid:g.uid,avatar:g.avatar},38);
+ $('#svName').textContent=g.uid===me.id?'Ma story':g.name;$('#svTime').textContent=ago(it.at);
+ $('#svDel').hidden=g.uid!==me.id;
+ $('#svBars').innerHTML=g.items.map((_,i)=>`<i class="${i<sv.ii?'done':''}"><b></b></i>`).join('');
+ $('#svMsg').textContent='';
+ const box=$('#svBox'),bar=$('#svBars').children[sv.ii].firstChild;
+ sv.paused=false;
+ let v=null,ready=false,el=0,last=performance.now();
+ if(it.kind==='image'){
+  box.innerHTML='<img alt="">';const im=box.firstChild;
+  im.onload=()=>{ready=true};
+  im.onerror=()=>{$('#svMsg').textContent='Impossible de charger cette story.';ready=true};
+  im.src=surl(it.id);
+ }else{
+  box.innerHTML='<video playsinline autoplay></video>';v=box.firstChild;
+  v.onended=nextStory;
+  v.onerror=()=>{$('#svMsg').textContent='Impossible de charger cette vidéo.';v=null;ready=true};
+  v.src=surl(it.id);
+  const p=v.play();if(p&&p.catch)p.catch(()=>{v.muted=true;v.play().catch(()=>{})});
+ }
+ const nx=g.items[sv.ii+1];if(nx&&nx.kind==='image'){const pr=new Image();pr.src=surl(nx.id)}
+ const tick=now=>{
+  sv.raf=requestAnimationFrame(tick);
+  const dt=now-last;last=now;let p;
+  if(v){const d=isFinite(v.duration)&&v.duration>0?v.duration:(it.dur||15);p=v.currentTime/d}
+  else{if(ready&&!sv.paused)el+=dt;p=el/5000}
+  bar.style.width=Math.min(100,p*100)+'%';
+  if(p>=1)nextStory();
+ };
+ sv.raf=requestAnimationFrame(tick);
+}
+function nextStory(){
+ const g=sv.list[sv.gi];if(!g){back();return}
+ if(sv.ii<g.items.length-1)sv.ii++;
+ else{sv.gi++;sv.ii=0;if(sv.gi>=sv.list.length){back();return}}
+ playStory();
+}
+function prevStory(){if(sv.ii>0)sv.ii--;else if(sv.gi>0){sv.gi--;sv.ii=0}playStory()}
+let svHold=0,svHeld=false;
+const svPause=on=>{sv.paused=on;const v=$('#svBox video');if(v){if(on)v.pause();else v.play().catch(()=>{})}};
+for(const [id,side] of [['#svL','l'],['#svR','r']]){
+ const t=$(id);
+ t.addEventListener('pointerdown',e=>{svHeld=false;clearTimeout(svHold);svHold=setTimeout(()=>{svHeld=true;svPause(true)},220)});
+ t.addEventListener('pointerup',()=>{clearTimeout(svHold);if(svHeld){svHeld=false;svPause(false);return}side==='l'?prevStory():nextStory()});
+ t.addEventListener('pointercancel',()=>{clearTimeout(svHold);if(svHeld){svHeld=false;svPause(false)}});
+ t.addEventListener('contextmenu',e=>e.preventDefault());
+}
+$('#svX').onclick=()=>back();
+$('#svDel').onclick=async()=>{
+ const g=sv.list[sv.gi],it=g&&g.items[sv.ii];if(!it||g.uid!==me.id)return;
+ svPause(true);
+ if(!confirm('Supprimer cette story ?')){svPause(false);return}
+ const {error}=await sb.from('vyro_stories').delete().eq('id',it.id);
+ if(error){toast('Suppression impossible');svPause(false);return}
+ g.items.splice(sv.ii,1);
+ if(!g.items.length){stories=stories.filter(x=>x!==g);renderStories();back();toast('Story supprimée');return}
+ if(sv.ii>=g.items.length)sv.ii=g.items.length-1;
+ renderStories();
+ playStory();
+};
+
+/* publication */
+async function publishStory(blob,kind,dur,onProg){
+ const {data:{session}}=await sb.auth.getSession();
+ if(!session)throw new Error('unauthorized');
+ const r=kind==='image'?await sendImage(blob,session.access_token,onProg):await sendVideo(blob,dur,session.access_token,onProg||(()=>{}));
+ const {error}=await sb.from('vyro_stories').insert({user_id:me.id,kind,tg_file_id:r.file_id,duration:kind==='video'?(r.duration||dur||null):null});
+ if(error)throw error;
+ await loadStories();
+}
+function addStory(){if(MEDIA_URL&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)openCam();else addStorySheet()}
+function addStorySheet(){
+ openSheet('Ajouter à ma story',`<button class="cta" id="aCam" type="button">${I('camera')}Prendre une photo ou une vidéo</button>
+ <label class="cta alt" for="aFile" style="margin-top:10px">${I('plus')}Choisir dans la galerie</label><input id="aFile" type="file" accept="image/*,video/*" hidden>
+ <div class="prog" id="aProg" hidden><i></i></div><p class="muted" id="aInfo" style="font-size:13px;margin-top:12px">Ta story reste visible 24 h pour tes abonnés et tes contacts.</p>`);
+ $('#aCam').onclick=()=>{closeSheet();openCam()};
+ $('#aFile').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;const info=$('#aInfo'),bar=$('#aProg');
+  try{
+   let blob,kind,dur=0;
+   if(String(f.type).startsWith('image/')){kind='image';blob=await fitJpeg(f,1080,1920)}
+   else if(String(f.type).startsWith('video/')){
+    if(f.size>MAX_VIDEO){info.textContent='Vidéo trop lourde ('+(f.size/1048576).toFixed(1)+' Mo). Maximum : 20 Mo.';return}
+    dur=await vidDur(f);if(dur>60){info.textContent='Vidéo trop longue : 60 secondes maximum.';return}
+    kind='video';blob=f;
+   }else{info.textContent='Choisis une photo ou une vidéo.';return}
+   bar.hidden=false;info.textContent='Publication…';
+   await publishStory(blob,kind,dur,pc=>{bar.firstChild.style.width=pc+'%'});
+   closeSheet();toast('Story publiée ✅');
+  }catch(x){bar.hidden=true;info.textContent=x&&x.message==='too_large'?'Fichier trop lourd.':x&&x.message==='unauthorized'?'Session expirée : reconnecte-toi.':'Publication impossible, réessaie.'}
+ };
+}
+$('#pvStory').onclick=async()=>{
+ if(!cap)return;
+ const b=$('#pvStory'),old=b.innerHTML;b.disabled=true;b.textContent='Envoi…';
+ try{
+  let blob=cap.blob;const kind=cap.type;
+  if(kind==='video'){
+   blob=new File([blob],'story.'+(blob.type.includes('mp4')?'mp4':'webm'),{type:blob.type.split(';')[0]});
+   if(blob.size>MAX_VIDEO)throw new Error('too_large');
+  }
+  await publishStory(blob,kind,cap.dur||0);
+  toast('Story publiée ✅');closePreview(true);back();
+ }catch(x){toast(x&&x.message==='too_large'?'Vidéo trop lourde pour une story (20 Mo max)':'Publication impossible, réessaie')}
+ finally{b.disabled=false;b.innerHTML=old}
+};
+
+/* =====================================================================
+   VYRO v3 — social : confirmations, signalement, blocage, recherche,
+   profils des autres, visionneuse, réglages (sécurité, abonnés, blocages)
+   ===================================================================== */
+const ART_CHAT=`<svg class="art" viewBox="0 0 220 160" aria-hidden="true"><defs><linearGradient id="ag1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d8b4fe"/><stop offset="1" stop-color="#7c3aed"/></linearGradient><linearGradient id="ag2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f9a8d4"/><stop offset="1" stop-color="#9333ea"/></linearGradient></defs><circle cx="110" cy="84" r="62" fill="#a855f7" opacity=".12"/><rect x="20" y="22" width="118" height="68" rx="24" fill="url(#ag1)"/><path d="M50 86 40 114 76 90z" fill="#7c3aed"/><circle cx="56" cy="56" r="7" fill="#fff"/><circle cx="79" cy="56" r="7" fill="#fff" opacity=".8"/><circle cx="102" cy="56" r="7" fill="#fff" opacity=".6"/><rect x="92" y="64" width="108" height="64" rx="22" fill="url(#ag2)" opacity=".96"/><path d="M178 124l14 22-34-16z" fill="#9333ea"/><path d="M146 84c0-6 5-10 10-10 4 0 6 2 8 5 2-3 4-5 8-5 5 0 10 4 10 10 0 10-18 20-18 20s-18-10-18-20z" fill="#fff"/><g fill="#fff"><circle cx="34" cy="132" r="3"/><circle cx="196" cy="34" r="3"/><path d="M24 12l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/></g></svg>`;
+const ART_VIDEO=`<svg class="art" viewBox="0 0 220 160" aria-hidden="true"><defs><linearGradient id="av1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f0abfc"/><stop offset="1" stop-color="#6d28d9"/></linearGradient></defs><circle cx="110" cy="80" r="64" fill="#a855f7" opacity=".12"/><rect x="62" y="14" width="96" height="132" rx="20" fill="#14072b" stroke="url(#av1)" stroke-width="4"/><rect x="72" y="26" width="76" height="92" rx="12" fill="url(#av1)" opacity=".9"/><path d="M96 54v36l32-18z" fill="#fff"/><circle cx="110" cy="132" r="6" fill="#c084fc"/><path d="M168 46c0-6 5-10 10-10 4 0 6 2 8 5 2-3 4-5 8-5 5 0 10 4 10 10 0 10-18 20-18 20s-18-10-18-20z" fill="#f472b6" transform="translate(-24 6) scale(.8)"/><g fill="#fff"><circle cx="40" cy="44" r="3"/><circle cx="188" cy="116" r="3"/><path d="M34 100l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/></g></svg>`;
+
+/* confirmation dans une feuille du bas */
+function askConfirm(title,msg,ok){
+ return new Promise(res=>{
+  const sh=openSheet(esc(title),`<p class="cmsg">${msg}</p><div class="cbtns"><button class="cta alt" data-r="0" type="button">Annuler</button><button class="cta dng" data-r="1" type="button">${esc(ok)}</button></div>`);
+  let done=false;const fin=v=>{if(done)return;done=true;sheetHook=null;res(v)};
+  sheetHook=()=>fin(false);
+  sh.onclick=e=>{const b=e.target.closest('[data-r]');if(b){fin(b.dataset.r==='1');closeSheet()}};
+ });
+}
+
+/* menu d'une vidéo */
+async function dlVideo(p){
+ if(!p.fid||!MEDIA_URL){toast('Téléchargement indisponible');return}
+ if(!p.mine){
+  try{const {data}=await sb.from('vyro_profiles').select('settings').eq('id',p.uid).maybeSingle();
+   if(data&&data.settings&&data.settings.priv&&data.settings.priv.download===false){toast('Cette personne n’autorise pas le téléchargement');return}}catch(e){}
+ }
+ toast('Téléchargement…');
+ try{
+  const r=await fetch(vurl(p.id));if(!r.ok)throw new Error('http');
+  const bl=await r.blob(),ext=/webm/.test(bl.type)?'webm':'mp4',name='vyro-'+String(p.user||'video').replace(/[^\w-]/g,'')+'-'+String(p.id).slice(0,6)+'.'+ext;
+  const f=new File([bl],name,{type:bl.type||'video/mp4'});
+  if(/iPad|iPhone|iPod/.test(navigator.userAgent)&&navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f]})}catch(e){}return}
+  const u=URL.createObjectURL(bl),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),60000);toast('Vidéo enregistrée ✅');
+ }catch(e){toast('Téléchargement impossible, réessaie')}
+}
+function postMenu(p){
+ const dl=p.fid?[['download','Télécharger la vidéo','dl']]:[];
+ const rows=p.mine?dl.concat([['trash','Supprimer la vidéo','del','dng']]):dl.concat([['user','Voir le profil','prof'],['flag','Signaler la vidéo','rep'],['ban','Bloquer @'+p.user,'blk','dng']]);
+ const sh=openSheet('Options',rows.map(([i,t,a,c])=>`<div class="opt ${c||''}" data-act="${a}">${I(i)}<span>${esc(t)}</span></div>`).join(''));
+ sh.onclick=e=>{const o=e.target.closest('[data-act]');if(!o)return;const a=o.dataset.act;closeSheet();
+  if(a==='del')delPost(p);else if(a==='dl')dlVideo(p);else if(a==='prof')openProfile(p.uid);else if(a==='rep')reportSheet('video',p.id,'cette vidéo');else if(a==='blk')blockUser(p.uid,p.user)};
+}
+async function delPost(p){
+ if(!await askConfirm('Supprimer cette vidéo ?','Elle disparaîtra pour tout le monde, avec ses likes et ses commentaires. Cette action est définitive.','Supprimer'))return;
+ const {error}=await sb.from('vyro_videos').delete().eq('id',p.id);
+ if(error){toast('Suppression impossible');return}
+ posts=posts.filter(x=>x.id!==p.id);for(const k in G)G[k]=G[k].filter(x=>x.id!==p.id);
+ const el=$(`#feed .post[data-id="${p.id}"]`);if(el)el.remove();
+ if(!posts.length)renderFeed();else syncPlay();
+ if(curScreen==='profile')renderGrid();
+ toast('Vidéo supprimée');
+}
+
+/* signalement */
+function reportSheet(type,id,label){
+ const R=['Contenu inapproprié','Spam ou arnaque','Harcèlement ou haine','Violence ou danger','Autre'];
+ openSheet('Signaler '+esc(label),`<div>${R.map((r,i)=>`<label class="opt rr"><input type="radio" name="rr" value="${esc(r)}" ${i?'':'checked'}><span>${esc(r)}</span></label>`).join('')}</div><label class="fld" style="margin-top:12px">Détails (facultatif)<textarea id="rpD" rows="2" maxlength="200"></textarea></label><button class="cta" id="rpGo" type="button">Envoyer le signalement</button>`);
+ $('#rpGo').onclick=async()=>{
+  const ch=document.querySelector('input[name=rr]:checked'),d=$('#rpD').value.trim();
+  const reason=((ch&&ch.value)||'Autre')+(d?' — '+d:'');
+  const {error}=await sb.from('vyro_reports').insert({reporter_id:me.id,target_type:type,target_id:String(id),reason:reason.slice(0,300)});
+  closeSheet();toast(error?'Signalement impossible':'Merci, le signalement a été envoyé');
+ };
+}
+
+/* blocage */
+async function blockUser(uid,uname){
+ if(!await askConfirm('Bloquer @'+uname+' ?','Vous ne pourrez plus vous écrire ni vous appeler, et ses vidéos disparaîtront de ton fil. Tu pourras le débloquer à tout moment.','Bloquer'))return;
+ const {error}=await sb.from('vyro_blocks').insert({blocker_id:me.id,blocked_id:uid});
+ if(error&&error.code!=='23505'){toast('Blocage impossible');return}
+ blocks.add(uid);following.delete(uid);
+ sb.from('vyro_follows').delete().eq('follower_id',me.id).eq('following_id',uid).then(()=>{},()=>{});
+ posts=posts.filter(p=>p.uid!==uid);for(const k in G)G[k]=G[k].filter(p=>p.uid!==uid);
+ if(curScreen==='videos')renderFeed();
+ if(curScreen==='user'&&userCur&&userCur.u.id===uid)renderUser();
+ if(curScreen==='thread'&&cur)setStatus();
+ toast('@'+uname+' est bloqué');
+}
+async function unblockUser(uid,uname){
+ const {error}=await sb.from('vyro_blocks').delete().eq('blocker_id',me.id).eq('blocked_id',uid);
+ if(error){toast('Action impossible');return}
+ blocks.delete(uid);
+ if(curScreen==='user'&&userCur&&userCur.u.id===uid)renderUser();
+ if(curScreen==='thread'&&cur)setStatus();
+ toast('@'+uname+' est débloqué');
+}
+
+/* visionneuse : ouvre une liste de vidéos dans l'écran Vidéos */
+function openViewer(list,idx){
+ if(!list||!list.length)return;
+ posts=list.slice();feedMode=true;$('#vBack').hidden=false;
+ renderFeed();push('videos');
+ requestAnimationFrame(()=>{const f=$('#feed');f.scrollTop=idx*f.clientHeight;syncPlay()});
+}
+
+/* ---------- recherche ---------- */
+const sS={m:'v',seq:0,tm:0,tags:null,list:[]};
+function openSearch(q){
+ sS.m='v';sS.disc=null;$$('#sSeg button').forEach(b=>b.classList.toggle('cur',b.dataset.m==='v'));
+ $('#sIn').value=q||'';$('#sClr').hidden=!q;
+ if(curScreen!=='search')push('search');
+ runSearch();
+ if(!q)setTimeout(()=>$('#sIn').focus(),260);
+}
+async function runSearch(){
+ const q=$('#sIn').value.trim(),box=$('#sRes'),my=++sS.seq;
+ $('#sClr').hidden=!q;
+ if(!q){
+  if(!sS.disc){
+   box.innerHTML='<p class="empty">Chargement…</p>';
+   const [dv,vs]=await Promise.all([
+    sb.rpc('vyro_discover'),
+    sb.from('vyro_videos').select(VCOLS).is('page_of',null).order('likes_count',{ascending:false}).order('created_at',{ascending:false}).limit(18)]);
+   sS.disc={tags:(dv.data&&dv.data.tags)||[],creators:((dv.data&&dv.data.creators)||[]).filter(u=>!blocks.has(u.id)),vids:(vs.data||[]).map(mapPost).filter(p=>!blocks.has(p.uid))};
+  }
+  if(my!==sS.seq)return;
+  const d=sS.disc;sS.list=d.vids;
+  const tg=d.tags.length?`<div class="sec sm">${I('hash')}Hashtags tendance</div><div class="tagcloud">${d.tags.map(t=>`<button type="button" class="tagc" data-t="#${esc(t.tag)}">#${esc(t.tag)}<em>${t.n}</em></button>`).join('')}</div>`:'';
+  const cr=d.creators.length?`<div class="sec sm">${I('user')}Créateurs à suivre</div>${d.creators.map(u=>`<div class="urow" data-u="${u.id}">${av({name:u.display_name||u.username,h:hue(u.username),uid:u.id,avatar:u.avatar_url},46)}<div><b>${esc(u.display_name||u.username)}</b><small>@${esc(u.username)} · ${u.followers} abonné${u.followers>1?'s':''}</small></div><button type="button" class="btn-o sm" data-fol="${u.id}" data-n="${esc(u.username)}">${following.has(u.id)?'Abonné':'Suivre'}</button></div>`).join('')}`:'';
+  const vd=d.vids.length?`<div class="sec sm">${I('heart')}Vidéos populaires</div><div class="grid">${gridHTML(d.vids,'')}</div>`:'';
+  box.innerHTML=(tg+cr+vd)||`<div class="empty big"><p>Rien à découvrir pour l’instant. Publie la première vidéo !</p></div>`;
+  return;
+ }
+ if(sS.m==='v'){
+  const {data}=await sb.rpc('vyro_search_videos',{p_q:q,p_limit:40});
+  if(my!==sS.seq)return;
+  sS.list=(data||[]).map(v=>mapPost(Object.assign({},v,{author:{username:v.username,display_name:v.display_name,avatar_url:v.avatar_url}}))).filter(p=>!blocks.has(p.uid));
+  box.innerHTML=`<div class="grid">${gridHTML(sS.list,'Aucune vidéo trouvée pour « '+esc(q)+' »')}</div>`;
+ }else{
+  const v=q.replace(/^@/,'').replace(/[%_\\,().*]/g,'');
+  if(!v){box.innerHTML='';return}
+  const {data}=await sb.from('vyro_profiles').select('id,username,display_name,avatar_url').or('username.ilike.%'+v+'%,display_name.ilike.%'+v+'%').neq('id',me.id).limit(30);
+  if(my!==sS.seq)return;
+  const l=(data||[]).filter(u=>!blocks.has(u.id));
+  box.innerHTML=l.map(u=>`<div class="urow" data-u="${u.id}">${av({name:u.display_name||u.username,h:hue(u.username),uid:u.id,avatar:u.avatar_url},46)}<div><b>${esc(u.display_name||u.username)}</b><small>@${esc(u.username)}</small></div>${following.has(u.id)?`<em class="fchip">Abonné</em>`:''}</div>`).join('')||`<div class="empty big">${ART_CHAT}<p>Personne ne correspond à « ${esc(q)} »</p></div>`;
+ }
+}
+$('#sIn').addEventListener('input',()=>{clearTimeout(sS.tm);sS.tm=setTimeout(runSearch,280)});
+$('#sIn').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();clearTimeout(sS.tm);runSearch();$('#sIn').blur()}});
+$('#sClr').onclick=()=>{$('#sIn').value='';runSearch();$('#sIn').focus()};
+$('#sSeg').onclick=e=>{const b=e.target.closest('[data-m]');if(!b)return;sS.m=b.dataset.m;$$('#sSeg button').forEach(x=>x.classList.toggle('cur',x===b));runSearch()};
+$('#sRes').onclick=async e=>{
+ const fb=e.target.closest('[data-fol]');
+ if(fb){const id=fb.dataset.fol;await toggleFollow({uid:id,user:fb.dataset.n});fb.textContent=following.has(id)?'Abonné':'Suivre';return}
+ const t=e.target.closest('[data-t]');if(t){$('#sIn').value=t.dataset.t;runSearch();return}
+ const th=e.target.closest('.th');if(th){openViewer(sS.list,+th.dataset.i);return}
+ const u=e.target.closest('[data-u]');if(u)openProfile(u.dataset.u);
+};
+
+/* ---------- profil d'un autre utilisateur ---------- */
+let userCur=null;
+async function openProfile(uid){
+ if(!uid)return;
+ if(uid===me.id){stack=['profile'];show('profile');loadProfileData();return}
+ closeSheet();
+ if(curScreen==='user')stack.pop();
+ push('user');
+ $('#uTitle').textContent='';$('#uBody').innerHTML='<p class="empty">Chargement…</p>';userCur=null;
+ const cnt=f=>sb.from('vyro_follows').select('*',{count:'exact',head:true}).eq(f,uid);
+ const [pr,fe,fi,vs]=await Promise.all([
+  sb.from('vyro_profiles').select('id,username,display_name,bio,avatar_url,is_private,created_at').eq('id',uid).maybeSingle(),
+  cnt('following_id'),cnt('follower_id'),
+  sb.from('vyro_videos').select(VCOLS).is('page_of',null).eq('user_id',uid).order('created_at',{ascending:false}).limit(60)]);
+ if(curScreen!=='user')return;
+ if(!pr.data){$('#uBody').innerHTML='<p class="empty">Profil introuvable</p>';return}
+ userCur={u:pr.data,followers:fe.count||0,following:fi.count||0,vids:(vs.data||[]).map(mapPost)};
+ renderUser();
+}
+function renderUser(){
+ const c=userCur;if(!c)return;
+ const u=c.u,nm=u.display_name||u.username,isF=following.has(u.id),bl=blocks.has(u.id),lock=u.is_private&&!isF;
+ $('#uTitle').textContent='@'+u.username;
+ const likes=c.vids.reduce((s,v)=>s+v.likes,0);
+ $('#uBody').innerHTML=`<div class="phead"><div class="pav"><span>${esc(nm[0].toUpperCase())}</span>${(u.avatar_url&&MEDIA_URL)?`<img src="${aurl(u.id,u.avatar_url)}" alt="" onerror="this.remove()">`:''}</div>
+  <div style="min-width:0"><div class="pname"><span>${esc(nm)}</span></div><div class="muted">@${esc(u.username)}</div></div></div>
+  <div class="stats"><div><b>${fmt(likes)}</b><span>J'aime</span></div><div><b>${fmt(c.followers)}</b><span>Abonnés</span></div><div><b>${fmt(c.following)}</b><span>Abonnements</span></div></div>
+  ${u.bio?`<p class="pbio">${esc(u.bio)}</p>`:''}
+  ${bl?`<button class="cta alt" id="uUnb" type="button">${I('ban')}Débloquer</button>`:`<div class="uacts"><button class="cta ${isF?'alt':''}" id="uFol" type="button">${I(isF?'check':'userplus')}${isF?'Abonné':'Suivre'}</button><button class="cta alt" id="uMsg" type="button">${I('chat')}Message</button></div>`}
+  <div class="ptabs one"><button class="cur">Vidéos</button></div>
+  <div class="grid">${bl?`<div class="emptyg">${ART_CHAT}<p>Tu as bloqué ce compte.</p></div>`:lock?`<div class="emptyg"><span class="lockc">${I('lock')}</span><p>Ce compte est privé.<br>Abonne-toi pour voir ses vidéos.</p></div>`:gridHTML(c.vids,'Aucune vidéo pour l’instant')}</div>`;
+}
+$('#uBody').onclick=async e=>{
+ const c=userCur;if(!c)return;const u=c.u;
+ if(e.target.closest('#uFol')){
+  const was=following.has(u.id);
+  await toggleFollow({uid:u.id,user:u.username},null);
+  if(following.has(u.id)===was)return;
+  c.followers+=was?-1:1;
+  if(!was&&u.is_private){const {data}=await sb.from('vyro_videos').select(VCOLS).is('page_of',null).eq('user_id',u.id).order('created_at',{ascending:false}).limit(60);c.vids=(data||[]).map(mapPost)}
+  renderUser();return}
+ if(e.target.closest('#uMsg')){
+  const {data,error}=await sb.rpc('vyro_start_direct',{p_other:u.id});
+  if(error){toast(errMsg(error));return}
+  await loadChats();openThread(data);return}
+ if(e.target.closest('#uUnb')){unblockUser(u.id,u.username);return}
+ const th=e.target.closest('.th');if(th)openViewer(c.vids,+th.dataset.i);
+};
+$('#uMore').onclick=()=>{
+ const c=userCur;if(!c)return;const u=c.u,bl=blocks.has(u.id);
+ const sh=openSheet('@'+esc(u.username),`<div class="opt" data-act="rep">${I('flag')}<span>Signaler ce compte</span></div><div class="opt dng" data-act="blk">${I('ban')}<span>${bl?'Débloquer':'Bloquer'} @${esc(u.username)}</span></div>`);
+ sh.onclick=e=>{const o=e.target.closest('[data-act]');if(!o)return;closeSheet();
+  if(o.dataset.act==='rep')reportSheet('user',u.id,'ce compte');else bl?unblockUser(u.id,u.username):blockUser(u.id,u.username)};
+};
+
+/* ---------- réglages : sécurité, abonnés / abonnements, comptes bloqués ---------- */
+async function profilesByIds(ids){
+ if(!ids.length)return [];
+ const {data}=await sb.from('vyro_profiles').select('id,username,display_name,avatar_url').in('id',ids.slice(0,200));
+ return data||[];
+}
+const uRows=l=>l.map(u=>`<div class="urow" data-u="${u.id}">${av({name:u.display_name||u.username,h:hue(u.username),uid:u.id,avatar:u.avatar_url},44)}<div><b>${esc(u.display_name||u.username)}</b><small>@${esc(u.username)}</small></div></div>`).join('');
+function sheetSecurity(){
+ openSheet('Sécurité',`<label class="fld">Mot de passe actuel<input id="pwO" type="password" autocomplete="current-password" maxlength="72"></label>
+ <label class="fld">Nouveau mot de passe<input id="pwN" type="password" autocomplete="new-password" maxlength="72" placeholder="6 caractères minimum"></label>
+ <label class="fld">Confirmer le nouveau mot de passe<input id="pwC" type="password" autocomplete="new-password" maxlength="72"></label>
+ <p id="pwE" class="aerr"></p><button class="cta" id="pwGo" type="button">Changer le mot de passe</button>
+ <p class="muted" style="font-size:13px;margin-top:12px">Il n’y a pas de récupération par e-mail : si tu perds ton mot de passe, le compte ne peut pas être retrouvé. Note-le bien.</p>`);
+ $('#pwGo').onclick=async()=>{
+  const o=$('#pwO').value,n=$('#pwN').value,c=$('#pwC').value,er=$('#pwE'),b=$('#pwGo');er.textContent='';
+  if(!o){er.textContent='Entre ton mot de passe actuel.';return}
+  if(n.length<6){er.textContent=ERR.invalid_password;return}
+  if(n!==c){er.textContent='Les deux nouveaux mots de passe sont différents.';return}
+  if(n===o){er.textContent='Le nouveau mot de passe doit être différent.';return}
+  b.disabled=true;b.textContent='Patiente…';
+  try{
+   const v=await sb.auth.signInWithPassword({email:await authMail(),password:o});
+   if(v.error){er.textContent='Mot de passe actuel incorrect.';return}
+   const u=await sb.auth.updateUser({password:n});
+   if(u.error){er.textContent='Changement impossible : '+u.error.message;return}
+   closeSheet();toast('Mot de passe changé ✅');
+  }catch(x){er.textContent='Erreur réseau. Réessaie.'}
+  finally{b.disabled=false;b.textContent='Changer le mot de passe'}
+ };
+}
+async function sheetFollows(which){
+ which=which||'followers';
+ const draw=async w=>{
+  const el=$('#flBody');el.innerHTML='<p class="empty" style="padding:20px 0">Chargement…</p>';
+  const mine=w==='following';
+  const {data}=await sb.from('vyro_follows').select(mine?'following_id':'follower_id').eq(mine?'follower_id':'following_id',me.id).limit(200);
+  const ids=(data||[]).map(r=>mine?r.following_id:r.follower_id);
+  const l=(await profilesByIds(ids)).filter(u=>!blocks.has(u.id));
+  if($('#flBody'))$('#flBody').innerHTML=uRows(l)||`<p class="empty" style="padding:20px 0">${mine?'Tu ne suis personne pour l’instant.':'Personne ne te suit pour l’instant.'}</p>`;
+ };
+ const sh=openSheet('Abonnés et abonnements',`<div class="seg" id="flSeg"><button data-w="followers" class="${which==='followers'?'cur':''}">Abonnés</button><button data-w="following" class="${which==='following'?'cur':''}">Abonnements</button></div><div id="flBody"></div>`);
+ sh.onclick=e=>{
+  const b=e.target.closest('[data-w]');if(b){$$('#flSeg button').forEach(x=>x.classList.toggle('cur',x===b));draw(b.dataset.w);return}
+  const u=e.target.closest('[data-u]');if(u)openProfile(u.dataset.u);
+ };
+ draw(which);
+}
+async function sheetBlocked(){
+ const sh=openSheet('Comptes bloqués','<div id="blBody"><p class="empty" style="padding:20px 0">Chargement…</p></div>');
+ const draw=async()=>{
+  const l=await profilesByIds([...blocks]);
+  if($('#blBody'))$('#blBody').innerHTML=l.map(u=>`<div class="urow">${av({name:u.display_name||u.username,h:hue(u.username),uid:u.id,avatar:u.avatar_url},44)}<div><b>${esc(u.display_name||u.username)}</b><small>@${esc(u.username)}</small></div><button type="button" class="btn-o sm" data-unb="${u.id}" data-n="${esc(u.username)}">Débloquer</button></div>`).join('')||'<p class="empty" style="padding:20px 0">Aucun compte bloqué.</p>';
+ };
+ sh.onclick=async e=>{const b=e.target.closest('[data-unb]');if(!b)return;await unblockUser(b.dataset.unb,b.dataset.n);draw()};
+ draw();
+}
+
+
+/* ---------- vitesse des vocaux ---------- */
+$('#tMsgs').addEventListener('click',e=>{
+ const b=e.target.closest('.spd');if(!b)return;
+ const a=b.previousElementSibling;if(!a||a.tagName!=='AUDIO')return;
+ const L=[1,1.5,2],n=L[(L.indexOf(a.playbackRate)+1)%3]||1;
+ a.playbackRate=n;b.textContent=(n===1.5?'1,5':n)+'×';
+});
+
+/* ---------- sauvegarde / restauration des discussions ---------- */
+async function backupExport(){
+ try{
+  const [msgs,rx]=await Promise.all([LDB.all('msgs'),LDB.all('rx')]);
+  const data={app:'vyro',v:1,uid:me.id,at:new Date().toISOString(),msgs,rx};
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'}),d=new Date();
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='vyro-sauvegarde-'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'.json';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  toast('Sauvegarde enregistrée ✔ ('+msgs.length+' messages)');
+ }catch(x){toast('Sauvegarde impossible')}
+}
+async function backupImport(file){
+ try{
+  if(file.size>40e6){toast('Fichier trop gros');return}
+  const j=JSON.parse(await file.text());
+  if(!j||j.app!=='vyro'||!Array.isArray(j.msgs)){toast('Ce fichier n’est pas une sauvegarde VYRO');return}
+  if(j.uid&&j.uid!==me.id){toast('Cette sauvegarde appartient à un autre compte');return}
+  const ok=x=>x&&typeof x.id==='string'&&typeof x.conversation_id==='string';
+  const msgs=j.msgs.filter(ok).slice(0,200000),rx=(Array.isArray(j.rx)?j.rx:[]).filter(x=>x&&typeof x.k==='string'&&typeof x.conversation_id==='string').slice(0,200000);
+  await LDB.put('msgs',msgs);if(rx.length)await LDB.put('rx',rx);
+  closeSheet();toast('Restauré ✔ ('+msgs.length+' messages)');
+  setTimeout(()=>location.reload(),900);
+ }catch(x){toast('Fichier illisible')}
+}
+$('#rowBackup').onclick=()=>{
+ openSheet('Sauvegarde des discussions',`<p class="muted" style="font-size:14px;line-height:1.45">Tes messages sont gardés sur ce téléphone. Exporte-les pour ne pas les perdre si tu changes de téléphone ou vides les données du navigateur. Les photos, vidéos et vocaux ne sont pas inclus.</p>
+ <div class="bkrow"><button class="cta" id="bkOut" type="button">Exporter</button><button class="cta" id="bkIn" type="button" style="background:rgba(168,85,247,.22);box-shadow:none">Restaurer</button></div><input id="bkFile" type="file" accept=".json,application/json" hidden>`);
+ $('#bkOut').onclick=backupExport;
+ $('#bkIn').onclick=()=>$('#bkFile').click();
+ $('#bkFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)backupImport(f)};
+};
+
+/* ---------- partage d'une vidéo (lien + envoi dans un chat) ---------- */
+const VLINK=/https?:\/\/[^\s]+?\?v=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi;
+function lkBody(b){
+ const s=String(b||'');let out='',i=0,m;VLINK.lastIndex=0;
+ while((m=VLINK.exec(s))){out+=esc(s.slice(i,m.index))+`<a class="vl" data-v="${m[1]}" href="#">▶ Voir la vidéo</a>`;i=m.index+m[0].length}
+ return out+esc(s.slice(i));
+}
+async function openSharedVideo(id){
+ try{
+  const {data}=await sb.from('vyro_videos').select(VCOLS).is('page_of',null).eq('id',id).maybeSingle();
+  if(!data){toast('Vidéo introuvable ou privée');return}
+  openViewer([mapPost(data)],0);
+ }catch(e){toast('Vidéo introuvable')}
+}
+function shareSheet(p){
+ const url=location.origin+location.pathname+'?v='+p.id;
+ const list=chats.filter(c=>c.type==='group'||c.uid).slice(0,12);
+ const sh=openSheet('Partager la vidéo',`<input class="inp" id="shQ" placeholder="Chercher quelqu’un sur VYRO…" autocomplete="off" style="width:100%;margin-bottom:8px"><div class="shl" id="shR"></div><div class="shl" id="shL">${list.map(c=>`<div class="opt" data-c="${c.id}">${av(c,40)}<div class="rt"><b>${esc(c.name)}</b></div></div>`).join('')||'<p class="muted">Aucune discussion pour l’instant.</p>'}</div>
+  <div class="bkrow"><button class="cta" id="shCopy" type="button">Copier le lien</button>${navigator.share?'<button class="cta" id="shOut" type="button" style="background:rgba(168,85,247,.22);box-shadow:none">Autre appli</button>':''}</div>`);
+ let shT=0,shRes=[];
+ const sendTo=async cid=>{
+  closeSheet();
+  try{await postMsg(cid,'🎬 @'+p.user+(p.cap?' : '+String(p.cap).slice(0,60):'')+'\n'+url);toast('Envoyé ✔')}catch(x){toast('Envoi impossible')}
+ };
+ $('#shQ').oninput=()=>{clearTimeout(shT);const v=$('#shQ').value.trim().replace(/^@/,'');
+  if(v.length<2){shRes=[];$('#shR').innerHTML='';$('#shL').style.display='';return}
+  shT=setTimeout(async()=>{
+   const {data}=await sb.from('vyro_profiles').select('id,username,display_name,avatar_url').or('username.ilike.%'+v.replace(/[%,()]/g,'')+'%,display_name.ilike.%'+v.replace(/[%,()]/g,'')+'%').neq('id',me.id).limit(10);
+   shRes=data||[];$('#shL').style.display='none';
+   $('#shR').innerHTML=shRes.map(u=>`<div class="opt" data-u="${u.id}">${av({name:u.display_name||u.username,h:hue(u.username),uid:u.id,avatar:u.avatar_url},40)}<div class="rt"><b>${esc(u.display_name||u.username)}</b><small>@${esc(u.username)}</small></div></div>`).join('')||'<p class="muted">Personne trouvé.</p>';
+  },250)};
+ sh.onclick=async e=>{
+  const u=e.target.closest('[data-u]');
+  if(u){const {data,error}=await sb.rpc('vyro_start_direct',{p_other:u.dataset.u});if(error){toast('Impossible d’écrire à cette personne');return}await loadChats();sendTo(data);return}
+  const o=e.target.closest('[data-c]');if(!o)return;
+  sendTo(o.dataset.c);return;
+  try{await postMsg(o.dataset.c,'🎬 @'+p.user+(p.cap?' : '+String(p.cap).slice(0,60):'')+'\n'+url);toast('Envoyé ✔')}catch(x){toast('Envoi impossible')}
+ };
+ $('#shCopy').onclick=async()=>{try{await navigator.clipboard.writeText(url);toast('Lien copié ✔')}catch(e){toast(url)}closeSheet()};
+ const so=$('#shOut');if(so)so.onclick=()=>{navigator.share({title:'VYRO',text:p.cap||'',url}).catch(()=>{});closeSheet()};
+}
+
+
+/* ---------- réponse glissée ---------- */
+(()=>{
+ const tm=$('#tMsgs');let sw=null;
+ tm.addEventListener('touchstart',e=>{
+  const b=e.target.closest('.b[data-id]');
+  if(!b||e.touches.length!==1||e.target.closest('audio,video,.spd,input')){sw=null;return}
+  sw={b,x:e.touches[0].clientX,y:e.touches[0].clientY,on:false,t:0};
+ },{passive:true});
+ tm.addEventListener('touchmove',e=>{
+  if(!sw)return;
+  const dx=e.touches[0].clientX-sw.x,dy=e.touches[0].clientY-sw.y;
+  if(!sw.on){
+   if(Math.abs(dy)>12&&Math.abs(dy)>Math.abs(dx)){sw=null;return}
+   if(dx>14&&dx>Math.abs(dy)*1.5)sw.on=true;else return;
+  }
+  sw.t=Math.min(72,Math.max(0,dx)*.7);
+  sw.b.style.transition='none';sw.b.style.transform='translateX('+sw.t+'px)';
+ },{passive:true});
+ const end=()=>{
+  if(!sw)return;
+  const s=sw;sw=null;
+  if(!s.on)return;
+  s.b.style.transition='transform .2s';s.b.style.transform='';
+  if(s.t>=46){
+   const m=cur&&cur.msgs.find(x=>String(x.id)===String(s.b.dataset.id));
+   if(m&&!SYS_RE.test(m.body)&&!CALL_RE.test(m.body)){setReply(m);$('#tIn').focus();try{navigator.vibrate&&navigator.vibrate(15)}catch(x){}}
+  }
+ };
+ tm.addEventListener('touchend',end);tm.addEventListener('touchcancel',end);
+})();
+
+/* ---------- messages épinglés (sur ce téléphone) ---------- */
+const PKEY=()=>'vyro_pins_'+(me?me.id:'x');
+function pinsOf(cid){try{return (JSON.parse(localStorage.getItem(PKEY())||'{}')[cid])||[]}catch(e){return[]}}
+function savePins(cid,a){try{const o=JSON.parse(localStorage.getItem(PKEY())||'{}');if(a.length)o[cid]=a;else delete o[cid];localStorage.setItem(PKEY(),JSON.stringify(o))}catch(e){}}
+function isPinned(id){return !!cur&&pinsOf(cur.id).includes(String(id))}
+function pinToggle(m){
+ if(!cur)return;
+ const id=String(m.id);let a=pinsOf(cur.id);
+ if(a.includes(id)){a=a.filter(x=>x!==id);toast('Message désépinglé')}else{a.push(id);a=a.slice(-5);toast('Message épinglé 📌')}
+ savePins(cur.id,a);pinIdx=-1;renderPinBar();
+}
+let pinIdx=-1;
+function flashMsg(id){
+ const el=$('#tMsgs').querySelector('.b[data-id="'+id+'"]');if(!el)return false;
+ el.scrollIntoView({block:'center',behavior:'smooth'});el.classList.add('hit');setTimeout(()=>el.classList.remove('hit'),1600);return true;
+}
+function renderPinBar(){
+ const bar=$('#pinBar');if(!bar)return;
+ const ids=cur?pinsOf(cur.id).filter(id=>cur.msgs.some(x=>String(x.id)===id)):[];
+ if(!ids.length){bar.hidden=true;bar.innerHTML='';return}
+ const i=pinIdx<0||pinIdx>=ids.length?ids.length-1:pinIdx,m=cur.msgs.find(x=>String(x.id)===ids[i]);
+ bar.hidden=false;bar.dataset.id=ids[i];
+ bar.innerHTML='<span>📌 '+esc(prev(m.body))+'</span>'+(ids.length>1?'<i>'+(i+1)+'/'+ids.length+'</i>':'')+'<button type="button" aria-label="Désépingler">✕</button>';
+}
+$('#pinBar').onclick=e=>{
+ if(!cur)return;
+ const ids=pinsOf(cur.id).filter(id=>cur.msgs.some(x=>String(x.id)===id));
+ if(e.target.closest('button')){const id=$('#pinBar').dataset.id;savePins(cur.id,pinsOf(cur.id).filter(x=>x!==id));pinIdx=-1;renderPinBar();return}
+ const id=$('#pinBar').dataset.id;flashMsg(id);
+ if(ids.length>1){pinIdx=(ids.indexOf(id)+1)%ids.length;renderPinBar()}
+};
+
+/* ---------- recherche dans la discussion ---------- */
+let srchHits=[],srchI=0;
+function openThreadSearch(){
+ if(!cur)return;
+ $('#srchBar').hidden=false;$('#srchQ').value='';srchHits=[];$('#srchN').textContent='0/0';$('#srchQ').focus();
+}
+function closeThreadSearch(){$('#srchBar').hidden=true;srchHits=[];$$('#tMsgs .b.hit').forEach(x=>x.classList.remove('hit'))}
+function runThreadSearch(){
+ const q=$('#srchQ').value.trim().toLowerCase();
+ if(!cur||q.length<2){srchHits=[];$('#srchN').textContent='0/0';return}
+ srchHits=visibleMsgs().filter(m=>!isCtl(m.body)&&!SYS_RE.test(m.body)&&!CALL_RE.test(m.body)&&!parseStk(m.body)&&!MED_RE.test(m.body)&&String(m.body).toLowerCase().includes(q)).map(m=>String(m.id));
+ srchI=srchHits.length-1;showHit();
+}
+function showHit(){
+ $('#srchN').textContent=srchHits.length?(srchI+1)+'/'+srchHits.length:'0/0';
+ $$('#tMsgs .b.hit').forEach(x=>x.classList.remove('hit'));
+ if(srchHits.length){const el=$('#tMsgs').querySelector('.b[data-id="'+srchHits[srchI]+'"]');if(el){el.classList.add('hit');el.scrollIntoView({block:'center',behavior:'smooth'})}}
+}
+$('#srchQ').oninput=runThreadSearch;
+$('#srchUp').onclick=()=>{if(!srchHits.length)return;srchI=(srchI-1+srchHits.length)%srchHits.length;showHit()};
+$('#srchDn').onclick=()=>{if(!srchHits.length)return;srchI=(srchI+1)%srchHits.length;showHit()};
+$('#srchX').onclick=closeThreadSearch;
+$('#srchQ').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#srchDn').click()}};
+
+/* =====================================================================
+   VYRO v3 — chat : menu, éphémère, photos / vidéos / vocaux,
+   notifications, installation (PWA)
+   ===================================================================== */
+let swReg=null,instPrompt=null;
+const isStandalone=()=>(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();instPrompt=e});
+window.addEventListener('appinstalled',()=>{instPrompt=null;toast('VYRO est installée ✅')});
+
+function initExtras(){
+ if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){
+  navigator.serviceWorker.register('sw.js').then(r=>{swReg=r;pushEnable()}).catch(()=>{});
+  navigator.serviceWorker.addEventListener('message',ev=>{const cid=ev.data&&ev.data.open;if(cid){const c=chats.find(x=>x.id===cid);if(c)openThread(cid)}const vv=ev.data&&ev.data.video;if(vv&&typeof openSharedVideo==='function')openSharedVideo(vv)});
+ }
+ initCalls();
+ pingNow(true);
+ renderNotifs();
+ setTimeout(notifBar,1500);
+}
+
+/* ---------- notifications push (message / appel même appli fermée) ---------- */
+let vapidPub=null;
+const u8=b=>{const p='='.repeat((4-b.length%4)%4),r=atob((b+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(r,c=>c.charCodeAt(0))};
+const pushOK=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window&&(location.protocol==='https:'||location.hostname==='localhost');
+async function pushEnable(){
+ try{
+  if(!pushOK()||Notification.permission!=='granted'||!swReg)return;
+  if(!vapidPub){const {data}=await sb.rpc('vyro_vapid_public');vapidPub=data}
+  if(!vapidPub)return;
+  const reg=await navigator.serviceWorker.ready;
+  let sub=await reg.pushManager.getSubscription();
+  if(sub){
+   const k=sub.options&&sub.options.applicationServerKey;
+   if(k&&btoa(String.fromCharCode(...new Uint8Array(k))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')!==vapidPub){await sub.unsubscribe();sub=null}
+  }
+  if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:u8(vapidPub)});
+  const j=sub.toJSON();
+  if(j&&j.endpoint&&j.keys)await sb.rpc('vyro_push_save',{p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth});
+ }catch(e){}
+}
+async function pushRemove(){
+ try{if(typeof nativePushRemove==='function')await nativePushRemove()}catch(e){}
+ try{
+  if(!('serviceWorker' in navigator))return;
+  const reg=await navigator.serviceWorker.getRegistration();
+  const sub=reg&&await reg.pushManager.getSubscription();
+  if(sub){await sb.rpc('vyro_push_remove',{p_endpoint:sub.endpoint});await sub.unsubscribe()}
+ }catch(e){}
+}
+function notifBar(){
+ try{
+  if(!('Notification' in window)&&!/iP(hone|ad|od)/.test(navigator.userAgent))return;
+  if(document.getElementById('nbar')||localStorage.getItem('vyro_nbar')==='1')return;
+  const ios=/iP(hone|ad|od)/.test(navigator.userAgent)&&!isStandalone();
+  if(!ios&&Notification.permission!=='default')return;
+  if(curScreen!=='chat')return;
+  const d=document.createElement('div');d.id='nbar';d.className='nbar';
+  d.innerHTML=`<span class="nbi">${I('bell')}</span><div class="nbt"><b>${ios?'Reçois tes messages en direct':'Activer les notifications'}</b><small>${ios?'Installe VYRO sur ton écran d’accueil pour être notifié.':'Messages et appels, même quand VYRO est fermée.'}</small></div><button type="button" class="btn-o sm" id="nbGo">${ios?'Installer':'Activer'}</button><button type="button" class="nbx" id="nbX" aria-label="Plus tard">✕</button>`;
+  const top=document.querySelector('#s-chat .top');top&&top.insertAdjacentElement('afterend',d);
+  $('#nbGo').onclick=()=>{d.remove();if(ios)installApp();else askNotifPerm()};
+  $('#nbX').onclick=()=>{d.remove();try{localStorage.setItem('vyro_nbar','1')}catch(e){}};
+ }catch(e){}
+}
+
+/* ---------- notifications ---------- */
+let actx=null;
+function tone(notes,vol){
+ if(S.notif&&S.notif.sound===false)return;
+ try{
+  actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+  if(actx.state==='suspended')actx.resume();
+  const t0=actx.currentTime;
+  notes.forEach(([f,at,len])=>{
+   const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.setValueAtTime(f,t0+at);
+   g.gain.setValueAtTime(.0001,t0+at);g.gain.exponentialRampToValueAtTime(vol,t0+at+.015);g.gain.exponentialRampToValueAtTime(.0001,t0+at+len);
+   o.connect(g);g.connect(actx.destination);o.start(t0+at);o.stop(t0+at+len+.02);
+  });
+ }catch(e){}
+}
+function rtone(notes,vol){
+ try{
+  actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+  if(actx.state==='suspended')actx.resume();
+  const t0=actx.currentTime;
+  notes.forEach(([f,at,len])=>{
+   const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.setValueAtTime(f,t0+at);
+   g.gain.setValueAtTime(.0001,t0+at);g.gain.exponentialRampToValueAtTime(vol,t0+at+.02);g.gain.setValueAtTime(vol,t0+at+Math.max(.02,len-.05));g.gain.exponentialRampToValueAtTime(.0001,t0+at+len);
+   o.connect(g);g.connect(actx.destination);o.start(t0+at);o.stop(t0+at+len+.02);
+  });
+ }catch(e){}
+}
+['pointerdown','touchstart','keydown','click'].forEach(ev=>document.addEventListener(ev,()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume()}catch(e){}},{passive:true}));
+function ping(){tone([[988,0,.18],[1319,.12,.3]],.32)}
+function popIn(){tone([[740,0,.09],[988,.06,.12]],.09)}
+function popOut(){tone([[520,0,.07],[660,.05,.09]],.07)}
+function sysNotify(title,body,tag,data){
+ if(!('Notification' in window)||Notification.permission!=='granted')return;
+ try{
+  const o={body,tag,icon:'icon-192.png',badge:'icon-192.png',data:data||{}};
+  if(swReg&&swReg.showNotification)swReg.showNotification(title,o);else new Notification(title,o);
+ }catch(e){}
+}
+function notifyMsg(c,m){
+ if(!S.notif.messages)return;
+ const t=prev(m.body);
+ if(!document.hidden){toast('💬 '+c.name+' : '+String(t).slice(0,40));ping()}
+ else sysNotify(c.name,t,'msg-'+c.id,{cid:c.id});
+}
+function permRow(){
+ const ok='Notification' in window,p=ok?Notification.permission:'denied';
+ const right=!ok?'<small class="muted">Non pris en charge</small>':p==='granted'?`<span class="okc">${I('check')}</span>`:p==='denied'?'<small class="muted">Bloquées</small>':'<button type="button" class="btn-o sm" data-go="notifperm">Activer</button>';
+ const sub=!ok?'Ce navigateur ne gère pas les notifications.':p==='granted'?'Activées sur cet appareil (quand VYRO est ouverte ou installée).':p==='denied'?'Autorise-les dans les réglages du navigateur.':'Reçois une alerte pour les messages et les appels.';
+ return `<div class="card" style="margin-bottom:12px">${row('bell','Notifications sur cet appareil',sub,right)}</div>`;
+}
+async function askNotifPerm(){
+ if(!('Notification' in window)){toast('Notifications non prises en charge ici');return}
+ try{const r=await Notification.requestPermission();toast(r==='granted'?'Notifications activées ✅':'Notifications refusées');if(r==='granted')pushEnable()}catch(e){}
+ renderNotifs();
+}
+function installApp(){
+ if(isStandalone()){toast('VYRO est déjà installée');return}
+ if(instPrompt){instPrompt.prompt();instPrompt.userChoice.finally(()=>{instPrompt=null});return}
+ const ios=/iP(hone|ad|od)/.test(navigator.userAgent);
+ openSheet('Installer VYRO',ios
+  ?`<div class="opt">${I('share')}<span>1. Touche le bouton <b>Partager</b> de Safari</span></div><div class="opt">${I('plus')}<span>2. Choisis <b>Sur l’écran d’accueil</b></span></div><div class="opt">${I('check')}<span>3. Touche <b>Ajouter</b> : VYRO s’ouvre comme une vraie appli</span></div>`
+  :`<div class="opt">${I('more')}<span>1. Ouvre le menu <b>⋮</b> de ton navigateur</span></div><div class="opt">${I('plus')}<span>2. Touche <b>Installer l’application</b> ou <b>Ajouter à l’écran d’accueil</b></span></div><div class="opt">${I('check')}<span>3. VYRO apparaît sur ton écran d’accueil, en plein écran</span></div>`);
+}
+
+/* ---------- en-tête de la conversation ---------- */
+$('#tInfo').onclick=()=>{if(cur&&cur.type!=='group'&&cur.uid)openProfile(cur.uid)};
+$('#tCallA').onclick=()=>startCall('audio');
+$('#tCallV').onclick=()=>startCall('video');
+$('#tMenu').onclick=()=>{
+ if(!cur)return;
+ const dm=cur.type!=='group',bl=dm&&blocks.has(cur.uid);
+ const rows=[['search','Rechercher dans la discussion','srch'],dm?['user','Voir le profil','prof']:null,['clock','Messages éphémères'+(cur.ttl?' · '+ttlLabel(cur.ttl):' · désactivés'),'ttl'],
+  dm?(bl?['ban','Débloquer ce contact','unb']:['ban','Bloquer ce contact','blk','dng']):null,dm?['flag','Signaler ce contact','rep','dng']:null].filter(Boolean);
+ const sh=openSheet('Options',rows.map(([i,t,a,c])=>`<div class="opt ${c||''}" data-act="${a}">${I(i)}<span>${esc(t)}</span></div>`).join(''));
+ sh.onclick=e=>{const o=e.target.closest('[data-act]');if(!o)return;const a=o.dataset.act;closeSheet();
+  if(a==='srch')setTimeout(openThreadSearch,200);else if(a==='prof')openProfile(cur.uid);else if(a==='ttl')setTimeout(ttlSheet,260);
+  else if(a==='blk')blockUser(cur.uid,cur.name);else if(a==='unb')unblockUser(cur.uid,cur.name);else if(a==='rep')reportSheet('user',cur.uid,'ce contact')};
+};
+function ttlSheet(){
+ if(!cur)return;
+ const o=[[0,'Désactivés','Les messages restent tant que tu ne les supprimes pas.'],[24,'24 heures','Les messages disparaissent 24 h après leur envoi.'],[168,'7 jours','Les messages disparaissent après 7 jours.']];
+ const sh=openSheet('Messages éphémères',o.map(([h,t,s])=>`<div class="opt" data-h="${h}"><div class="rt"><b>${t}</b><small>${s}</small></div>${(cur.ttl||0)===h?I('check'):''}</div>`).join('')+`<p class="muted" style="font-size:13px;margin-top:10px">Concerne tous les participants. Les photos, vidéos et vocaux partent avec les messages.</p>`);
+ sh.onclick=async e=>{const b=e.target.closest('[data-h]');if(!b)return;const h=+b.dataset.h;closeSheet();
+  const {error}=await sb.rpc('vyro_set_ttl',{p_conv:cur.id,p_hours:h||null});
+  if(error){toast(errMsg(error));return}
+  cur.ttl=h;setStatus();renderMsgs();renderChats();toast(h?'Messages éphémères : '+ttlLabel(h):'Messages éphémères désactivés')};
+}
+
+/* ---------- envoi de photos, vidéos et vocaux ---------- */
+function upMedia(field,blob,name,onProg){
+ return sb.auth.getSession().then(({data:{session}})=>new Promise((ok,ko)=>{
+  const fd=new FormData();fd.append(field,blob,name);
+  const x=new XMLHttpRequest();x.open('POST',MEDIA_URL+'/upload');x.setRequestHeader('Authorization','Bearer '+session.access_token);
+  if(onProg)x.upload.onprogress=e=>{if(e.lengthComputable)onProg(e.loaded/e.total)};
+  x.onerror=()=>ko(new Error('network'));
+  x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}if(x.status===200&&j.file_id)ok(j);else ko(new Error(j.error||'upload_failed'))};
+  x.send(fd);
+ }));
+}
+async function sendChatMedia(kind,blob,name,dur,sticker){
+ const c=cur;if(!c)return;
+ const up=$('#tUp');up.hidden=false;up.firstChild.style.width='6%';
+ try{
+  const r=await upMedia(kind,blob,name,p=>{up.firstChild.style.width=Math.max(6,Math.round(p*100))+'%'});
+  const {data,error}=await sb.from('vyro_media').insert({conversation_id:c.id,sender_id:me.id,kind,tg_file_id:r.file_id,duration:dur||null}).select('id').single();
+  if(error)throw error;
+  try{await LDB.set('blobs',data.id,blob);BU.set(data.id,URL.createObjectURL(blob))}catch(e){}
+  await sendBody('[med:'+kind+':'+data.id+(sticker?':s':'')+']',c);
+ }catch(x){toast(x&&x.message==='too_large'?'Fichier trop lourd (20 Mo maximum)':'Envoi impossible, réessaie')}
+ finally{up.hidden=true}
+}
+$('#tAtt').onclick=()=>{if(!MEDIA_URL){toast('Envoi de médias indisponible');return}$('#tFile').click()};
+$('#tFile').onchange=async e=>{
+ const f=e.target.files[0];e.target.value='';if(!f||!cur)return;
+ try{
+  if(String(f.type).startsWith('image/'))await sendChatMedia('image',await fitJpeg(f,1280,1280),'photo.jpg');
+  else if(String(f.type).startsWith('video/')){
+   if(f.size>MAX_VIDEO){toast('Vidéo trop lourde ('+(f.size/1048576).toFixed(1)+' Mo). Maximum : 20 Mo.');return}
+   await sendChatMedia('video',f,f.name||'video.mp4',await vidDur(f));
+  }else toast('Choisis une photo ou une vidéo');
+ }catch(x){toast('Fichier illisible')}
+};
+/* message vocal */
+let vr=null;
+const recExt=t=>/mp4|aac/.test(t)?'m4a':/ogg/.test(t)?'ogg':'webm';
+async function startVoice(){
+ if(vr||!cur)return;
+ if(!navigator.mediaDevices||!window.MediaRecorder){toast('Vocaux non pris en charge sur ce navigateur');return}
+ let st;
+ try{st=await navigator.mediaDevices.getUserMedia({audio:true})}catch(e){toast('Micro inaccessible : autorise-le dans les réglages du navigateur');return}
+ const mt=['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'].find(t=>MediaRecorder.isTypeSupported(t))||'';
+ const r=new MediaRecorder(st,mt?{mimeType:mt}:{}),ch=[];
+ r.ondataavailable=e=>{if(e.data&&e.data.size)ch.push(e.data)};
+ vr={r,st,ch,t0:Date.now(),mt:r.mimeType||mt||'audio/webm',conv:cur};
+ vr.timer=setInterval(()=>{const s=Math.round((Date.now()-vr.t0)/1000);$('#tRecT').textContent=dur2(s);if(s>=120)stopVoice(true)},250);
+ r.start(250);
+ $('#tForm').classList.add('recing');$('#tRecT').textContent='0:00';
+}
+function stopVoice(send){
+ const v=vr;if(!v)return;vr=null;clearInterval(v.timer);
+ $('#tForm').classList.remove('recing');
+ const secs=Math.round((Date.now()-v.t0)/1000);
+ v.r.onstop=()=>{
+  v.st.getTracks().forEach(t=>t.stop());
+  if(send&&secs>=1&&cur===v.conv)sendChatMedia('audio',new Blob(v.ch,{type:v.mt}),'voice.'+recExt(v.mt),secs);
+  else if(send&&secs<1)toast('Maintiens un peu plus longtemps');
+ };
+ try{v.r.stop()}catch(e){v.st.getTracks().forEach(t=>t.stop())}
+}
+$('#tMic').onclick=startVoice;
+$('#tRecX').onclick=()=>stopVoice(false);
+$('#tRecOk').onclick=()=>stopVoice(true);
+
+
+/* ---------- présence : « en ligne » / « vu à … » ---------- */
+const PRES={},PRES_AT={};
+function pingNow(force){
+ if(typeof me==='undefined'||!me||(!force&&document.hidden))return;
+ sb.rpc('vyro_ping',{p_show:!(S.priv&&S.priv.activity===false)}).then(()=>{},()=>{});
+}
+setInterval(pingNow,30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)pingNow(true)});
+function presText(c){
+ if(!c||c.type==='group'||!c.uid)return '';
+ const t=PRES[c.uid];
+ if(!t)return '';
+ const d=new Date(t),now=new Date(),diff=Date.now()-d.getTime();
+ if(diff<75000)return '● en ligne';
+ const hm=d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+ if(d.toDateString()===now.toDateString())return 'vu à '+hm;
+ const y=new Date(now);y.setDate(y.getDate()-1);
+ if(d.toDateString()===y.toDateString())return 'vu hier à '+hm;
+ return 'vu le '+d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
+}
+async function refreshPres(){
+ if(!cur||cur.type==='group'||!cur.uid)return;
+ const uid=cur.uid;PRES_AT[uid]=Date.now();
+ const {data}=await sb.rpc('vyro_presence',{p_ids:[uid]});
+ const r=(data||[])[0];
+ if(r)PRES[uid]=r.last_seen;else delete PRES[uid];
+ if(cur&&cur.uid===uid)setStatus();
+}
+setInterval(()=>{if(cur&&curScreen==='thread'&&!document.hidden)refreshPres()},25000);
+
+/* =====================================================================
+   VYRO v3 — appels audio / vidéo (WebRTC)
+   Signalisation : table vyro_signals (identité vérifiée par la base).
+   ===================================================================== */
+let call=null,sigChan=null;const early={};
+const STUN=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun.cloudflare.com:3478'}];
+async function iceServers(){
+ if(!MEDIA_URL)return STUN;
+ try{
+  const ac=new AbortController(),t=setTimeout(()=>ac.abort(),3000);
+  const r=await fetch(MEDIA_URL+'/ice?t='+encodeURIComponent(tok),{signal:ac.signal});clearTimeout(t);
+  if(r.ok){const j=await r.json();if(j.iceServers&&j.iceServers.length)return j.iceServers}
+ }catch(e){}
+ return STUN;
+}
+function initCalls(){
+ if(sigChan){try{sb.removeChannel(sigChan)}catch(e){}}
+ sigChan=sb.channel('vyro-calls').on('postgres_changes',{event:'INSERT',schema:'public',table:'vyro_signals',filter:'to_id=eq.'+me.id},pl=>onSignal(pl.new)).subscribe();
+ pendingInvites();
+}
+/* appel reçu pendant que l'appli était fermée (ouverte via la notification) */
+async function pendingInvites(){
+ try{
+  if(call)return;
+  const since=new Date(Date.now()-40000).toISOString();
+  const {data}=await sb.from('vyro_signals').select('id,from_id,to_id,kind,call_id,media,payload').eq('to_id',me.id).gt('created_at',since).order('id',{ascending:true});
+  const rows=data||[];
+  const inv=rows.filter(s=>s.kind==='invite'&&!rows.some(x=>x.call_id===s.call_id&&(x.kind==='bye'||x.kind==='decline'))).pop();
+  if(inv)rows.filter(x=>x.call_id===inv.call_id).forEach(x=>onSignal(x));
+ }catch(e){}
+}
+if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',ev=>{if(ev.data&&ev.data.call&&typeof me!=='undefined'&&me)pendingInvites()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&typeof me!=='undefined'&&me)pendingInvites()});
+const sendSig=(to,kind,id,media,payload)=>sb.from('vyro_signals').insert({from_id:me.id,to_id:to,kind,call_id:id,media:media||null,payload:payload||null}).then(r=>r,()=>({error:1}));
+async function getLocal(){
+ call.local=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:call.media==='video'?{facingMode:'user',width:{ideal:640},height:{ideal:480}}:false});
+ $('#cLocal').srcObject=call.local;
+}
+function makePC(){
+ const pc=new RTCPeerConnection({iceServers:call.ice||STUN});
+ call.pc=pc;const id=call.id,peer=call.peer;
+ pc.onicecandidate=e=>{if(e.candidate)sendSig(peer,'ice',id,null,e.candidate.toJSON())};
+ pc.ontrack=e=>{const v=$('#cRemote');if(e.streams[0]&&v.srcObject!==e.streams[0]){v.srcObject=e.streams[0];v.play().catch(()=>{})}};
+ pc.onconnectionstatechange=()=>{
+  if(!call||call.pc!==pc)return;
+  const s=pc.connectionState;
+  if(s==='connected'){clearTimeout(call.dc);if(call.state!=='live')goLive()}
+  else if(s==='failed')endCall('fail');
+  else if(s==='disconnected'){clearTimeout(call.dc);call.dc=setTimeout(()=>{if(call&&call.pc===pc&&pc.connectionState!=='connected')endCall('lost')},8000)}
+ };
+ return pc;
+}
+function flushIce(){
+ if(!call||!call.pc||!call.remoteSet)return;
+ const l=call.pending.splice(0);l.forEach(c=>call.pc.addIceCandidate(c).catch(()=>{}));
+}
+async function startCall(media){
+ if(!cur||cur.type==='group'||!cur.uid)return;
+ if(blocks.has(cur.uid)){toast('Tu as bloqué ce contact');return}
+ if(call){toast('Un appel est déjà en cours');return}
+ if(!window.RTCPeerConnection||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('Appels non pris en charge sur ce navigateur');return}
+ const id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+ call={id,peer:cur.uid,pname:cur.name,pav:cur.avatar,cid:cur.id,media,dir:'out',state:'calling',pending:[],t0:0,facing:'user'};
+ const mine=call;renderCall();ring('out');
+ try{await getLocal()}catch(e){if(call===mine){endCall('nomic')}return}
+ if(call!==mine)return;
+ call.ice=await iceServers();if(call!==mine)return;
+ const pc=makePC();
+ call.local.getTracks().forEach(t=>pc.addTrack(t,call.local));
+ try{
+  const off=await pc.createOffer();await pc.setLocalDescription(off);
+  const r=await sendSig(call.peer,'invite',id,media,{type:'offer',sdp:pc.localDescription.sdp,name:me.display_name||me.username});
+  if(r&&r.error){if(call===mine)endCall('fail');return}
+  mine.rung=true;
+ }catch(e){if(call===mine)endCall('fail');return}
+ call.ringT=setTimeout(()=>{if(call===mine&&call.state==='calling')endCall('noanswer')},45000);
+ renderCall();
+}
+async function onSignal(s){
+ if(!s||s.to_id!==me.id)return;
+ if(s.kind==='invite'){
+  if(Date.now()-Date.parse(s.created_at)>45000||blocks.has(s.from_id))return;
+  if(call){sendSig(s.from_id,'decline',s.call_id,null,{busy:1});return}
+  const ch=chats.find(c=>c.uid===s.from_id);
+  call={id:s.call_id,peer:s.from_id,pname:ch?ch.name:((s.payload&&s.payload.name)||'Appel'),pav:ch&&ch.avatar,cid:ch&&ch.id,media:s.media||'audio',dir:'in',state:'ringing',pending:early[s.call_id]||[],offer:s.payload,t0:0,facing:'user'};
+  delete early[s.call_id];
+  const mine=call;renderCall();ring('in');
+  if(document.hidden)sysNotify('Appel '+(call.media==='video'?'vidéo':'vocal')+' entrant',call.pname,'call',{cid:call.cid});
+  call.ringT=setTimeout(()=>{if(call===mine&&call.state==='ringing')endCall('missed')},45000);
+  return;
+ }
+ if(!call||call.id!==s.call_id){if(s.kind==='ice'&&s.call_id){(early[s.call_id]=early[s.call_id]||[]).push(s.payload)}return}
+ if(s.kind==='answer'&&call.dir==='out'&&call.pc&&!call.remoteSet){
+  try{await call.pc.setRemoteDescription(s.payload);call.remoteSet=true;call.state='connecting';clearTimeout(call.ringT);renderCall();flushIce()}catch(e){endCall('fail')}
+ }else if(s.kind==='ice'){call.pending.push(s.payload);flushIce()}
+ else if(s.kind==='bye'||s.kind==='decline')endCall(s.kind==='decline'?'declined':'remote',true);
+}
+async function acceptCall(){
+ const c=call;if(!c||c.state!=='ringing')return;
+ ring(false);clearTimeout(c.ringT);c.state='connecting';renderCall();
+ try{await getLocal()}catch(e){toast('Micro ou caméra inaccessible');endCall('declined');return}
+ if(call!==c)return;
+ c.ice=await iceServers();if(call!==c)return;
+ try{
+  const pc=makePC();c.local.getTracks().forEach(t=>pc.addTrack(t,c.local));
+  await pc.setRemoteDescription({type:'offer',sdp:c.offer.sdp});c.remoteSet=true;flushIce();
+  const a=await pc.createAnswer();await pc.setLocalDescription(a);
+  sendSig(c.peer,'answer',c.id,null,{type:'answer',sdp:pc.localDescription.sdp});
+ }catch(e){if(call===c)endCall('fail')}
+}
+function goLive(){
+ call.state='live';call.t0=Date.now();clearTimeout(call.ringT);ring(false);rtone([[784,0,.12],[1047,.1,.2]],.25);
+ const c=call;c.timer=setInterval(()=>{if(call!==c)return;$('#cSt').textContent='● En communication · '+dur2(Math.round((Date.now()-c.t0)/1000))},500);
+ renderCall();
+}
+function endCall(reason,fromRemote){
+ const c=call;if(!c)return;call=null;
+ clearTimeout(c.ringT);clearTimeout(c.dc);clearInterval(c.timer);ring(false);if(c.state==='live')rtone([[659,0,.12],[440,.1,.22]],.25);
+ try{c.pc&&c.pc.close()}catch(e){}
+ if(c.local)c.local.getTracks().forEach(t=>t.stop());
+ $('#cRemote').srcObject=null;$('#cLocal').srcObject=null;
+ $('#call').hidden=true;$('#call').className='call';
+ const secs=c.t0?Math.max(1,Math.round((Date.now()-c.t0)/1000)):0;
+ if(!fromRemote){
+  if(c.state==='ringing'||(reason==='declined'&&c.dir==='in'))sendSig(c.peer,'decline',c.id,null,null);
+  else if(c.dir==='out'||c.state!=='ringing')sendSig(c.peer,'bye',c.id,null,null);
+ }
+ if(c.dir==='out'&&c.cid){
+  postMsg(c.cid,'[call:'+c.media+':'+secs+']').catch(()=>{});
+ }
+ const T={noanswer:'Pas de réponse',declined:'Appel refusé',nomic:'Micro ou caméra inaccessible',fail:'Connexion impossible',lost:'Connexion perdue',missed:'Appel manqué'};
+ if(T[reason]&&!(reason==='declined'&&c.dir==='in'))toast(T[reason]);
+ else if(reason==='remote'&&secs)toast('Appel terminé · '+dur2(secs));
+ else if(reason==='remote'&&c.dir==='in'&&!secs)toast('Appel manqué');
+}
+/* sonnerie */
+let ringT=0;
+function ring(mode){
+ clearInterval(ringT);ringT=0;
+ try{navigator.vibrate&&navigator.vibrate(0)}catch(e){}
+ if(!mode)return;
+ let beep;
+ if(mode==='out'){ /* tonalité d'attente côté appelant */
+  beep=()=>rtone([[440,0,1],[480,0,1]],.14);
+  beep();ringT=setInterval(beep,3000);
+ }else{ /* sonnerie côté appelé */
+  beep=()=>{
+   rtone([[880,0,.18],[1175,.2,.18],[880,.5,.18],[1175,.7,.18],[1319,1.0,.4]],.4);
+   try{navigator.vibrate&&navigator.vibrate([500,200,500,200,500])}catch(e){}
+  };
+  beep();ringT=setInterval(beep,2600);
+ }
+}
+/* écran d'appel */
+const cBtn=(id,ic,cls,lab)=>`<button type="button" class="cbt ${cls||''}" data-c="${id}" aria-label="${lab}">${I(ic)}<span>${lab}</span></button>`;
+function renderCall(){
+ const el=$('#call'),c=call;if(!c){el.hidden=true;return}
+ const vid=c.media==='video',live=c.state==='live';
+ el.hidden=false;
+ el.className='call '+c.state+(vid?' vid':'')+(c.dir==='in'?' in':'');
+ $('#cAv').innerHTML=av({name:c.pname,h:hue(c.pname),uid:c.peer,avatar:c.pav},120);
+ $('#cName').textContent=c.pname;
+ const st={calling:c.rung?'Ça sonne…':(vid?'Appel vidéo…':'Appel…'),ringing:'Appel '+(vid?'vidéo':'vocal')+' entrant',connecting:'Connexion…',live:'● En communication · '+dur2(Math.round((Date.now()-c.t0)/1000))}[c.state]||'';
+ $('#cSt').textContent=st;
+ const ctl=live||c.state==='connecting'||c.state==='calling';
+ $('#cBar').innerHTML=c.state==='ringing'
+  ?cBtn('decline','phone','red','Refuser')+cBtn('accept','phone','green','Répondre')
+  :cBtn('mute',c.muted?'micoff':'mic',c.muted?'on':'','Micro')+(vid?cBtn('cam','video',c.camOff?'on':'','Caméra')+cBtn('flip','flip','','Retourner'):'')+cBtn('end','phone','red','Raccrocher');
+}
+$('#cBar').onclick=e=>{
+ const b=e.target.closest('[data-c]');if(!b||!call)return;const a=b.dataset.c,c=call;
+ if(a==='accept')acceptCall();
+ else if(a==='decline')endCall('declined');
+ else if(a==='end')endCall('hangup');
+ else if(a==='mute'){c.muted=!c.muted;(c.local?c.local.getAudioTracks():[]).forEach(t=>t.enabled=!c.muted);renderCall()}
+ else if(a==='cam'){c.camOff=!c.camOff;(c.local?c.local.getVideoTracks():[]).forEach(t=>t.enabled=!c.camOff);renderCall()}
+ else if(a==='flip')flipCam();
+};
+async function flipCam(){
+ const c=call;if(!c||c.media!=='video'||!c.local||!c.pc)return;
+ try{
+  c.facing=c.facing==='user'?'environment':'user';
+  const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:c.facing,width:{ideal:640},height:{ideal:480}}});
+  const nt=st.getVideoTracks()[0],snd=c.pc.getSenders().find(s=>s.track&&s.track.kind==='video');
+  if(snd)await snd.replaceTrack(nt);
+  c.local.getVideoTracks().forEach(t=>{t.stop();c.local.removeTrack(t)});c.local.addTrack(nt);
+  $('#cLocal').srcObject=c.local;
+ }catch(e){toast('Impossible de changer de caméra')}
+}
+window.addEventListener('beforeunload',()=>{if(call&&call.pc)try{sendSig(call.peer,'bye',call.id,null,null)}catch(e){}});
+
+/* ---------- nouvelle discussion (page) ---------- */
+const NC={seq:0,sug:null,sugAt:0,t:0};
+const ncAv=u=>av({name:u.display_name||u.username,h:hue(u.username||'x'),uid:u.id,avatar:u.avatar_url},46);
+const ncRow=(u,extra)=>`<div class="urow" data-u="${u.id}"><span class="avw" data-ph="${u.id}">${ncAv(u)}</span><div style="flex:1;min-width:0"><b>${esc(u.display_name||u.username)}</b><small>@${esc(u.username)}${extra||''}</small></div><span class="ico mut" data-i="chev"></span></div>`;
+function openNewChat(){
+ $('#ncQ').value='';$('#ncClr').hidden=true;
+ if(curScreen!=='newc')push('newc');
+ drawNC();
+ setTimeout(()=>{try{$('#ncQ').focus()}catch(e){}},300);
+}
+async function drawNC(){
+ const raw=$('#ncQ').value.trim().toLowerCase();
+ const q=raw.replace(/[^a-z0-9_ àâäçéèêëîïôöùûüÿ]/g,'').trim(),box=$('#ncRes'),my=++NC.seq;
+ $('#ncClr').hidden=!raw;
+ if(q){
+  const f=q.replace(/_/g,'\\_');
+  const {data,error}=await sb.from('vyro_profiles').select('id,username,display_name,avatar_url').or(`username.ilike.%${f}%,display_name.ilike.%${f}%`).neq('id',me.id).limit(25);
+  if(my!==NC.seq)return;
+  const l=(data||[]).filter(u=>!blocks.has(u.id));
+  box.innerHTML=error?'<p class="empty">Recherche impossible, réessaie.</p>':l.length?l.map(u=>ncRow(u)).join(''):'<p class="empty">Personne trouvé avec « '+esc(raw)+' »</p>';
+  hydrateIcons(box);ncPres();return;
+ }
+ if(!NC.sug||Date.now()-NC.sugAt>60000){
+  box.innerHTML='<p class="empty">Chargement…</p>';
+  const [dv,fl]=await Promise.all([sb.rpc('vyro_discover'),sb.from('vyro_follows').select('follower_id,following_id').or(`follower_id.eq.${me.id},following_id.eq.${me.id}`).limit(60)]);
+  if(my!==NC.seq)return;
+  const ids=[...new Set((fl.data||[]).map(r=>r.follower_id===me.id?r.following_id:r.follower_id))].filter(i=>i!==me.id&&!blocks.has(i));
+  let known=[];
+  if(ids.length){const {data}=await sb.from('vyro_profiles').select('id,username,display_name,avatar_url').in('id',ids);known=data||[]}
+  const kn=new Set(known.map(u=>u.id));
+  NC.sug={known,cr:((dv.data&&dv.data.creators)||[]).filter(u=>u.id!==me.id&&!kn.has(u.id)&&!blocks.has(u.id))};NC.sugAt=Date.now();
+ }
+ if(my!==NC.seq)return;
+ const s=NC.sug,fr=s.known.length?`<div class="sec sm">${I('userplus')}Tes abonnés et abonnements</div>${s.known.map(u=>ncRow(u)).join('')}`:'';
+ const cr=s.cr.length?`<div class="sec sm">${I('user')}Suggestions pour toi</div>${s.cr.map(u=>ncRow(u,' · '+u.followers+' abonné'+(u.followers>1?'s':''))).join('')}`:'';
+ box.innerHTML=(fr+cr)||'<p class="empty">Pas encore de suggestions.<br>Cherche un pseudo en haut.</p>';
+ hydrateIcons(box);ncPres();
+}
+function hydrateIcons(root){root.querySelectorAll('[data-i]').forEach(el=>{if(!el.innerHTML)el.innerHTML=I(el.dataset.i,(el.hasAttribute('data-fill')?'fill ':'')+(el.dataset.cls||''))})}
+async function ncStart(uid){
+ const {data,error}=await sb.rpc('vyro_start_direct',{p_other:uid});
+ if(error){toast(errMsg(error));return}
+ await loadChats();
+ if(stack[stack.length-1]==='newc')stack.pop();
+ openThread(data);
+}
+$('#ncQ').oninput=()=>{clearTimeout(NC.t);NC.t=setTimeout(drawNC,250)};
+$('#ncClr').onclick=()=>{$('#ncQ').value='';drawNC();$('#ncQ').focus()};
+$('#ncGrp').onclick=()=>{newChatSheet();setTimeout(()=>{const b=$('#sh .seg [data-m=group]');if(b)b.click()},40)};
+$('#ncRes').onclick=e=>{
+ const ph=e.target.closest('[data-ph]');
+ if(ph){const r=ph.closest('[data-u]');showPhoto(r.dataset.u,r.querySelector('b').textContent,e.target.closest('.av'));e.stopPropagation();return}
+ const r=e.target.closest('[data-u]');if(r)ncStart(r.dataset.u);
+};
+$('#fab').onclick=$('#bNew').onclick=openNewChat;
+
+/* ---------- photo de profil en grand ---------- */
+function showPhoto(uid,name,avEl){
+ const img=avEl&&avEl.querySelector('img');
+ const src=img?img.src:'';
+ const ch=chats.find(c=>c.uid===uid);
+ const ini=(name||'?')[0].toUpperCase(),h=hue(name||'x');
+ const el=$('#photoV');
+ el.innerHTML=`<div class="pvbox">${src?`<img src="${src}" alt="">`:`<div class="pvini" style="background:linear-gradient(135deg,hsl(${h} 80% 62%),hsl(${(h+50)%360} 70% 30%))">${esc(ini)}</div>`}<b>${esc(name||'')}</b>
+ <div class="pvact"><button type="button" class="cta" data-pa="msg">${I('chat')}Message</button><button type="button" class="cta alt" data-pa="prof">${I('user')}Profil</button></div></div>`;
+ el.dataset.u=uid;el.hidden=false;requestAnimationFrame(()=>el.classList.add('on'));
+}
+function closePhoto(){const el=$('#photoV');el.classList.remove('on');setTimeout(()=>{el.hidden=true;el.innerHTML=''},180)}
+$('#photoV').onclick=e=>{
+ const a=e.target.closest('[data-pa]'),uid=$('#photoV').dataset.u;
+ if(a){closePhoto();if(a.dataset.pa==='prof')openProfile(uid);else{const ch=chats.find(c=>c.uid===uid);if(curScreen==='thread'&&cur&&cur.uid===uid)return;if(ch){if(curScreen==='newc'&&stack[stack.length-1]==='newc')stack.pop();openThread(ch.id)}else ncStart(uid)}return}
+ if(!e.target.closest('.pvbox img,.pvini,b'))closePhoto();
+};
+$('#tAv').addEventListener('click',e=>{if(cur&&cur.type!=='group'&&cur.uid){e.stopPropagation();showPhoto(cur.uid,cur.name,$('#tAv .av'))}},true);
+$('#chatList').addEventListener('click',e=>{
+ const a=e.target.closest('.chat .av');if(!a)return;
+ const row=a.closest('.chat'),c=chats.find(x=>x.id===row.dataset.id);
+ if(c&&c.type!=='group'&&c.uid){e.stopImmediatePropagation();e.preventDefault();showPhoto(c.uid,c.name,a)}
+},true);
+
+/* ---------- présence en ligne : points verts ---------- */
+function pdotHTML(uid){const t=PRES[uid];return t&&Date.now()-new Date(t).getTime()<75000?'<i class="pdot"></i>':''}
+function applyDots(root){
+ root.querySelectorAll('.chat[data-id]').forEach(r=>{
+  const c=chats.find(x=>x.id===r.dataset.id),a=r.querySelector('.av');if(!a)return;
+  const old=a.querySelector('.pdot');if(old)old.remove();
+  if(c&&c.uid){const h=pdotHTML(c.uid);if(h)a.insertAdjacentHTML('beforeend',h)}
+ });
+ root.querySelectorAll('.urow[data-u]').forEach(r=>{
+  const a=r.querySelector('.av');if(!a)return;
+  const old=a.querySelector('.pdot');if(old)old.remove();
+  const h=pdotHTML(r.dataset.u);if(h)a.insertAdjacentHTML('beforeend',h);
+ });
+}
+let presBusy=false;
+async function ncPres(){applyDots($('#ncRes'))}
+async function presAll(){
+ if(presBusy||!me||document.hidden)return;
+ const ids=[...new Set([...chats.filter(c=>c.uid).map(c=>c.uid),...[...document.querySelectorAll('#ncRes [data-u]')].map(r=>r.dataset.u)])].slice(0,50);
+ if(!ids.length)return;
+ presBusy=true;
+ try{
+  const {data}=await sb.rpc('vyro_presence',{p_ids:ids});
+  const got=new Set();
+  (data||[]).forEach(r=>{PRES[r.id]=r.last_seen;got.add(r.id)});
+  ids.forEach(i=>{if(!got.has(i))delete PRES[i]});
+  applyDots($('#chatList'));applyDots($('#ncRes'));
+  if(cur&&cur.uid)setStatus();
+ }catch(e){}
+ presBusy=false;
+}
+new MutationObserver(()=>applyDots($('#chatList'))).observe($('#chatList'),{childList:true});
+setInterval(presAll,25000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(presAll,800)});
+setTimeout(presAll,1500);
+
+/* ---------- répondre à une story / aimer ---------- */
+const SLK=(()=>{try{return new Set(JSON.parse(localStorage.getItem('vyro_slk')||'[]'))}catch(e){return new Set()}})();
+const saveSLK=()=>{try{localStorage.setItem('vyro_slk',JSON.stringify([...SLK].slice(-300)))}catch(e){}};
+const svConv={};
+function svCur(){const g=sv.list&&sv.list[sv.gi];return g?{g,it:g.items[sv.ii]}:null}
+function svRepUpd(){
+ const c=svCur(),bar=$('#svRep');if(!c){bar.hidden=true;return}
+ const mine=c.g.uid===me.id;bar.hidden=mine;
+ $('#svLike').classList.toggle('on',!!(c.it&&SLK.has(c.it.id)));
+ $('#svIn').value='';
+}
+async function svSendDM(body){
+ const c=svCur();if(!c)return false;
+ try{
+  let cid=svConv[c.g.uid];
+  if(!cid){const {data,error}=await sb.rpc('vyro_start_direct',{p_other:c.g.uid});if(error){toast(errMsg(error));return false}cid=data;svConv[c.g.uid]=cid;await loadChats()}
+  const r=await postMsg(cid,body);
+  if(r.error){toast(r.error.code==='42501'?'Tu ne peux pas écrire à cette personne.':'Message non envoyé');return false}
+  return true;
+ }catch(e){toast('Message non envoyé');return false}
+}
+$('#svIn').addEventListener('focus',()=>svPause(true));
+$('#svIn').addEventListener('blur',()=>setTimeout(()=>{if(document.activeElement!==$('#svIn'))svPause(false)},150));
+$('#svRep').addEventListener('pointerdown',e=>e.stopPropagation());
+$('#svRep').addEventListener('touchstart',e=>e.stopPropagation(),{passive:true});
+async function svReply(){
+ const t=$('#svIn').value.trim();if(!t)return;
+ const c=svCur();if(!c)return;
+ $('#svIn').value='';$('#svIn').blur();
+ const ok=await svSendDM('↩️ Réponse à ta story : '+t.slice(0,1500));
+ if(ok)toast('Réponse envoyée ✅');else $('#svIn').value=t;
+}
+$('#svSend').onclick=svReply;
+$('#svIn').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();svReply()}});
+$('#svLike').onclick=async()=>{
+ const c=svCur();if(!c||!c.it)return;
+ const b=$('#svLike'),id=c.it.id;
+ if(SLK.has(id)){SLK.delete(id);saveSLK();b.classList.remove('on');return}
+ SLK.add(id);saveSLK();b.classList.add('on');b.classList.remove('pop');void b.offsetWidth;b.classList.add('pop');
+ try{navigator.vibrate&&navigator.vibrate(15)}catch(e){}
+ const ok=await svSendDM('❤️ a aimé ta story');
+ if(!ok){SLK.delete(id);saveSLK();b.classList.remove('on')}else toast('❤️ Story aimée');
+};
+const _ps=playStory;
+playStory=function(){_ps.apply(this,arguments);svRepUpd()};
+
+/* =====================================================================
+   VYRO Plus : cadres de photo animés + effets d'écran
+   ===================================================================== */
+let PLUS={active:false,until:null,trial_used:false,frame:null};
+const FRM_AT={};
+const tx=(x,y,a)=>`translate(${x} ${y})${a?` rotate(${a})`:''}`;
+const ptl=(r,n,f)=>Array.from({length:n},(_,i)=>{const a=i*360/n;const rad=a*Math.PI/180;return f(50+r*Math.sin(rad),50-r*Math.cos(rad),a,i)}).join('');
+const BFW='M0 0C-2-6-8-8-9-3C-9 0-4 2 0 0M0 0C-6 1-9 5-5 7C-2 7 0 3 0 0';
+const FRAMES=[
+ {id:'neon',name:'Néon',dec:''},
+ {id:'aurora',name:'Aurore',dec:''},
+ {id:'gold',name:'Royal',dec:'<g class="crw"><path d="M35 23 38 9 45 17 50 5 55 17 62 9 65 23Z" fill="#fbbf24" stroke="#b45309" stroke-width="1" stroke-linejoin="round"/><circle cx="38" cy="9" r="1.7" fill="#fff"/><circle cx="50" cy="5" r="2" fill="#f472b6"/><circle cx="62" cy="9" r="1.7" fill="#fff"/><path d="M36 21H64" stroke="#fde68a" stroke-width="1.2"/></g>'},
+ {id:'wings',name:'Ailes',dec:(()=>{const w='<g class="wg"><path d="M24 52C9 40 1 25 4 12 13 19 22 26 27 38 21 29 14 26 8 23 12 36 21 45 29 52Z" fill="#fff"/><path d="M24 58C11 53 4 48 1 41 10 43 19 47 26 52Z" fill="#e9d5ff"/><path d="M20 46C14 40 11 35 9 29" stroke="#c4b5fd" stroke-width=".8" fill="none"/></g>';return w+'<g transform="translate(100 0) scale(-1 1)">'+w+'</g>'})()},
+ {id:'roses',name:'Roses',dec:'<g class="orb">'+ptl(37,8,(x,y,a,i)=>i%3===0?`<g transform="${tx(x,y)}"><circle r="3.6" fill="#be123c"/><circle r="2.3" fill="#fb7185"/><circle r="1" fill="#fecdd3"/><path d="M0 3.4C3 4 5 6 5 8 2 7 0 5 0 3.4Z" fill="#16a34a"/></g>`:`<path transform="${tx(x,y,a+90)}" d="M0-3.4C2.4-3 3.2-.8 0 3.4-3.2-.8-2.4-3 0-3.4Z" fill="${i%2?'#fb7185':'#f9a8d4'}"/>`)+'</g>'},
+ {id:'butterflies',name:'Papillons',dec:'<g class="orb2">'+[[40,'#22d3ee'],[160,'#f472b6'],[280,'#a78bfa']].map(([a,c])=>{const r=a*Math.PI/180,x=50+37*Math.sin(r),y=50-37*Math.cos(r);return `<g transform="${tx(x,y,a+90)}"><g class="bf" style="animation-delay:-${a%7/10}s"><path d="${BFW}" fill="${c}"/><path d="${BFW}" fill="${c}" transform="scale(-1 1)"/></g></g>`}).join('')+'</g>'},
+ {id:'stars',name:'Étoiles',dec:[[18,20,1],[84,26,.7],[12,70,.8],[88,76,1],[50,3,.7]].map(([x,y,s],i)=>`<path class="tw" style="animation-delay:-${i*.55}s" transform="${tx(x,y)} scale(${s})" d="M0-6 1.4-1.4 6 0 1.4 1.4 0 6-1.4 1.4-6 0-1.4-1.4Z" fill="${i%2?'#fff':'#fde047'}"/>`).join('')},
+ {id:'hearts',name:'Cœurs',dec:[[22,40],[80,36],[50,16]].map(([x,y],i)=>`<path class="ht" style="animation-delay:-${i*.9}s" transform="${tx(x,y)}" d="M0 3C-6-1-4-6 0-3 4-6 6-1 0 3Z" fill="#fb7185"/>`).join('')}
+];
+function frameMk(id){
+ const f=FRAMES.find(x=>x.id===id);if(!f)return '';
+ return `<i class="frm fm-${f.id}"><span class="rg"></span>${f.dec?`<svg class="dc" viewBox="0 0 100 100" aria-hidden="true">${f.dec}</svg>`:''}</i>`;
+}
+async function frameSync(ids){
+ if(!me||!sb)return;
+ const need=[...new Set(ids)].filter(i=>i&&i!==me.id&&(!FRM_AT[i]||Date.now()-FRM_AT[i]>300000)).slice(0,80);
+ if(!need.length)return;
+ need.forEach(i=>FRM_AT[i]=Date.now());
+ try{
+  const {data,error}=await sb.rpc('vyro_frames',{p_ids:need});
+  if(error)return;
+  let ch=false;const got={};
+  (data||[]).forEach(r=>{got[r.id]=r.frame});
+  need.forEach(i=>{const n=got[i]||undefined;if(FRM[i]!==n){ch=true;if(n)FRM[i]=n;else delete FRM[i]}});
+  if(ch){renderChats();if(cur&&cur.uid)$('#tAv').innerHTML=av(cur,44);if(curScreen==='chat')renderStories()}
+ }catch(e){}
+}
+function decorPavs(){
+ if(!me)return;
+ document.querySelectorAll('#s-profile .pav,#s-settings .pav').forEach(p=>{
+  const o=p.querySelector(':scope>.frm');if(o)o.remove();
+  if(PLUS.active&&FRM[me.id])p.insertAdjacentHTML('beforeend',frameMk(FRM[me.id]));
+ });
+}
+async function plusInit(){
+ try{
+  const {data,error}=await sb.rpc('vyro_plus_me');
+  if(error||!data)return;
+  PLUS=Object.assign(PLUS,data);
+  if(PLUS.active&&PLUS.frame)FRM[me.id]=PLUS.frame;else delete FRM[me.id];
+  decorPavs();
+  const saved=lsGet('vyro_fx');
+  if(PLUS.active&&saved)fxApply(saved,true);else fxApply('',true);
+  frameSync(chats.filter(c=>c.uid).map(c=>c.uid));
+ }catch(e){}
+}
+function lsGet(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
+function lsSet(k,v){try{v?localStorage.setItem(k,v):localStorage.removeItem(k)}catch(e){}}
+const _en=enter;
+enter=async function(){await _en.apply(this,arguments);plusInit()};
+const _lc=loadChats;
+loadChats=async function(){const r=await _lc.apply(this,arguments);frameSync(chats.filter(c=>c.uid).map(c=>c.uid));return r};
+const _ru=renderUser;
+renderUser=function(){
+ _ru.apply(this,arguments);
+ const u=userCur&&userCur.u;if(!u)return;
+ const put=()=>{const p=document.querySelector('#uBody .pav');if(!p)return;const o=p.querySelector(':scope>.frm');if(o)o.remove();if(FRM[u.id])p.insertAdjacentHTML('beforeend',frameMk(FRM[u.id]))};
+ put();
+ if(u.id!==me.id){FRM_AT[u.id]=0;frameSync([u.id]).then(put)}
+};
+
+/* ---------- moteur d'effets d'écran (sprites ombrés pré-rendus : léger et réaliste) ---------- */
+const FXL=[['butterflies','Papillons','🦋'],['petals','Pétales de rose','🌹'],['doves','Colombes','🕊️'],['hearts','Cœurs','💜'],['fireflies','Lucioles','✨'],['stars','Étoiles filantes','🌠'],['bubbles','Bulles','🫧']];
+const FXS={name:'',raf:0,list:[],w:0,h:0,last:0,dpr:1,cv:null,cx:null,wind:0};
+const R=(a,b)=>a+Math.random()*(b-a);
+const SPC={};
+function spr(key,w,h,fn){
+ if(SPC[key])return SPC[key];
+ const k=2,c=document.createElement('canvas');c.width=w*k;c.height=h*k;const x=c.getContext('2d');x.scale(k,k);fn(x,w,h);c.w=w;c.h=h;return SPC[key]=c;
+}
+function fxSize(){
+ const cv=FXS.cv;if(!cv)return;
+ const w=cv.clientWidth||innerWidth,h=cv.clientHeight||innerHeight,d=Math.min(window.devicePixelRatio||1,1.5);
+ FXS.w=w;FXS.h=h;FXS.dpr=d;cv.width=Math.round(w*d);cv.height=Math.round(h*d);FXS.cx.setTransform(d,0,0,d,0,0);
+}
+/* --- papillons --- */
+const BFS=[
+ {n:'monarch',a:'#ff7a00',b:'#ffc25a',e:'#1b0f12',v:'rgba(30,12,10,.85)',d:'#fff'},
+ {n:'morpho',a:'#1d3fb8',b:'#5ad0ff',e:'#0b1030',v:'rgba(8,14,50,.55)',d:'#cfefff'},
+ {n:'fantasy',a:'#7c3aed',b:'#f5b8ff',e:'#2a0a52',v:'rgba(40,6,80,.6)',d:'#fff'},
+ {n:'sulphur',a:'#f5c400',b:'#fff6a8',e:'#241a05',v:'rgba(60,40,0,.55)',d:'#fff'},
+ {n:'rose',a:'#e11d74',b:'#ffc6e3',e:'#380a22',v:'rgba(70,6,40,.55)',d:'#fff'}
+];
+const bez=(p,t)=>{const u=1-t;return [u*u*u*p[0]+3*u*u*t*p[2]+3*u*t*t*p[4]+t*t*t*p[6],u*u*u*p[1]+3*u*u*t*p[3]+3*u*t*t*p[5]+t*t*t*p[7]]};
+function bfWing(i){
+ const sp=BFS[i];
+ return spr('bw'+i,120,112,(x,w,h)=>{
+  const up=[4,55,10,24,40,0,80,5],up2=[80,5,112,10,122,32,100,52],up3=[100,52,78,62,40,62,4,56];
+  const lo=[4,57,36,64,70,64,92,72],lo2=[92,72,108,92,80,110,50,102],lo3=[50,102,24,96,8,78,4,57];
+  const P=()=>{x.beginPath();x.moveTo(4,55);x.bezierCurveTo(10,24,40,0,80,5);x.bezierCurveTo(112,10,122,32,100,52);x.bezierCurveTo(78,62,40,62,4,56);x.closePath()};
+  const Q=()=>{x.beginPath();x.moveTo(4,57);x.bezierCurveTo(36,64,70,64,92,72);x.bezierCurveTo(108,92,80,110,50,102);x.bezierCurveTo(24,96,8,78,4,57);x.closePath()};
+  for(const [path,cx,cy] of [[Q,40,80],[P,50,30]]){
+   const g=x.createRadialGradient(8,56,2,cx+30,cy,100);g.addColorStop(0,sp.a);g.addColorStop(.55,sp.a);g.addColorStop(1,sp.b);
+   path();x.fillStyle=g;x.fill();
+   x.save();path();x.clip();
+   /* nervures */
+   x.strokeStyle=sp.v;x.lineWidth=1.3;x.lineCap='round';
+   for(let k=0;k<9;k++){const t=k/8;const ex=cx<45?(14+t*70):(26+t*92),ey=cx<45?(70+t*34):(4+t*50);x.beginPath();x.moveTo(6,56);x.quadraticCurveTo(ex*.45+6,(56+ey)/2-(cx<45?-6:10),ex,ey);x.stroke()}
+   /* bord sombre + points clairs */
+   x.lineWidth=9;x.strokeStyle=sp.e;path();x.stroke();
+   x.restore();
+   /* reflet doux */
+   const hl=x.createRadialGradient(30,50,2,34,50,46);hl.addColorStop(0,'rgba(255,255,255,.34)');hl.addColorStop(1,'rgba(255,255,255,0)');
+   x.save();path();x.clip();x.fillStyle=hl;x.fillRect(0,0,w,h);x.restore();
+  }
+  x.fillStyle=sp.d;
+  for(const p of [up2,up3.slice(0)]){for(let t=.12;t<.95;t+=.17){const [px,py]=bez(p,t);x.beginPath();x.arc(px+(px>60?-4:0),py+(py<30?3:-3),1.9,0,6.3);x.fill()}}
+  for(const p of [lo2,lo3]){for(let t=.18;t<.9;t+=.2){const [px,py]=bez(p,t);x.beginPath();x.arc(px,py-3,1.7,0,6.3);x.fill()}}
+ });
+}
+function bfBody(){
+ return spr('bb',16,70,(x)=>{
+  const g=x.createLinearGradient(0,0,16,0);g.addColorStop(0,'#150a14');g.addColorStop(.5,'#4a3040');g.addColorStop(1,'#150a14');
+  x.fillStyle=g;x.beginPath();x.ellipse(8,40,3.6,24,0,0,6.3);x.fill();
+  x.beginPath();x.ellipse(8,17,4.4,9,0,0,6.3);x.fill();
+  x.beginPath();x.arc(8,8,3.8,0,6.3);x.fill();
+  x.strokeStyle='#150a14';x.lineWidth=1;x.lineCap='round';
+  x.beginPath();x.moveTo(7,5);x.quadraticCurveTo(2,0,1,-1);x.moveTo(9,5);x.quadraticCurveTo(14,0,15,-1);x.stroke();
+ });
+}
+/* --- pétales --- */
+const PTC=[['#7a0019','#e11d48','#ff8fa3'],['#a3123f','#ff4d6d','#ffc2d1'],['#b0124d','#f06292','#ffd1e3'],['#8b0f3a','#ff7a93','#ffe0e8'],['#6d1a8a','#c084fc','#f1d5ff']];
+function petalSpr(i){
+ const c=PTC[i];
+ return spr('pt'+i,44,60,(x,w,h)=>{
+  const P=()=>{x.beginPath();x.moveTo(22,3);x.bezierCurveTo(33,4,43,22,37,43);x.bezierCurveTo(33,56,27,59,22,59);x.bezierCurveTo(17,59,11,56,7,43);x.bezierCurveTo(1,22,11,4,22,3);x.closePath()};
+  const g=x.createRadialGradient(22,52,2,22,30,34);g.addColorStop(0,c[0]);g.addColorStop(.5,c[1]);g.addColorStop(1,c[2]);
+  P();x.fillStyle=g;x.fill();
+  x.save();P();x.clip();
+  x.strokeStyle='rgba(0,0,0,.18)';x.lineWidth=1;
+  for(let k=-3;k<=3;k++){x.beginPath();x.moveTo(22,58);x.quadraticCurveTo(22+k*5,34,22+k*9,8);x.stroke()}
+  const hl=x.createLinearGradient(6,6,30,40);hl.addColorStop(0,'rgba(255,255,255,.5)');hl.addColorStop(.5,'rgba(255,255,255,.08)');hl.addColorStop(1,'rgba(0,0,0,.18)');
+  x.fillStyle=hl;x.fillRect(0,0,w,h);
+  x.strokeStyle='rgba(255,255,255,.35)';x.lineWidth=2;x.beginPath();x.moveTo(9,16);x.quadraticCurveTo(16,6,28,6);x.stroke();
+  x.restore();
+ });
+}
+/* --- cœurs brillants --- */
+const HTC=[['#ff2d75','#ff8fb3'],['#d946ef','#f5b8ff'],['#a855f7','#e0c3ff'],['#fb7185','#ffd1d9']];
+function heartSpr(i){
+ const c=HTC[i];
+ return spr('ht'+i,64,60,(x)=>{
+  const H=()=>{x.beginPath();x.moveTo(32,56);x.bezierCurveTo(2,34,6,6,24,6);x.bezierCurveTo(29,6,32,10,32,14);x.bezierCurveTo(32,10,35,6,40,6);x.bezierCurveTo(58,6,62,34,32,56);x.closePath()};
+  const g=x.createRadialGradient(24,20,2,32,34,36);g.addColorStop(0,c[1]);g.addColorStop(.45,c[0]);g.addColorStop(1,'rgba(90,0,50,.95)');
+  H();x.fillStyle=g;x.fill();
+  x.save();H();x.clip();x.lineWidth=2.4;x.strokeStyle='rgba(255,255,255,.45)';x.stroke();x.restore();
+  x.fillStyle='rgba(255,255,255,.65)';x.beginPath();x.ellipse(21,18,7,4,-.7,0,6.3);x.fill();
+  x.fillStyle='rgba(255,255,255,.3)';x.beginPath();x.arc(44,16,2,0,6.3);x.fill();
+ });
+}
+/* --- bulles, lueurs, étoiles --- */
+function bubbleSpr(){
+ return spr('bb0',96,96,(x)=>{
+  const g=x.createRadialGradient(48,48,18,48,48,46);g.addColorStop(0,'rgba(255,255,255,0)');g.addColorStop(.75,'rgba(180,220,255,.10)');g.addColorStop(.92,'rgba(210,170,255,.42)');g.addColorStop(1,'rgba(255,255,255,.75)');
+  x.fillStyle=g;x.beginPath();x.arc(48,48,46,0,6.3);x.fill();
+  const t=x.createLinearGradient(10,10,86,86);t.addColorStop(0,'rgba(255,120,200,.35)');t.addColorStop(.5,'rgba(120,230,255,.18)');t.addColorStop(1,'rgba(255,230,120,.35)');
+  x.strokeStyle=t;x.lineWidth=4;x.beginPath();x.arc(48,48,42,0,6.3);x.stroke();
+  x.fillStyle='rgba(255,255,255,.85)';x.beginPath();x.ellipse(30,28,11,6,-.7,0,6.3);x.fill();
+  x.fillStyle='rgba(255,255,255,.4)';x.beginPath();x.ellipse(68,70,6,3,-.7,0,6.3);x.fill();
+ });
+}
+function glowSpr(k){
+ const cols=[['255,236,150','255,190,90'],['210,255,160','120,230,120'],['240,190,255','190,120,255']][k];
+ return spr('gl'+k,64,64,(x)=>{
+  const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.12,`rgba(${cols[0]},.95)`);g.addColorStop(.35,`rgba(${cols[1]},.35)`);g.addColorStop(1,`rgba(${cols[1]},0)`);
+  x.fillStyle=g;x.fillRect(0,0,64,64);
+ });
+}
+function starSpr(){
+ return spr('st0',48,48,(x)=>{
+  const g=x.createRadialGradient(24,24,0,24,24,24);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.18,'rgba(220,200,255,.7)');g.addColorStop(1,'rgba(160,120,255,0)');
+  x.fillStyle=g;x.fillRect(0,0,48,48);
+  x.fillStyle='rgba(255,255,255,.9)';
+  x.beginPath();x.moveTo(24,2);x.lineTo(26,22);x.lineTo(46,24);x.lineTo(26,26);x.lineTo(24,46);x.lineTo(22,26);x.lineTo(2,24);x.lineTo(22,22);x.closePath();x.fill();
+ });
+}
+function blit(c,sp,x,y,wd,rot,alpha,sx,sy){
+ const k=wd/sp.w;c.save();c.translate(x,y);if(rot)c.rotate(rot);c.scale(k*(sx==null?1:sx),k*(sy==null?1:sy));c.globalAlpha=alpha;c.drawImage(sp,-sp.w/2,-sp.h/2,sp.w,sp.h);c.restore();
+}
+const FXC={butterflies:14,petals:46,doves:4,hearts:26,fireflies:42,stars:36,bubbles:26};
+function fxMake(t,init){
+ const {w,h}=FXS,s={t,ph:R(0,6.28),rot:0,z:R(.55,1.25)};
+ switch(t){
+  case 'butterflies':s.sp=BFS.length;s.v=Math.floor(R(0,BFS.length));s.s=R(16,27)*s.z;s.x=R(0,w);s.y=init?R(0,h):h+40;s.th=R(-3.1,3.1);s.spd=R(.7,1.5);s.vph=R(.34,.5);s.glide=0;s.turn=0;break;
+  case 'petals':s.v=Math.floor(R(0,PTC.length));s.s=R(14,26)*s.z;s.x=R(-20,w+20);s.y=init?R(-40,h):R(-60,-20);s.vy=R(.55,1.15)*s.z;s.vr=R(-.035,.035);s.rot=R(0,6.28);s.py=R(0,6.28);s.vpy=R(.025,.06);s.sw=R(.5,1.3);break;
+  case 'doves':s.dir=Math.random()<.5?1:-1;s.s=R(15,23);s.x=init?R(0,w):(s.dir>0?-70:w+70);s.y=R(h*.14,h*.65);s.vx=s.dir*R(1.1,1.7);s.vph=R(.13,.19);s.wait=init?R(0,260):R(180,520);break;
+  case 'hearts':s.v=Math.floor(R(0,HTC.length));s.s=R(16,34)*s.z;s.x=R(0,w);s.y=init?R(0,h):h+30;s.vy=R(.45,1.0)*s.z;s.sw=R(.5,1.1);s.vr=R(-.012,.012);break;
+  case 'fireflies':s.k=Math.floor(R(0,3));s.s=R(14,34)*s.z;s.x=R(0,w);s.y=R(0,h);s.th=R(0,6.28);s.sp=R(.2,.55);s.vph=R(.02,.06);break;
+  case 'stars':s.tw=Math.random()<.9;if(s.tw){s.s=R(5,15)*s.z;s.x=R(0,w);s.y=R(0,h);s.vph=R(.02,.07)}else{s.dead=1;s.wait=R(30,150);s.len=R(110,170)}break;
+  case 'bubbles':s.s=R(14,46)*s.z;s.x=R(0,w);s.y=init?R(0,h):h+50;s.vy=R(.3,.8)*s.z;s.sw=R(.4,1);break;
+ }
+ return s;
+}
+function fxDraw(c,s,T){
+ const {w,h}=FXS,wd=FXS.wind;
+ switch(s.t){
+  case 'butterflies':{
+   s.turn+=R(-.012,.012);s.turn*=.96;s.th+=s.turn;
+   if(s.glide>0){s.glide--}else if(Math.random()<.004){s.glide=R(25,60)}
+   const sp=s.glide>0?s.spd*.55:s.spd*(1+.5*Math.sin(s.ph*.5));
+   s.ph+=s.glide>0?s.vph*.25:s.vph;
+   s.x+=Math.cos(s.th)*sp*s.z+wd*.4;s.y+=Math.sin(s.th)*sp*s.z-.12+Math.sin(s.ph*.5)*.5;
+   if(s.x<-60){s.x=w+50}else if(s.x>w+60){s.x=-50}
+   if(s.y<-60){s.y=h+50}else if(s.y>h+60){s.y=-50}
+   const f=s.glide>0?.28:Math.max(.1,Math.abs(Math.cos(s.ph))),k=s.s,al=Math.min(.96,.45+.45*s.z);
+   const wing=bfWing(s.v),body=bfBody();
+   c.save();c.translate(s.x,s.y);c.rotate(s.th+Math.PI/2);
+   const ws=k/118;
+   for(const side of [1,-1]){c.save();c.globalAlpha=al;c.scale(side*f*ws,ws);c.drawImage(wing,-4,-55,wing.w,wing.h);c.restore()}
+   c.globalAlpha=al;c.drawImage(body,-k*.07,-k*.17,k*.14,k*.61);
+   c.restore();break}
+  case 'petals':{
+   s.py+=s.vpy;s.ph+=.02;
+   s.y+=s.vy;s.x+=Math.sin(s.ph)*s.sw+wd*1.4;s.rot+=s.vr+Math.sin(s.ph*.8)*.01;
+   if(s.y>h+50||s.x<-70||s.x>w+70){Object.assign(s,fxMake('petals',false))}
+   const cs=Math.cos(s.py),shade=cs<0?.8:1;
+   blit(c,petalSpr(s.v),s.x,s.y,s.s*1.3,s.rot,Math.min(.95,.55+.4*s.z)*shade,Math.max(.14,Math.abs(cs)),1);break}
+  case 'doves':{
+   if(s.wait>0){s.wait--;break}
+   s.x+=s.vx;s.ph+=s.vph;
+   const y=s.y+Math.sin(s.ph*.5)*10;
+   if((s.dir>0&&s.x>w+90)||(s.dir<0&&s.x<-90)){Object.assign(s,fxMake('doves',false));break}
+   dove(c,s.x,y,s.s,s.dir,s.ph);break}
+  case 'hearts':{
+   s.y-=s.vy;s.ph+=.03;s.x+=Math.sin(s.ph)*s.sw+wd*.5;s.rot+=s.vr;
+   if(s.y<-40){Object.assign(s,fxMake('hearts',false))}
+   const p=1+.06*Math.sin(s.ph*3),a=Math.max(0,Math.min(.9,s.y/(h*.35),(h+40-s.y)/60));
+   blit(c,heartSpr(s.v),s.x,s.y,s.s*p,Math.sin(s.ph*.7)*.35+s.rot,a,1,1);break}
+  case 'fireflies':{
+   s.th+=R(-.14,.14);s.x+=Math.cos(s.th)*s.sp;s.y+=Math.sin(s.th)*s.sp;s.ph+=s.vph;
+   if(s.x<-30)s.x=w+20;if(s.x>w+30)s.x=-20;if(s.y<-30)s.y=h+20;if(s.y>h+30)s.y=-20;
+   const f=.5+.5*Math.sin(s.ph)*Math.sin(s.ph*2.3+1);
+   c.globalCompositeOperation='lighter';blit(c,glowSpr(s.k),s.x,s.y,s.s*(.7+.5*f),0,.25+.75*f,1,1);c.globalCompositeOperation='source-over';break}
+  case 'stars':{
+   if(s.tw){s.ph+=s.vph;const f=Math.abs(Math.sin(s.ph));c.globalCompositeOperation='lighter';blit(c,starSpr(),s.x,s.y,s.s*(.5+.7*f),s.ph*.2,.2+.8*f,1,1);c.globalCompositeOperation='source-over';break}
+   if(s.dead){if(--s.wait<=0){s.dead=0;s.life=0;s.x=R(w*.35,w+30);s.y=R(-20,h*.4);const a=R(.45,.7);s.vx=-Math.cos(a)*R(9,13);s.vy=Math.sin(a)*R(9,13)}break}
+   s.life++;s.x+=s.vx;s.y+=s.vy;
+   const tl=s.len,ux=s.vx/Math.hypot(s.vx,s.vy),uy=s.vy/Math.hypot(s.vx,s.vy),fa=Math.min(1,s.life/8)*Math.max(0,1-s.life/55);
+   const g=c.createLinearGradient(s.x,s.y,s.x-ux*tl,s.y-uy*tl);g.addColorStop(0,`rgba(255,255,255,${.95*fa})`);g.addColorStop(.3,`rgba(200,170,255,${.45*fa})`);g.addColorStop(1,'rgba(150,110,255,0)');
+   c.strokeStyle=g;c.lineWidth=2.4;c.lineCap='round';c.beginPath();c.moveTo(s.x,s.y);c.lineTo(s.x-ux*tl,s.y-uy*tl);c.stroke();
+   c.globalCompositeOperation='lighter';blit(c,glowSpr(2),s.x,s.y,26,0,fa,1,1);c.globalCompositeOperation='source-over';
+   if(s.life>60||s.y>h+40||s.x<-80){s.dead=1;s.wait=R(60,240)}break}
+  case 'bubbles':{
+   s.y-=s.vy;s.ph+=.03;s.x+=Math.sin(s.ph)*s.sw+wd*.3;
+   if(s.y<-60){Object.assign(s,fxMake('bubbles',false))}
+   blit(c,bubbleSpr(),s.x,s.y,s.s*2,0,Math.min(.95,.5+.4*s.z),1+.05*Math.sin(s.ph*2.2),1-.05*Math.sin(s.ph*2.2));break}
+ }
+ c.globalAlpha=1;
+}
+/* colombe : plumes en éventail, aile en deux couches, queue, œil, bec */
+function dove(c,x,y,k,dir,ph){
+ const fl=Math.sin(ph*2.4);
+ c.save();c.translate(x,y);c.scale(dir,1);c.rotate(-.06+fl*.05);
+ const fth=(ox,oy,len,wd,ang,col1,col2)=>{c.save();c.translate(ox,oy);c.rotate(ang);const g=c.createLinearGradient(0,0,len,0);g.addColorStop(0,col1);g.addColorStop(1,col2);c.fillStyle=g;c.strokeStyle='rgba(170,155,215,.55)';c.lineWidth=.6;c.beginPath();c.moveTo(0,0);c.quadraticCurveTo(len*.5,-wd,len,0);c.quadraticCurveTo(len*.5,wd*.55,0,0);c.fill();c.stroke();c.restore()};
+ const wing=(shade,off)=>{
+  const phi=fl*1.05+.1,th=Math.PI+phi,ld=Math.tanh(phi*4);
+  c.save();c.translate(k*.12+off,-k*.16);
+  for(let i=0;i<10;i++){const t=i/9;
+   fth(0,0,k*(1.55-.75*t+.08*Math.sin(i*1.7)),k*(.13-.03*t),th+ld*(.5-1.0*t),shade[0],shade[1])}
+  c.restore();
+ };
+ /* queue */
+ for(let i=-2;i<=2;i++)fth(-k*.78,k*.02,k*.62,k*.1,Math.PI+i*.11,'#f5f2ff','#d9d2f2');
+ /* aile lointaine */
+ wing(['#e6e0fa','#c3b8ea'],k*.04);
+ /* corps */
+ let g=c.createRadialGradient(0,-k*.15,k*.1,0,0,k*.95);g.addColorStop(0,'#ffffff');g.addColorStop(.7,'#efeaff');g.addColorStop(1,'#cfc6ee');
+ c.fillStyle=g;c.beginPath();c.ellipse(0,0,k*.88,k*.4,.05,0,6.3);c.fill();
+ c.beginPath();c.ellipse(k*.52,k*.04,k*.42,k*.36,0,0,6.3);c.fill();
+ /* tête */
+ g=c.createRadialGradient(k*.9,-k*.34,k*.02,k*.95,-k*.3,k*.26);g.addColorStop(0,'#fff');g.addColorStop(1,'#ddd6f5');
+ c.fillStyle=g;c.beginPath();c.arc(k*.96,-k*.3,k*.22,0,6.3);c.fill();
+ c.fillStyle='#2a2140';c.beginPath();c.arc(k*1.03,-k*.34,k*.035,0,6.3);c.fill();
+ c.fillStyle='#f4a98a';c.beginPath();c.moveTo(k*1.15,-k*.3);c.lineTo(k*1.42,-k*.24);c.lineTo(k*1.15,-k*.2);c.closePath();c.fill();
+ /* aile proche */
+ wing(['#ffffff','#d6cdf2'],0);
+ c.restore();
+}
+function fxFrame(ts){
+ FXS.raf=0;
+ if(!FXS.name||document.hidden||!(curScreen==='chat'||curScreen==='plus')){const c=FXS.cx;if(c)c.clearRect(0,0,FXS.w,FXS.h);return}
+ FXS.raf=requestAnimationFrame(fxFrame);
+ if(ts-FXS.last<33)return;FXS.last=ts;
+ if(!FXS.w)fxSize();
+ const c=FXS.cx;c.clearRect(0,0,FXS.w,FXS.h);
+ FXS.wind=Math.sin(ts/2600)*.5+Math.sin(ts/1150)*.2;
+ for(const s of FXS.list)fxDraw(c,s,ts);
+}
+function fxKick(){if(FXS.name&&!FXS.raf&&!document.hidden&&(curScreen==='chat'||curScreen==='plus'))FXS.raf=requestAnimationFrame(fxFrame)}
+function fxApply(name,silent){
+ FXS.cv=FXS.cv||$('#fxc');if(!FXS.cv)return;
+ FXS.cx=FXS.cx||FXS.cv.getContext('2d');
+ FXS.name=name||'';clearTimeout(FXS.pt);
+ if(!FXS.name){FXS.list=[];if(FXS.raf){cancelAnimationFrame(FXS.raf);FXS.raf=0}FXS.cx.clearRect(0,0,FXS.w,FXS.h);FXS.cv.classList.remove('on');return}
+ fxSize();FXS.list=Array.from({length:FXC[name]||10},()=>fxMake(name,true));FXS.cv.classList.add('on');
+ if(FXS.raf)cancelAnimationFrame(FXS.raf);FXS.raf=0;fxKick();
+}
+setInterval(fxKick,700);
+window.addEventListener('resize',()=>{if(FXS.name){fxSize()}});
+function fxPreview(name){
+ const keep=PLUS.active?lsGet('vyro_fx'):'';
+ fxApply(name);clearTimeout(FXS.pt);
+ FXS.pt=setTimeout(()=>fxApply(keep),7000);
+}
+
+/* ---------- écran VYRO Plus ---------- */
+const PLUS_PERKS=[['🦋','Effets d’écran animés dans le Chat : papillons, roses, colombes…'],['🖼️','Cadres de photo animés, visibles par tous tes amis'],['👑','Badge VYRO Plus sur ton profil (bientôt)'],['🎨','Nouveaux effets et cadres ajoutés régulièrement']];
+function plusUntilTxt(){if(!PLUS.until)return '';return new Date(PLUS.until).toLocaleDateString('fr-FR',{day:'numeric',month:'long'})}
+function renderPlus(){
+ const act=PLUS.active,box=$('#plBody');if(!box)return;
+ const meL={name:me.display_name||me.username,h:hue(me.username||'x'),uid:me.id,avatar:me.avatar_url};
+ const curFx=act?lsGet('vyro_fx'):'';
+ const hero=`<div class="plhero"><div class="plcrown">${I('crown','fill cr')}</div><h2>VYRO <span>Plus</span></h2><p>${act?'Ton abonnement est actif jusqu’au '+esc(plusUntilTxt())+' ✨':'Rends ton VYRO unique : effets, cadres animés et plus encore.'}</p></div>`;
+ const cta=act?'':`<div class="plcta">${PLUS.trial_used?'':`<button type="button" class="cta" id="plTrial">${I('crown','fill')}Essayer 7 jours gratuits</button>`}<button type="button" class="cta alt" disabled style="opacity:.6">Payer avec ma monnaie VYRO · bientôt</button>${PLUS.trial_used?'<p class="muted" style="text-align:center;font-size:13px;margin-top:8px">Ton essai gratuit a déjà été utilisé.</p>':''}</div>`;
+ const perks=`<div class="plperks">${PLUS_PERKS.map(([e,t])=>`<div><span>${e}</span><p>${t}</p></div>`).join('')}</div>`;
+ const fx=`<div class="sec sm">${I('bars')}Effets d’écran (onglet Chat)</div><div class="fxg">
+  <button type="button" class="fxt ${!curFx?'cur':''}" data-fx=""><span class="e">🚫</span><b>Aucun</b></button>
+  ${FXL.map(([k,n,e])=>`<button type="button" class="fxt ${curFx===k?'cur':''}" data-fx="${k}"><span class="e">${e}</span><b>${n}</b>${act?'':'<i class="lk">🔒</i>'}</button>`).join('')}</div>${act?'':'<p class="muted plnote">Touche un effet pour voir un aperçu de 7 secondes.</p>'}`;
+ const fr=`<div class="sec sm">${I('user')}Cadre de photo</div><div class="frg">
+  <button type="button" class="frt ${!(act&&FRM[me.id])?'cur':''}" data-fr=""><div class="frno">${av(meL,56,'')}</div><b>Aucun</b></button>
+  ${FRAMES.map(f=>`<button type="button" class="frt ${act&&FRM[me.id]===f.id?'cur':''}" data-fr="${f.id}"><div class="frno">${av(meL,56,f.id)}</div><b>${f.name}</b>${act?'':'<i class="lk">🔒</i>'}</button>`).join('')}</div>`;
+ box.innerHTML=hero+cta+perks+fx+fr;
+}
+function openPlus(){
+ renderPlus();if(curScreen!=='plus')push('plus');
+ plusInit().then(()=>{if(curScreen==='plus')renderPlus()});
+}
+$('#plBody').onclick=async e=>{
+ const t=e.target.closest('#plTrial');
+ if(t){
+  t.disabled=true;
+  const {data,error}=await sb.rpc('vyro_plus_trial');
+  if(error){toast(/trial_used/.test(error.message||'')?'Essai gratuit déjà utilisé':'Impossible pour le moment');t.disabled=false;return}
+  PLUS=Object.assign(PLUS,data);toast('VYRO Plus activé pour 7 jours 🎉');fxPreview('butterflies');renderPlus();return}
+ const fx=e.target.closest('[data-fx]');
+ if(fx){
+  const k=fx.dataset.fx;
+  if(!PLUS.active){if(k){fxPreview(k);toast('Aperçu · active VYRO Plus pour le garder')}return}
+  lsSet('vyro_fx',k);fxApply(k);renderPlus();toast(k?'Effet activé ✨':'Effet désactivé');return}
+ const fr=e.target.closest('[data-fr]');
+ if(fr){
+  const k=fr.dataset.fr;
+  if(!PLUS.active){toast('Les cadres sont réservés à VYRO Plus 🔒');return}
+  const {data,error}=await sb.rpc('vyro_set_frame',{p_frame:k});
+  if(error){toast(/plus_required/.test(error.message||'')?'VYRO Plus requis':'Impossible pour le moment');return}
+  PLUS=Object.assign(PLUS,data);if(PLUS.frame)FRM[me.id]=PLUS.frame;else delete FRM[me.id];
+  decorPavs();renderChats();renderPlus();toast(k?'Cadre appliqué ✨':'Cadre retiré');
+ }
+};
+
+/* ---------- réponses faites depuis la notification : on les range dans la conversation ---------- */
+function obOpen(){return new Promise((res,rej)=>{if(!window.indexedDB)return rej();const r=indexedDB.open('vyro_outbox',1);r.onupgradeneeded=()=>r.result.createObjectStore('o',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+let obBusy=false;
+async function drainOutbox(){
+ if(!me||obBusy)return;obBusy=true;let db;
+ try{
+  db=await obOpen();
+  const all=await new Promise((res,rej)=>{const q=db.transaction('o').objectStore('o').getAll();q.onsuccess=()=>res(q.result||[]);q.onerror=()=>rej(q.error)});
+  const mine=all.filter(x=>x.uid===me.id);
+  if(mine.length){
+   await ingest(mine.map(x=>({id:x.id,conversation_id:x.cid,sender_id:x.uid,body:x.body,created_at:x.created_at,reply_to:null})),{own:true});
+   await new Promise(res=>{const tx=db.transaction('o','readwrite');mine.forEach(x=>tx.objectStore('o').delete(x.id));tx.oncomplete=res;tx.onerror=res});
+   try{renderChats()}catch(e){}
+  }
+ }catch(e){}
+ try{db&&db.close()}catch(e){}
+ obBusy=false;
+}
+if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',ev=>{if(ev.data&&ev.data.outbox)drainOutbox()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(drainOutbox,600)});
+const _pi=plusInit;
+plusInit=async function(){await _pi.apply(this,arguments);drainOutbox()};
+
+/* ---------- cadrage des vidéos du fil : portrait = plein écran, paysage/carré = entier et centré ---------- */
+document.addEventListener('loadedmetadata',e=>{
+ const v=e.target;
+ if(!v||v.tagName!=='VIDEO'||!v.closest||!v.closest('.media'))return;
+ const r=v.videoWidth/(v.videoHeight||1);
+ v.classList.toggle('fitc',r>.8);
+},true);
+
+/* ---------- écran de publication (façon TikTok) ---------- */
+let pubTags=null;
+function pubClose(){const el=$('#pubP');if(!el)return;if(el._u)try{URL.revokeObjectURL(el._u)}catch(e){}el.classList.remove('on');setTimeout(()=>el.remove(),200)}
+function pubParse(txt){
+ const re=/#[\p{L}\p{N}_]+/gu,seen=new Set(),tags=[];
+ (txt.match(re)||[]).forEach(t=>{const k=t.toLowerCase();if(!seen.has(k)){seen.add(k);tags.push(t)}});
+ let out='';for(const t of tags){if((out+(out?' ':'')+t).length>100)break;out+=(out?' ':'')+t}
+ return {caption:txt.replace(re,'').replace(/\s+/g,' ').trim().slice(0,300),tags:out};
+}
+uploadSheet=function(pre){
+ const real=!!MEDIA_URL;pre=pre||{};
+ const old=$('#pubP');if(old)old.remove();
+ let file=pre.file||null,dur=pre.dur||0,url=null;const phs=(pre.photos&&pre.photos.length)?pre.photos:null;
+ const el=document.createElement('div');el.id='pubP';
+ el.innerHTML=`<div class="pbh"><button type="button" class="pbk" id="pbBack" aria-label="Retour">${I('back')}</button><b>Publier</b><span></span></div>
+ <div class="pbs">
+  <div class="pbr">
+   <div class="pbt" id="pbT"><div class="pbe">${I('video')}<span>Choisir</span></div></div>
+   <div class="pbd"><textarea id="pbCap" maxlength="300" placeholder="${phs?'Décris ta publication, ajoute des #hashtags…':'Décris ta vidéo, ajoute des #hashtags…'}"></textarea><div class="pbc"><span id="pbN">0/300</span></div></div>
+  </div>
+  <div class="pbx"><button type="button" class="pbq" id="pbHash">${I('hash')}Hashtags</button></div>
+  <div class="pbg" id="pbSug"></div>
+  <div class="pbi" id="pbInfo"></div>
+  ${pre.sound?`<div class="pbsn">♫ ${esc(pre.sound)}</div>`:''}
+  ${real?'':'<p class="pbn">Mode test : pas d’envoi de vraie vidéo, un visuel de démonstration est utilisé.</p>'}
+  <input type="file" id="pbFile" accept="video/*" hidden>
+ </div>
+ <div class="pbf"><div class="prog" id="pbProg" hidden><i></i></div><button class="cta" id="pbGo">${I('send')}Publier</button></div>`;
+ $('#app').appendChild(el);requestAnimationFrame(()=>el.classList.add('on'));
+ const cap=$('#pbCap'),info=$('#pbInfo'),T=$('#pbT');
+ const setInfo=(t,bad)=>{info.textContent=t||'';info.classList.toggle('bad',!!bad)};
+ const showVid=()=>{
+  if(el._u)try{URL.revokeObjectURL(el._u)}catch(e){}
+  if(!file){T.innerHTML=`<div class="pbe">${I('video')}<span>Choisir</span></div>`;return}
+  url=el._u=URL.createObjectURL(file);
+  T.innerHTML=`<video src="${url}#t=0.4" muted playsinline preload="metadata"></video><span class="pbch">Changer</span>`;
+  setInfo((dur?dur+' s · ':'')+(file.size/1048576).toFixed(1)+' Mo');
+ };
+ if(phs){el._u=URL.createObjectURL(phs[0]);T.innerHTML=`<img src="${el._u}" alt=""><span class="pbch">${phs.length} photo${phs.length>1?'s':''}</span>`;setInfo(phs.length+' photo'+(phs.length>1?'s':'')+(pre.audio?' · musique':'')+' · à faire défiler')}
+ else if(file)showVid();else if(!real){T.innerHTML=`<div class="pbe">${I('image')}<span>Visuel test</span></div>`}
+ T.onclick=()=>{if(!real||phs)return;$('#pbFile').click()};
+ $('#pbFile').onchange=e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  if(!String(f.type).startsWith('video/')){setInfo('Ce fichier n’est pas une vidéo.',1);return}
+  if(f.size>MAX_VIDEO){setInfo('Vidéo trop lourde ('+(f.size/1048576).toFixed(1)+' Mo). Maximum : 20 Mo.',1);return}
+  file=f;dur=0;showVid();
+  const t=document.createElement('video'),u=URL.createObjectURL(f);t.preload='metadata';
+  t.onloadedmetadata=()=>{dur=Math.round(t.duration)||0;setInfo((dur?dur+' s · ':'')+(f.size/1048576).toFixed(1)+' Mo');URL.revokeObjectURL(u)};
+  t.onerror=()=>URL.revokeObjectURL(u);t.src=u;
+ };
+ const cnt=()=>{$('#pbN').textContent=cap.value.length+'/300'};cap.oninput=cnt;
+ const add=tag=>{
+  const v=cap.value;if(v.toLowerCase().includes(tag.toLowerCase()+' ')||v.toLowerCase().endsWith(tag.toLowerCase()))return;
+  cap.value=(v&&!/\s$/.test(v)?v+' ':v)+tag+' ';cnt();cap.focus();cap.setSelectionRange(cap.value.length,cap.value.length)};
+ $('#pbHash').onclick=()=>{const v=cap.value;cap.value=(v&&!/\s$/.test(v)?v+' ':v)+'#';cnt();cap.focus()};
+ const drawSug=list=>{$('#pbSug').innerHTML=list.map(t=>`<button type="button" class="pbs1" data-t="${esc(t)}">${esc(t)}</button>`).join('')};
+ const base=['#VYRO','#pourtoi','#fyp','#anime','#gaming','#humour','#musique','#danse','#tendance','#drole'];
+ drawSug(pubTags||base);
+ if(!pubTags)Promise.resolve(sb.rpc('vyro_discover')).then(r=>{const l=(r&&r.data&&r.data.tags)||[];if(l.length){pubTags=l.slice(0,10).map(x=>'#'+x.tag);base.forEach(b=>{if(pubTags.length<14&&!pubTags.includes(b))pubTags.push(b)});if($('#pubP'))drawSug(pubTags)}}).catch(()=>{});
+ $('#pbSug').onclick=e=>{const b=e.target.closest('[data-t]');if(b)add(b.dataset.t)};
+ $('#pbBack').onclick=pubClose;
+ const go=$('#pbGo');
+ go.onclick=async()=>{
+  const {caption,tags}=pubParse(cap.value);
+  if(!caption&&!tags){setInfo('Ajoute une description ou un hashtag',1);toast('Ajoute une description ou un hashtag');return}
+  let extra={};
+  if(phs){
+   if(!real){toast('Mode test : envoi impossible');return}
+   setInfo('');go.disabled=true;go.lastChild.textContent='Envoi en cours…';
+   const bar=$('#pbProg');bar.hidden=false;
+   const jobs=phs.length+(pre.audio?1:0);let done=0;
+   const setP=f=>{bar.firstChild.style.width=Math.round((done+f)/jobs*100)+'%'};
+   const fail=x=>{go.disabled=false;go.lastChild.textContent='Publier';bar.hidden=true;const code=(x&&x.message)||'inconnu';const nice={too_large:'Image trop lourde',unauthorized:'Session expirée : reconnecte-toi',network:'Pas de connexion ou relais injoignable',telegram_error:'Le relais n’a pas pu enregistrer (Telegram)'}[code]||'Envoi impossible';setInfo(nice+' ('+code+')',1);toast(nice)};
+   let ids=[],aud=null;
+   try{
+    const {data:{session}}=await sb.auth.getSession();
+    for(const b of phs){const r=await sendMediaFile('image',b,'photo.jpg',session.access_token,setP);ids.push(r.file_id);done++}
+    if(pre.audio){const r=await sendMediaFile('audio',pre.audio,'musique.wav',session.access_token,setP);aud=r.file_id;done++}
+   }catch(x){fail(x);return}
+   const hd=await sb.from('vyro_videos').insert(Object.assign({user_id:me.id,caption,tags,tg_thumb_id:ids[0],tg_file_id:aud,pages:ids.length},pre.sound?{sound:String(pre.sound).slice(0,60)}:{})).select('id').single();
+   if(hd.error||!hd.data){go.disabled=false;go.lastChild.textContent='Publier';bar.hidden=true;setInfo('Publication impossible : '+((hd.error&&(hd.error.message||hd.error.code))||'erreur'),1);toast('Publication impossible');return}
+   if(ids.length>1){
+    const rows=ids.slice(1).map((f,k)=>({user_id:me.id,caption:'',tags:'',tg_thumb_id:f,page_of:hd.data.id,page_n:k+1}));
+    const pr=await sb.from('vyro_videos').insert(rows);
+    if(pr.error){await sb.from('vyro_videos').delete().eq('id',hd.data.id);go.disabled=false;go.lastChild.textContent='Publier';bar.hidden=true;setInfo('Publication impossible : '+(pr.error.message||pr.error.code||'erreur'),1);toast('Publication impossible');return}
+   }
+   if(pre.onDone)try{pre.onDone()}catch(e){}
+   pubClose();toast('Publié ✅');tabV='fy';$$('.vtab').forEach(x=>x.classList.toggle('cur',x.dataset.v==='fy'));tab('videos');return;
+  }
+  if(real){
+   if(!file){setInfo('Choisis une vidéo (touche l’aperçu)',1);toast('Choisis une vidéo');return}
+   setInfo('');go.disabled=true;go.lastChild.textContent='Envoi en cours…';
+   const bar=$('#pbProg');bar.hidden=false;
+   try{
+    const {data:{session}}=await sb.auth.getSession();
+    const r=await sendVideo(file,dur,session.access_token,pc=>{bar.firstChild.style.width=pc+'%'});
+    extra={tg_file_id:r.file_id,tg_thumb_id:r.thumb_id||null,duration:r.duration||dur||null};
+   }catch(x){
+    go.disabled=false;go.lastChild.textContent='Publier';bar.hidden=true;
+    const code=(x&&x.message)||'inconnu';
+    const nice={too_large:'Vidéo trop lourde (20 Mo max)',unauthorized:'Session expirée : reconnecte-toi',network:'Pas de connexion ou relais injoignable',telegram_error:'Le relais n’a pas pu enregistrer la vidéo (Telegram)',not_video:'Ce fichier n’est pas reconnu comme vidéo',bad_request:'Envoi invalide',no_file:'Aucune vidéo reçue'}[code]||'Envoi impossible';
+    setInfo(nice+' ('+code+')',1);toast(nice);return}
+  }
+  const {error}=await sb.from('vyro_videos').insert(Object.assign({user_id:me.id,caption,tags},extra,pre.sound?{sound:String(pre.sound).slice(0,60)}:{}));
+  if(error){go.disabled=false;go.lastChild.textContent='Publier';setInfo('Publication impossible : '+(error.message||error.code||'erreur'),1);toast('Publication impossible');return}
+  if(pre.onDone)try{pre.onDone()}catch(e){}
+  pubClose();toast('Publié ✅');tabV='fy';$$('.vtab').forEach(x=>x.classList.toggle('cur',x.dataset.v==='fy'));tab('videos');
+ };
+};
+
+/* ---------- VYRO World : bouton de jeu dans Room ---------- */
+function worldRow(){
+ const d=document.createElement('div');d.className='wchat';
+ d.innerHTML=`<div class="wglobe"><img src="world-icon.jpg" alt="" draggable="false"></div><div class="wtx"><b>VYRO World</b></div><button type="button" class="wplay">${window.WORLD_ON?I('play')+'JOUER':'BIENTÔT'}</button>`;
+ return d;
+}
+function worldInject(){
+ const L=$('#chatList');if(!L||L.querySelector('.wchat'))return;
+ if(filter!=='group'||q)return;
+ L.insertBefore(worldRow(),L.firstChild);
+}
+new MutationObserver(worldInject).observe($('#chatList'),{childList:true});
+$('#chatList').addEventListener('click',e=>{
+ const r=e.target.closest('.wchat');if(!r)return;
+ e.stopImmediatePropagation();e.stopPropagation();
+ openWorld();
+},true);
+
+/* ---------- musiques VYRO : synthé intégré (libre de droits) + import ---------- */
+const MU_TRACKS=[
+ {id:'lofi',name:'Lo-fi Chill',em:'☕',bpm:78,swing:.2,prog:[[57,'m7'],[53,'maj7'],[48,'maj7'],[55,'7']],kick:'x.......x.x.....',sn:'....x.......x...',hat:'x.x.x.x.x.x.x.xx',bass:{pat:'x.....x.x.......',wave:'sine',oct:0},chord:{style:'keys',pat:'x.....x.....x...'},arp:null,rev:.4,vol:.9},
+ {id:'afro',name:'Afro Vibes',em:'🥁',bpm:106,swing:.08,prog:[[57,'m'],[53,'M'],[55,'M'],[52,'m']],kick:'x..x..x...x.x...',sn:'....x.......x..x',hat:'x.xxx.xxx.xxx.xx',perc:'..x..x..x..x..x.',bass:{pat:'x..x..x...x..x..',wave:'triangle',oct:0},chord:{style:'stab',pat:'..x...x...x...x.'},arp:{pat:'x.x.xx.x.x.xx.x.',wave:'triangle',oct:1},rev:.2,vol:.85},
+ {id:'trap',name:'Trap Night',em:'🌙',bpm:140,swing:0,prog:[[57,'m'],[57,'m'],[53,'M'],[52,'m']],kick:'x.....x...x.....',sn:'........x.......',hat:'xxxxxxxxxxxxxxxx',bass:{pat:'x.....x...x.....',wave:'sine',oct:-1,long:true},chord:{style:'pad',pat:'x...............'},arp:{pat:'x.x.x.x.x.x.x.x.',wave:'square',oct:1,quiet:true},rev:.3,vol:.85},
+ {id:'synth',name:'Synthwave',em:'🌆',bpm:108,swing:0,prog:[[57,'m'],[53,'M'],[48,'M'],[55,'M']],kick:'x...x...x...x...',sn:'....x.......x...',hat:'..x...x...x...x.',bass:{pat:'xxxxxxxxxxxxxxxx',wave:'saw',oct:0},chord:{style:'pad',pat:'x...............'},arp:{pat:'xxxxxxxxxxxxxxxx',wave:'saw',oct:1,quiet:true},rev:.35,vol:.8},
+ {id:'dream',name:'Rêverie',em:'✨',bpm:70,swing:0,prog:[[53,'maj7'],[57,'m7'],[50,'m7'],[55,'7']],kick:'x...............',sn:'',hat:'',bass:{pat:'x.......',wave:'sine',oct:0},chord:{style:'pad',pat:'x...............'},arp:{pat:'x...x...x...x...',wave:'sine',oct:2,bell:true},rev:.6,vol:1.1},
+ {id:'dance',name:'Dance Pop',em:'💃',bpm:120,swing:0,prog:[[57,'m'],[53,'M'],[48,'M'],[55,'M']],kick:'x...x...x...x...',sn:'....x.......x...',hat:'..x...x...x...x.',bass:{pat:'.x..x..x.x..x..x',wave:'saw',oct:0},chord:{style:'stab',pat:'..x...x...x...x.'},arp:null,rev:.25,vol:.8},
+ {id:'piano',name:'Piano doux',em:'🎹',bpm:66,swing:0,prog:[[48,'maj7'],[55,'M'],[57,'m7'],[53,'maj7']],kick:'',sn:'',hat:'',bass:{pat:'x...............',wave:'sine',oct:0},chord:{style:'keys',pat:'x...............'},arp:{pat:'x.x.x.x.x.x.x.x.',wave:'triangle',oct:1,piano:true},rev:.45,vol:1.6},
+ {id:'boom',name:'Hip-Hop Boom',em:'🎤',bpm:90,swing:.16,prog:[[55,'m7'],[55,'m7'],[51,'maj7'],[53,'7']],kick:'x.....x..x......',sn:'....x.......x...',hat:'x.x.x.x.x.x.x.x.',bass:{pat:'x.....x..x......',wave:'sine',oct:-1,long:true},chord:{style:'keys',pat:'x.......x.......'},arp:null,rev:.25,vol:.9}
+];
+const MU_CH={m7:[0,3,7,10],maj7:[0,4,7,11],m:[0,3,7],M:[0,4,7],'7':[0,4,7,10]};
+const mf=n=>440*Math.pow(2,(n-69)/12);
+const _muCache={};
+async function muRender(id,sec){
+ const t=MU_TRACKS.find(x=>x.id===id);if(!t)return null;
+ sec=Math.min(Math.max(sec||15,4),60);
+ const spb=60/t.bpm,bar=spb*4,bars=Math.max(2,Math.ceil(sec/bar)),len=bars*bar,key=id+':'+bars;
+ if(_muCache[key])return _muCache[key];
+ const sr=32000,oc=new OfflineAudioContext(2,Math.ceil((len+1.2)*sr),sr);
+ const master=oc.createGain();master.gain.value=.68*(t.vol||1);
+ const comp=oc.createDynamicsCompressor();comp.threshold.value=-14;comp.ratio.value=3;comp.attack.value=.005;comp.release.value=.2;
+ master.connect(comp);comp.connect(oc.destination);
+ /* réverb */
+ const rev=oc.createConvolver(),il=Math.floor(sr*1.7),ib=oc.createBuffer(2,il,sr);
+ for(let c=0;c<2;c++){const d=ib.getChannelData(c);for(let i=0;i<il;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/il,2.6)}
+ rev.buffer=ib;const wet=oc.createGain();wet.gain.value=t.rev||.3;rev.connect(wet);wet.connect(master);
+ const dry=oc.createGain();dry.gain.value=1;dry.connect(master);
+ const send=oc.createGain();send.gain.value=1;send.connect(rev);
+ const nb=oc.createBuffer(1,sr,sr),nd=nb.getChannelData(0);for(let i=0;i<sr;i++)nd[i]=Math.random()*2-1;
+ const env=(g,t0,a,d,peak,end)=>{g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(peak,t0+a);g.gain.exponentialRampToValueAtTime(.0008,t0+a+d)};
+ const osc=(type,f,t0,dur,peak,a,toSend,dest,detune)=>{
+  const o=oc.createOscillator(),g=oc.createGain();o.type=type;o.frequency.value=f;if(detune)o.detune.value=detune;
+  env(g,t0,a,dur,peak);o.connect(g);g.connect(dest||dry);if(toSend)g.connect(send);o.start(t0);o.stop(t0+a+dur+.05);return g};
+ const kick=(t0,v)=>{const o=oc.createOscillator(),g=oc.createGain();o.frequency.setValueAtTime(155,t0);o.frequency.exponentialRampToValueAtTime(42,t0+.12);
+  g.gain.setValueAtTime(v,t0);g.gain.exponentialRampToValueAtTime(.001,t0+.3);o.connect(g);g.connect(dry);o.start(t0);o.stop(t0+.32)};
+ const noise=(t0,dur,type,f,q,v)=>{const s=oc.createBufferSource(),fl=oc.createBiquadFilter(),g=oc.createGain();s.buffer=nb;fl.type=type;fl.frequency.value=f;fl.Q.value=q;
+  g.gain.setValueAtTime(v,t0);g.gain.exponentialRampToValueAtTime(.001,t0+dur);s.connect(fl);fl.connect(g);g.connect(dry);s.start(t0,Math.random()*.5);s.stop(t0+dur+.02)};
+ const snare=(t0)=>{noise(t0,.16,'bandpass',1900,.8,.5);osc('triangle',190,t0,.1,.35,.002)};
+ const hat=(t0,v)=>noise(t0,.045,'highpass',7500,.7,v);
+ const sdur=spb/4;
+ const pat=(s,i)=>s&&s[i%s.length]==='x';
+ const steps=bars*16;
+ for(let st=0;st<steps;st++){
+  const barI=Math.floor(st/16),si=st%16,ch=t.prog[barI%t.prog.length],root=ch[0],ints=MU_CH[ch[1]]||MU_CH.m;
+  const sw=(si%2===1)?t.swing*sdur:0,t0=st*sdur+sw;
+  if(pat(t.kick,si))kick(t0,.95);
+  if(pat(t.sn,si))snare(t0);
+  if(pat(t.hat,si))hat(t0,(si%4===2?.2:.12)*(t.id==='trap'?1.2:1));
+  if(pat(t.perc,si)){osc('sine',si%3?980:760,t0,.06,.16,.001);noise(t0,.05,'bandpass',4200,2,.1)}
+  const b=t.bass;
+  if(b&&pat(b.pat,si)){const n=root-12+(b.oct||0)*12;
+   const bl=b.long?sdur*5:sdur*1.7;
+   osc(b.wave==='saw'?'sawtooth':b.wave,mf(n),t0,bl,b.wave==='sine'?.62:.3,.008,false);
+   if(b.wave==='sine'&&b.long)osc('sine',mf(n)*2,t0,bl*.4,.08,.004,false)}
+  const c=t.chord;
+  if(c&&pat(c.pat,si)){
+   const cl=c.style==='pad'?bar*0.98:c.style==='stab'?sdur*1.1:sdur*5;
+   ints.forEach((iv,k)=>{const n=root+iv+(k>2?0:0),f=mf(n);
+    if(c.style==='pad'){osc('sawtooth',f,t0,cl,.055,.35,true,null,k*3-4);osc('sawtooth',f*1.004,t0,cl,.04,.4,true)}
+    else if(c.style==='stab'){osc('square',f,t0,cl,.07,.004,true);}
+    else{osc('sine',f,t0,cl,.12,.01,true);osc('triangle',f*2,t0,cl*.5,.035,.005,true)}});
+  }
+  const a=t.arp;
+  if(a&&pat(a.pat,si)){const idx=Math.floor(st/1)%ints.length,iv=ints[(si>>1)%ints.length],n=root+iv+12*(a.oct||1),f=mf(n);
+   const q=a.quiet?.05:.11;
+   if(a.bell){osc('sine',f,t0,1.4,.1,.003,true);osc('sine',f*2.76,t0,.5,.025,.003,true)}
+   else if(a.piano){osc('triangle',f,t0,.9,.14,.004,true);osc('sine',f*2,t0,.4,.04,.004,true)}
+   else osc(a.wave==='saw'?'sawtooth':a.wave,f,t0,.2,q,.004,true)}
+ }
+ const buf=await oc.startRendering();
+ return _muCache[key]={buf,loop:len,id,name:t.name};
+}
+/* lecture (aperçu) : un seul à la fois */
+let _muCtx=null,_muSrc=null;
+function muStop(){try{_muSrc&&_muSrc.stop()}catch(e){}_muSrc=null}
+function muPlay(m,vol,offset){
+ muStop();if(!m)return;
+ _muCtx=_muCtx||new (window.AudioContext||window.webkitAudioContext)();_muCtx.resume&&_muCtx.resume();
+ const s=_muCtx.createBufferSource(),g=_muCtx.createGain();s.buffer=m.buf;s.loop=true;if(m.loop)s.loopEnd=Math.min(m.loop,m.buf.duration);g.gain.value=vol;
+ s.connect(g);g.connect(_muCtx.destination);s.start(0,offset||0);_muSrc=s;
+}
+/* import d'un fichier audio du téléphone */
+async function muImport(file){
+ const ctx=new (window.AudioContext||window.webkitAudioContext)();
+ try{
+  const ab=await file.arrayBuffer();const buf=await new Promise((ok,ko)=>ctx.decodeAudioData(ab,ok,ko));
+  if(buf.duration<1)throw new Error('short');
+  return {buf,loop:0,id:'file',name:(file.name||'Ma musique').replace(/\.[a-z0-9]+$/i,'').slice(0,40)};
+ }finally{try{ctx.close()}catch(e){}}
+}
+/* ---------- vraie musique : catalogue Jamendo (artistes indépendants, licences Creative Commons) ---------- */
+const JAMENDO_ID='';/* identifiant public Jamendo (client_id) : à renseigner pour activer Tendance + recherche */
+const _jmCache={};
+const _fmtD=s=>{s=Math.round(s||0);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+async function jmList(q,signal){
+ const key=q||'__trend';if(_jmCache[key])return _jmCache[key];
+ const u='https://api.jamendo.com/v3.0/tracks/?client_id='+encodeURIComponent(JAMENDO_ID)+'&format=json&limit=50&audioformat=mp31&imagesize=100'+(q?'&search='+encodeURIComponent(q)+'&order=relevance':'&order=popularity_week');
+ const r=await fetch(u,{signal});if(!r.ok)throw new Error('http');
+ const j=await r.json();
+ if(j.headers&&j.headers.status==='failed')throw new Error('api');
+ /* on écarte les licences « pas d'usage commercial » (NC) : VYRO propose un abonnement */
+ const l=(j.results||[]).filter(t=>t&&t.audio&&(t.duration||0)>=20&&!/-nc/i.test(t.license_ccurl||'')).map(t=>({id:'j'+t.id,name:String(t.name||'Titre'),artist:String(t.artist_name||''),dur:t.duration,img:String(t.image||t.album_image||'').replace(/^http:/,'https:'),url:String(t.audio).replace(/^http:/,'https:')}));
+ if(l.length)_jmCache[key]=l;return l;
+}
+async function jmLoad(t){
+ const r=await fetch(t.url);if(!r.ok)throw new Error('http');
+ const ab=await r.arrayBuffer();if(ab.byteLength>14e6)throw new Error('big');
+ const ctx=new (window.AudioContext||window.webkitAudioContext)();
+ try{
+  const buf=await new Promise((ok,ko)=>ctx.decodeAudioData(ab,ok,ko));
+  return {buf,loop:0,id:t.id,name:(t.name+(t.artist?' · '+t.artist:'')).slice(0,60)};
+ }finally{try{ctx.close()}catch(e){}}
+}
+/* sélecteur de musique réutilisable : barre de recherche + Tendance + sons VYRO + fichier perso */
+function muPanel(box,S,getSec,onChange){
+ let tabN=JAMENDO_ID?'trend':'vyro',q='',seq=0,ctl=null,timer=null;
+ box.innerHTML=`<div class="muq"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="muQ" type="search" enterkeyhint="search" placeholder="Rechercher un artiste ou un titre" autocomplete="off" maxlength="60"><button type="button" id="muQx" hidden aria-label="Effacer">✕</button></div>
+ <div class="mut"><button type="button" data-tb="trend" class="on">🔥 Tendance</button><button type="button" data-tb="vyro">🎹 Sons VYRO</button><button type="button" data-tb="file">📁 Mon fichier</button></div>
+ <div class="mucur" id="muCur" hidden></div>
+ <div class="mul" id="muL"></div>
+ <div class="edrow"><span class="edlab">Volume musique</span><input type="range" id="muVol" min="0" max="100" value="${Math.round((S.mvol??.7)*100)}"><b id="muVn">${Math.round((S.mvol??.7)*100)}%</b></div>
+ <input type="file" id="muFile" accept="audio/*" hidden>`;
+ const L=box.querySelector('#muL'),Q=box.querySelector('#muQ'),QX=box.querySelector('#muQx'),CUR=box.querySelector('#muCur');
+ const mark=()=>{
+  box.querySelectorAll('.mur').forEach(b=>b.classList.toggle('on',!!S.music&&b.dataset.k===S.music.id));
+  CUR.hidden=!S.music;if(S.music)CUR.innerHTML=`<span>♫ ${esc(S.music.name)}</span><button type="button" id="muOff">Retirer</button>`;
+ };
+ const tabs=()=>box.querySelectorAll('.mut button').forEach(b=>b.classList.toggle('on',!q&&b.dataset.tb===tabN));
+ const rows=l=>l.map(t=>`<button type="button" class="mur" data-k="${t.id}"><span class="mcv">${t.img?`<img src="${esc(t.img)}" alt="" loading="lazy" onerror="this.remove()">`:'🎵'}</span><span class="mt"><b>${esc(t.name)}</b><small>${esc(t.artist)}${t.artist&&t.dur?' · ':''}${t.dur?_fmtD(t.dur):''}</small></span><span class="mck">✓</span></button>`).join('');
+ let cur=[];
+ const show=l=>{cur=l;L.innerHTML=rows(l);mark()};
+ const msg=(h)=>{cur=[];L.innerHTML=`<p class="mumsg">${h}</p>`};
+ const showVyro=()=>{cur=[];L.innerHTML=MU_TRACKS.map(t=>`<button type="button" class="mur" data-m="${t.id}" data-k="${t.id}"><span class="mcv">${t.em}</span><span class="mt"><b>${esc(t.name)}</b><small>Son VYRO · libre de droits</small></span><span class="mck">✓</span></button>`).join('');mark()};
+ const fetchList=async()=>{
+  const my=++seq;if(ctl)try{ctl.abort()}catch(e){}ctl=new AbortController();
+  if(!JAMENDO_ID){msg('Le catalogue musical arrive bientôt.<br>En attendant, utilise les sons VYRO ou ton propre fichier.');return}
+  if(!navigator.onLine){msg('Pas de connexion. Réessaie quand tu es en ligne.');return}
+  L.innerHTML='<p class="mumsg">Chargement…</p>';
+  try{
+   const l=await jmList(q,ctl.signal);if(my!==seq)return;
+   if(l.length)show(l);else msg(q?'Aucun résultat pour « '+esc(q)+' ».<br>Essaie un autre nom d’artiste ou de titre.':'Aucune musique pour l’instant.');
+  }catch(e){if(my!==seq||(e&&e.name==='AbortError'))return;msg('Impossible de charger la musique.<br><button type="button" class="mure" id="muRe">Réessayer</button>')}
+ };
+ const refresh=()=>{
+  tabs();QX.hidden=!q;
+  if(q||tabN==='trend')fetchList();else showVyro();
+ };
+ box.querySelector('.mut').onclick=e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.tb==='file'){box.querySelector('#muFile').click();return}
+  tabN=b.dataset.tb;q='';Q.value='';refresh();
+ };
+ Q.oninput=()=>{q=Q.value.trim();clearTimeout(timer);timer=setTimeout(refresh,q?420:0);QX.hidden=!Q.value};
+ Q.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();clearTimeout(timer);Q.blur();q=Q.value.trim();refresh()}};
+ QX.onclick=()=>{q='';Q.value='';refresh();Q.focus()};
+ CUR.onclick=e=>{if(e.target.id==='muOff'){S.music=null;muStop();mark();onChange()}};
+ L.onclick=async e=>{
+  if(e.target.id==='muRe'){refresh();return}
+  const b=e.target.closest('.mur');if(!b)return;
+  const k=b.dataset.k;
+  if(S.music&&S.music.id===k){S.music=null;muStop();mark();onChange();return}
+  b.classList.add('ld');
+  try{
+   if(b.dataset.m)S.music=await muRender(k,getSec());
+   else{const t=cur.find(x=>x.id===k);if(!t)throw new Error('x');S.music=await jmLoad(t)}
+   S.mstart=0;muPlay(S.music,S.mvol??.7,0);
+  }catch(x){toast(b.dataset.m?'Musique indisponible':'Titre indisponible, essaie-en un autre')}
+  b.classList.remove('ld');mark();onChange();
+ };
+ box.querySelector('#muFile').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{S.music=await muImport(f);S.mstart=0;muPlay(S.music,S.mvol??.7,0)}catch(x){toast('Fichier audio illisible');return}
+  mark();onChange();
+ };
+ box.querySelector('#muVol').oninput=e=>{S.mvol=e.target.value/100;box.querySelector('#muVn').textContent=e.target.value+'%';if(_muSrc&&S.music)muPlay(S.music,S.mvol,S.mstart||0)};
+ refresh();
+}
+
+/* ---------- éditeur vidéo (avant publication) ---------- */
+const ED_FX=[['orig','Original','none'],['vivid','Vif','saturate(1.55) contrast(1.1)'],['bright','Éclat','brightness(1.13) saturate(1.15)'],['bw','Noir & blanc','grayscale(1) contrast(1.12)'],['warm','Chaud','sepia(.35) saturate(1.3) hue-rotate(-10deg)'],['cool','Froid','saturate(1.2) hue-rotate(15deg) brightness(1.03)'],['vint','Vintage','sepia(.6) contrast(.9) brightness(1.05)'],['drama','Drama','contrast(1.35) saturate(1.2) brightness(.92)'],['neon','Néon','saturate(2) hue-rotate(250deg) contrast(1.1)']];
+const ED_COL=['#ffffff','#000000','#fde047','#f472b6','#22d3ee','#a78bfa','#4ade80','#fb923c'];
+const _uplEd=uploadSheet;
+uploadSheet=function(pre){
+ pre=pre||{};
+ if(pre.file&&!pre.edited&&MEDIA_URL&&window.MediaRecorder&&HTMLCanvasElement.prototype.captureStream){edOpen(pre);return}
+ _uplEd(pre);
+};
+function edOpen(pre){
+ const old=$('#edP');if(old)old.remove();
+ const canFx=(()=>{try{return 'filter' in document.createElement('canvas').getContext('2d')}catch(e){return false}})();
+ const S={start:0,end:0,dur:0,fx:'orig',vol:1,speed:1,txt:'',col:'#ffffff',pill:false,fs:.07,tx:.5,ty:.5,tool:'trim'};
+ const url=URL.createObjectURL(pre.file);
+ const el=document.createElement('div');el.id='edP';
+ el.innerHTML=`<div class="edtop"><button type="button" class="edx" id="edX" aria-label="Fermer">✕</button><b>Modifier</b><span></span></div>
+ <div class="edst" id="edSt"><div class="edw" id="edW"><video id="edV" src="${url}" playsinline loop preload="auto"></video><div class="edt" id="edT" hidden></div></div>
+  <div class="edtb" id="edTb">
+   <button type="button" data-t="trim"><i>✂</i>Couper</button>
+   <button type="button" data-t="text"><i>Aa</i>Texte</button>
+   ${canFx?'<button type="button" data-t="fx"><i>◐</i>Filtres</button>':''}
+   <button type="button" data-t="snd"><i>♪</i>Son</button>
+   <button type="button" data-t="mus"><i>♫</i>Musique</button>
+   <button type="button" data-t="spd"><i>»</i>Vitesse</button>
+  </div></div>
+ <div class="edpn" id="edPn"></div>
+ <div class="edft"><button class="cta" id="edNext">Suivant</button></div>
+ <div class="edbusy" id="edBusy" hidden><div><div class="edsp"></div><b id="edPc">0%</b><span>Création de ta vidéo…<br>Garde l’appli ouverte</span><button type="button" id="edCancel">Annuler</button></div></div>`;
+ $('#app').appendChild(el);requestAnimationFrame(()=>el.classList.add('on'));
+ const V=$('#edV'),W=$('#edW'),T=$('#edT'),St=$('#edSt'),Pn=$('#edPn');
+ const close=()=>{muStop();try{V.pause()}catch(e){}URL.revokeObjectURL(url);el.classList.remove('on');setTimeout(()=>el.remove(),200)};
+ $('#edX').onclick=close;
+ const fmt=s=>{s=Math.max(0,s);return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0')};
+ /* taille du cadre vidéo */
+ const fit=()=>{
+  const vw=V.videoWidth||9,vh=V.videoHeight||16,bw=St.clientWidth-64,bh=St.clientHeight-12,k=Math.min(bw/vw,bh/vh);
+  W.style.width=Math.floor(vw*k)+'px';W.style.height=Math.floor(vh*k)+'px';drawTxt();
+ };
+ const applyFx=()=>{const f=ED_FX.find(x=>x[0]===S.fx);V.style.filter=f?f[2]:'none'};
+ const drawTxt=()=>{
+  T.hidden=!S.txt;if(!S.txt)return;
+  T.textContent=S.txt;T.style.fontSize=(S.fs*W.clientHeight)+'px';T.style.left=(S.tx*100)+'%';T.style.top=(S.ty*100)+'%';
+  T.style.color=S.col;T.classList.toggle('pill',S.pill);
+  T.style.background=S.pill?(S.col==='#000000'?'#fff':'rgba(0,0,0,.55)'):'none';
+  if(S.pill&&S.col==='#000000')T.style.color='#000';
+ };
+ V.onloadedmetadata=()=>{
+  S.dur=V.duration&&isFinite(V.duration)?V.duration:(pre.dur||10);S.end=S.dur;fit();renderPanel();
+  V.play().catch(()=>{V.muted=true;V.play().catch(()=>{})});
+  if(canFx)setTimeout(thumbs,400);
+ };
+ V.ontimeupdate=()=>{
+  if(V.currentTime>=S.end-.05||V.currentTime<S.start-.3){V.currentTime=S.start;if(S.music&&!V.paused)muPlay(S.music,S.mvol??.7,S.mstart||0)}
+  const ph=$('#edPh');if(ph&&S.dur)ph.style.left=(V.currentTime/S.dur*100)+'%';
+ };
+ window.addEventListener('resize',fit);
+ try{new ResizeObserver(()=>fit()).observe(St)}catch(e){}
+ /* texte déplaçable */
+ let drag=null;
+ T.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,tx:S.tx,ty:S.ty};T.setPointerCapture(e.pointerId)});
+ T.addEventListener('pointermove',e=>{if(!drag)return;const r=W.getBoundingClientRect();
+  S.tx=Math.min(.95,Math.max(.05,drag.tx+(e.clientX-drag.x)/r.width));S.ty=Math.min(.95,Math.max(.05,drag.ty+(e.clientY-drag.y)/r.height));drawTxt()});
+ T.addEventListener('pointerup',()=>{drag=null});
+ /* miniatures filtres */
+ let thumbU={};
+ function thumbs(){
+  if(!V.videoWidth)return;
+  const c=document.createElement('canvas');c.width=60;c.height=76;const x=c.getContext('2d');
+  const vw=V.videoWidth,vh=V.videoHeight,k=Math.max(60/vw,76/vh),w=vw*k,h=vh*k;
+  ED_FX.forEach(f=>{x.filter=f[2];x.drawImage(V,(60-w)/2,(76-h)/2,w,h);thumbU[f[0]]=c.toDataURL('image/jpeg',.6)});
+  if(S.tool==='fx')renderPanel();
+ }
+ /* panneaux */
+ function renderPanel(){
+  $$('#edTb button').forEach(b=>b.classList.toggle('on',b.dataset.t===S.tool));
+  if(S.tool==='trim'){
+   Pn.innerHTML=`<div class="edtl" id="edTl"><div class="edsel" id="edSel"></div><i class="edh l" id="edHl"></i><i class="edh r" id="edHr"></i><i class="edph" id="edPh"></i></div><div class="edlb"><span id="edLb"></span></div>`;
+   trimUI();
+  }else if(S.tool==='text'){
+   Pn.innerHTML=`<input id="edIn" class="edin" maxlength="80" placeholder="Écris ton texte…" value="${esc(S.txt)}"><div class="edrow"><div class="edcol">${ED_COL.map(c=>`<button type="button" class="edc${c===S.col?' on':''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div><button type="button" class="edpl${S.pill?' on':''}" id="edPl">Aa</button></div><div class="edrow"><span class="edsm">A</span><input type="range" id="edFs" min="40" max="130" value="${Math.round(S.fs*1000)}"><span class="edbg">A</span></div><p class="edhint">Glisse le texte sur la vidéo pour le placer.</p>`;
+   $('#edIn').oninput=e=>{S.txt=e.target.value;drawTxt()};
+   $('#edFs').oninput=e=>{S.fs=e.target.value/1000;drawTxt()};
+   $('#edPl').onclick=e=>{S.pill=!S.pill;e.currentTarget.classList.toggle('on',S.pill);drawTxt()};
+   Pn.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{S.col=b.dataset.c;Pn.querySelectorAll('[data-c]').forEach(x=>x.classList.toggle('on',x===b));drawTxt()});
+  }else if(S.tool==='fx'){
+   Pn.innerHTML=`<div class="edfx">${ED_FX.map(f=>`<button type="button" class="edf${f[0]===S.fx?' on':''}" data-f="${f[0]}"><span style="${thumbU[f[0]]?`background-image:url(${thumbU[f[0]]})`:`background:#333`}"></span>${f[1]}</button>`).join('')}</div>`;
+   Pn.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{S.fx=b.dataset.f;applyFx();Pn.querySelectorAll('[data-f]').forEach(x=>x.classList.toggle('on',x===b))});
+  }else if(S.tool==='snd'){
+   Pn.innerHTML=`<div class="edrow"><span class="edlab">Son d’origine</span><input type="range" id="edVol" min="0" max="100" value="${Math.round(S.vol*100)}"><b id="edVn">${Math.round(S.vol*100)}%</b></div><p class="edhint">Mets à 0 % pour retirer le son.</p>`;
+   $('#edVol').oninput=e=>{S.vol=e.target.value/100;$('#edVn').textContent=e.target.value+'%';V.muted=S.vol===0;V.volume=S.vol};
+  }else if(S.tool==='mus'){
+   muPanel(Pn,S,()=>Math.max(4,(S.end-S.start)/S.speed),()=>{});
+  }else if(S.tool==='spd'){
+   Pn.innerHTML=`<div class="edsp2">${[.5,.75,1,1.5,2].map(v=>`<button type="button" class="${v===S.speed?'on':''}" data-s="${v}">${v}×</button>`).join('')}</div>`;
+   Pn.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{S.speed=+b.dataset.s;V.playbackRate=S.speed;Pn.querySelectorAll('[data-s]').forEach(x=>x.classList.toggle('on',x===b))});
+  }
+ }
+ $('#edTb').onclick=e=>{const b=e.target.closest('[data-t]');if(!b)return;S.tool=b.dataset.t;renderPanel()};
+ function trimUI(){
+  const tl=$('#edTl'),sel=$('#edSel'),hl=$('#edHl'),hr=$('#edHr'),lb=$('#edLb');
+  const paint=()=>{const a=S.start/S.dur*100,b=S.end/S.dur*100;sel.style.left=a+'%';sel.style.width=(b-a)+'%';hl.style.left=a+'%';hr.style.left=b+'%';
+   lb.textContent=fmt(S.start)+' → '+fmt(S.end)+' · '+Math.round(S.end-S.start)+' s'};
+  paint();
+  const mv=(which)=>e=>{
+   const r=tl.getBoundingClientRect(),t=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))*S.dur;
+   if(which==='l'){S.start=Math.min(t,S.end-1);V.currentTime=S.start}else{S.end=Math.max(t,S.start+1);V.currentTime=Math.max(S.start,S.end-.6)}
+   paint()};
+  [[hl,'l'],[hr,'r']].forEach(([h,w])=>{
+   const f=mv(w);
+   h.addEventListener('pointerdown',e=>{h.setPointerCapture(e.pointerId);h._d=1;e.preventDefault()});
+   h.addEventListener('pointermove',e=>{if(h._d)f(e)});
+   h.addEventListener('pointerup',()=>{h._d=0;V.currentTime=S.start});
+  });
+ }
+ /* modifications ? */
+ const edited=()=>S.start>.05||S.end<S.dur-.05||S.fx!=='orig'||S.vol!==1||S.speed!==1||!!S.txt||!!S.music;
+ /* export */
+ let cancel=false;
+ $('#edCancel').onclick=()=>{cancel=true};
+ $('#edNext').onclick=async()=>{
+  const dur0=Math.round(S.dur||pre.dur||0);
+  if(!edited()){close();_uplEd(Object.assign({},pre,{edited:true,dur:pre.dur||dur0}));return}
+  muStop();try{V.pause()}catch(e){}
+  const out=await edExport(pre.file,S,canFx,p=>{$('#edPc').textContent=Math.round(p*100)+'%'},()=>cancel,()=>{$('#edBusy').hidden=false});
+  $('#edBusy').hidden=true;
+  if(!out){if(!cancel)toast('Montage impossible, essaie sans modification');cancel=false;V.play().catch(()=>{});return}
+  if(out.size>MAX_VIDEO){toast('Vidéo trop lourde après montage (20 Mo max) : raccourcis-la');V.play().catch(()=>{});return}
+  const d=Math.max(1,Math.round((S.end-S.start)/S.speed));
+  const snd=S.music?S.music.name:null;close();_uplEd(Object.assign({},pre,{file:out,dur:d,edited:true,sound:snd}));
+ };
+ applyFx();
+}
+async function edExport(file,S,canFx,onP,isCancel,onStart){
+ onStart();
+ const u=URL.createObjectURL(file),v=document.createElement('video');
+ v.src=u;v.playsInline=true;v.preload='auto';v.crossOrigin='anonymous';
+ let ac=null,rec=null,iv=null,mbs=null;
+ const cleanup=()=>{clearInterval(iv);try{mbs&&mbs.stop()}catch(e){}try{v.pause()}catch(e){}try{rec&&rec.state!=='inactive'&&rec.stop()}catch(e){}try{ac&&ac.close()}catch(e){}URL.revokeObjectURL(u)};
+ try{
+  await new Promise((ok,ko)=>{v.onloadedmetadata=ok;v.onerror=()=>ko(new Error('load'))});
+  const vw=v.videoWidth,vh=v.videoHeight,k=Math.min(1,1280/Math.max(vw,vh),720/Math.min(vw,vh));
+  const W=Math.max(2,Math.round(vw*k/2)*2),H=Math.max(2,Math.round(vh*k/2)*2);
+  const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  const fx=ED_FX.find(f=>f[0]===S.fx)[2];
+  const cs=c.captureStream(30);
+  ac=new (window.AudioContext||window.webkitAudioContext)();await ac.resume();
+  try{const src=ac.createMediaElementSource(v),g=ac.createGain(),dst=ac.createMediaStreamDestination();g.gain.value=S.vol;src.connect(g);g.connect(dst);
+   if(S.music){mbs=ac.createBufferSource();mbs.buffer=S.music.buf;mbs.loop=true;if(S.music.loop)mbs.loopEnd=Math.min(S.music.loop,S.music.buf.duration);const mg=ac.createGain();mg.gain.value=S.mvol??.7;mbs.connect(mg);mg.connect(dst)}
+   const at=dst.stream.getAudioTracks()[0];if(at&&(S.vol>0||S.music))cs.addTrack(at)}catch(e){}
+  const types=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  const mt=types.find(t=>{try{return MediaRecorder.isTypeSupported(t)}catch(e){return false}})||'';
+  rec=new MediaRecorder(cs,mt?{mimeType:mt,videoBitsPerSecond:3e6}:{videoBitsPerSecond:3e6});
+  const chunks=[];rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+  const done=new Promise(r=>{rec.onstop=r});
+  v.currentTime=S.start;await new Promise(r=>{v.onseeked=r;setTimeout(r,1500)});
+  const draw=()=>{
+   x.filter=canFx&&fx!=='none'?fx:'none';x.drawImage(v,0,0,W,H);x.filter='none';
+   if(S.txt){
+    const fs=S.fs*H;x.font='800 '+fs+'px Inter,system-ui,sans-serif';x.textAlign='center';x.textBaseline='middle';
+    const lines=S.txt.split('\n'),lh=fs*1.2,cx=S.tx*W,cy=S.ty*H;
+    lines.forEach((ln,i)=>{const y=cy+(i-(lines.length-1)/2)*lh;
+     if(S.pill){const w=x.measureText(ln).width+fs*.8;x.fillStyle=S.col==='#000000'?'#fff':'rgba(0,0,0,.55)';
+      x.beginPath();x.roundRect?x.roundRect(cx-w/2,y-lh/2,w,lh,fs*.35):x.rect(cx-w/2,y-lh/2,w,lh);x.fill()}
+     x.fillStyle=S.pill&&S.col==='#000000'?'#000':S.col;
+     if(!S.pill){x.shadowColor='rgba(0,0,0,.55)';x.shadowBlur=fs*.15}
+     x.fillText(ln,cx,y);x.shadowBlur=0});
+   }
+  };
+  draw();rec.start(250);v.playbackRate=S.speed;v.volume=1;if(mbs)try{mbs.start(0,S.mstart||0)}catch(e){}await v.play();
+  const total=(S.end-S.start)/S.speed*1000,t0=performance.now();
+  await new Promise(res=>{
+   iv=setInterval(()=>{
+    draw();onP(Math.min(1,(v.currentTime-S.start)/(S.end-S.start)));
+    if(isCancel()||v.currentTime>=S.end-.04||v.ended||performance.now()-t0>total+6000){clearInterval(iv);res()}
+   },33);
+  });
+  v.pause();const cancelled=isCancel();rec.stop();await done;
+  const type=rec.mimeType||mt||'video/webm',blob=new Blob(chunks,{type});
+  cleanup();
+  if(cancelled||blob.size<1000)return null;
+  return new File([blob],'edit.'+(/mp4/.test(type)?'mp4':'webm'),{type});
+ }catch(e){cleanup();return null}
+}
+
+/* ---------- publication de photos (défilement gauche/droite + musique) ---------- */
+function sendMediaFile(field,blob,name,token,onProg){
+ return new Promise((ok,ko)=>{
+  const fd=new FormData();fd.append(field,blob,name);
+  const x=new XMLHttpRequest();x.open('POST',MEDIA_URL+'/upload');x.setRequestHeader('Authorization','Bearer '+token);
+  x.upload.onprogress=e=>{if(e.lengthComputable&&onProg)onProg(e.loaded/e.total)};
+  x.onerror=()=>ko(new Error('network'));
+  x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}
+   if(x.status===200&&j.file_id)ok(j);else ko(new Error(j.error||'upload_failed'))};
+  x.send(fd);
+ });
+}
+/* musique → petit fichier WAV mono (jusqu'à 45 s, jouée en boucle sous les photos) */
+async function phAudio(m,vol){
+ if(!m||!m.buf)return null;
+ const L=Math.max(1,Math.min(m.loop||m.buf.duration,m.buf.duration,45)),SR=22050;
+ const oc=new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(1,Math.ceil(L*SR),SR);
+ const src=oc.createBufferSource(),g=oc.createGain();src.buffer=m.buf;g.gain.value=vol==null?.7:vol;src.connect(g);g.connect(oc.destination);src.start(0,0,L);
+ const r=await oc.startRendering(),d=r.getChannelData(0),n=d.length,out=new DataView(new ArrayBuffer(44+n*2));
+ const w=(o,t)=>{for(let i=0;i<t.length;i++)out.setUint8(o+i,t.charCodeAt(i))};
+ w(0,'RIFF');out.setUint32(4,36+n*2,true);w(8,'WAVEfmt ');out.setUint32(16,16,true);out.setUint16(20,1,true);out.setUint16(22,1,true);out.setUint32(24,SR,true);out.setUint32(28,SR*2,true);out.setUint16(32,2,true);out.setUint16(34,16,true);w(36,'data');out.setUint32(40,n*2,true);
+ for(let i=0;i<n;i++){const v=Math.max(-1,Math.min(1,d[i]));out.setInt16(44+i*2,v<0?v*32768:v*32767,true)}
+ return new Blob([out.buffer],{type:'audio/wav'});
+}
+/* chaque photo → une image JPEG (filtre + texte appliqués) */
+async function phExportPhotos(P,S,onP,isCancel){
+ const W=1080,H=1920,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d'),out=[];
+ const sv=Object.assign({},S,{dur:3,move:'none'});
+ for(let i=0;i<P.length;i++){
+  if(isCancel())return null;
+  phDraw(x,W,H,P,sv,i*3+.01);
+  let q=.9,b=await new Promise(r=>c.toBlob(r,'image/jpeg',q));
+  while(b&&b.size>8e6&&q>.5){q-=.15;b=await new Promise(r=>c.toBlob(r,'image/jpeg',q))}
+  if(!b)return null;out.push(b);onP((i+1)/P.length);
+  await new Promise(r=>setTimeout(r,0));
+ }
+ return out;
+}
+function phLoad(file){
+ return createImageBitmap(file,{imageOrientation:'from-image'}).catch(()=>createImageBitmap(file)).then(bm=>{
+  const k=Math.min(1,1440/Math.max(bm.width,bm.height)),c=document.createElement('canvas');
+  c.width=Math.max(2,Math.round(bm.width*k));c.height=Math.max(2,Math.round(bm.height*k));
+  c.getContext('2d').drawImage(bm,0,0,c.width,c.height);try{bm.close()}catch(e){}return c});
+}
+function phCover(x,img,W,H){const k=Math.max(W/img.width,H/img.height),w=img.width*k,h=img.height*k;x.drawImage(img,(W-w)/2,(H-h)/2,w,h)}
+function phBg(img,W,H){
+ const s=document.createElement('canvas');s.width=24;s.height=Math.max(2,Math.round(24*H/W));
+ phCover(s.getContext('2d'),img,s.width,s.height);return s;
+}
+/* dessine la scène à l'instant t (secondes) */
+function phDraw(x,W,H,P,S,t){
+ const D=S.dur,n=P.length,total=n*D,tt=((t%total)+total)%total;
+ const i=Math.min(n-1,Math.floor(tt/D)),lt=tt-i*D,fade=.45;
+ const drawOne=(idx,lt2,alpha)=>{
+  const im=P[idx];x.globalAlpha=alpha;
+  x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';
+  /* fond flou + premier plan */
+  const ratio=im.cv.width/im.cv.height;
+  x.save();
+  if(!(ratio>.5&&ratio<.64)){x.drawImage(im.bg,0,0,W,H);x.fillStyle='rgba(0,0,0,.35)';x.fillRect(0,0,W,H)}
+  const p=lt2/D,mv=S.move;
+  let z=1,px=0,py=0;
+  if(mv==='zoom')z=1+.12*p;else if(mv==='pan'){z=1.1;px=(idx%2?1:-1)*(p-.5)*W*.06}
+  x.translate(W/2+px,H/2+py);x.scale(z,z);x.translate(-W/2,-H/2);
+  if(S.fx!=='orig'&&S.canFx){const f=ED_FX.find(f=>f[0]===S.fx);if(f)x.filter=f[2]}
+  if(ratio>.5&&ratio<.64)phCover(x,im.cv,W,H);
+  else{const k=Math.min(W/im.cv.width,H/im.cv.height),w=im.cv.width*k,h=im.cv.height*k;x.drawImage(im.cv,(W-w)/2,(H-h)/2,w,h)}
+  x.restore();x.filter='none';x.globalAlpha=1;
+ };
+ x.fillStyle='#000';x.fillRect(0,0,W,H);
+ drawOne(i,lt,1);
+ if(lt>D-fade&&n>1){const nx=(i+1)%n;drawOne(nx,0,(lt-(D-fade))/fade)}
+ if(S.txt){
+  const fs=S.fs*H;x.font='800 '+fs+'px Inter,system-ui,sans-serif';x.textAlign='center';x.textBaseline='middle';
+  const lines=S.txt.split('\n'),lh=fs*1.2,cx=S.tx*W,cy=S.ty*H;
+  lines.forEach((ln,k)=>{const y=cy+(k-(lines.length-1)/2)*lh;
+   if(S.pill){const w=x.measureText(ln).width+fs*.8;x.fillStyle=S.col==='#000000'?'#fff':'rgba(0,0,0,.55)';x.beginPath();x.roundRect?x.roundRect(cx-w/2,y-lh/2,w,lh,fs*.35):x.rect(cx-w/2,y-lh/2,w,lh);x.fill()}
+   x.fillStyle=S.pill&&S.col==='#000000'?'#000':S.col;if(!S.pill){x.shadowColor='rgba(0,0,0,.55)';x.shadowBlur=fs*.15}
+   x.fillText(ln,cx,y);x.shadowBlur=0});
+ }
+}
+async function phOpen(files){
+ const old=$('#phP');if(old)old.remove();
+ const canFx=(()=>{try{return 'filter' in document.createElement('canvas').getContext('2d')}catch(e){return false}})();
+ const S={dur:3,move:'none',fx:'orig',canFx,txt:'',col:'#ffffff',pill:false,fs:.07,tx:.5,ty:.5,tool:'ph',sel:0,mvol:.7,music:null};
+ const P=[];
+ const addFiles=async fl=>{
+  for(const f of fl){if(P.length>=10){toast('10 photos maximum');break}
+   if(!String(f.type).startsWith('image/'))continue;
+   try{const cv=await phLoad(f);const th=document.createElement('canvas');th.width=60;th.height=76;phCover(th.getContext('2d'),cv,60,76);P.push({cv,bg:phBg(cv,360,640),th:th.toDataURL('image/jpeg',.6)})}catch(e){toast('Photo illisible')}}
+ };
+ const el=document.createElement('div');el.id='phP';el.className='edP2';
+ el.innerHTML=`<div class="edtop"><button type="button" class="edx" id="phX" aria-label="Fermer">✕</button><b>Photos</b><span></span></div>
+ <div class="edst" id="phSt"><div class="edw" id="phW"><canvas id="phC" width="360" height="640"></canvas><div class="edt" id="phT" hidden></div></div>
+  <div class="edtb" id="phTb">
+   <button type="button" data-t="ph"><i>▦</i>Photos</button>
+   ${canFx?'<button type="button" data-t="fx"><i>◐</i>Filtres</button>':''}
+   <button type="button" data-t="text"><i>Aa</i>Texte</button>
+   <button type="button" data-t="mus"><i>♫</i>Musique</button>
+  </div></div>
+ <div class="edpn" id="phPn"></div>
+ <div class="edft"><button class="cta" id="phNext">Suivant</button></div>
+ <div class="edbusy" id="phBusy" hidden><div><div class="edsp"></div><b id="phPc">0%</b><span>Préparation de tes photos…<br>Garde l’appli ouverte</span><button type="button" id="phCancel">Annuler</button></div></div>
+ <input type="file" id="phFile" accept="image/*" multiple hidden>`;
+ $('#app').appendChild(el);requestAnimationFrame(()=>el.classList.add('on'));
+ await addFiles(files);
+ if(!P.length){el.remove();toast('Choisis des photos');return}
+ const C=$('#phC'),x=C.getContext('2d'),W=$('#phW'),T=$('#phT'),St=$('#phSt'),Pn=$('#phPn');
+ let raf=0,t0=performance.now(),run=true;
+ const close=()=>{run=false;cancelAnimationFrame(raf);muStop();el.classList.remove('on');setTimeout(()=>el.remove(),200)};
+ const loop=()=>{if(!run)return;phDraw(x,C.width,C.height,P,S,Math.min(S.sel,P.length-1)*S.dur+.01);raf=requestAnimationFrame(loop)};
+ const fit=()=>{const bw=St.clientWidth-64,bh=St.clientHeight-12,k=Math.min(bw/9,bh/16);W.style.width=Math.floor(9*k)+'px';W.style.height=Math.floor(16*k)+'px';drawTxt()};
+ const drawTxt=()=>{T.hidden=!S.txt;if(!S.txt)return;T.textContent=S.txt;T.style.fontSize=(S.fs*W.clientHeight)+'px';T.style.left=(S.tx*100)+'%';T.style.top=(S.ty*100)+'%';
+  T.style.color=S.col;T.classList.toggle('pill',S.pill);T.style.background=S.pill?(S.col==='#000000'?'#fff':'rgba(0,0,0,.55)'):'none';if(S.pill&&S.col==='#000000')T.style.color='#000'};
+ /* le texte est dessiné par le canvas : l'overlay n'est qu'un guide de déplacement transparent */
+ T.style.opacity='0';
+ let drag=null;
+ T.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,tx:S.tx,ty:S.ty};T.setPointerCapture(e.pointerId)});
+ T.addEventListener('pointermove',e=>{if(!drag)return;const r=W.getBoundingClientRect();S.tx=Math.min(.95,Math.max(.05,drag.tx+(e.clientX-drag.x)/r.width));S.ty=Math.min(.95,Math.max(.05,drag.ty+(e.clientY-drag.y)/r.height));drawTxt()});
+ T.addEventListener('pointerup',()=>{drag=null});
+ const total=()=>P.length*S.dur;
+ const restartMusic=()=>{if(S.music)muPlay(S.music,S.mvol,0)};
+ function renderPanel(){
+  $$('#phTb button').forEach(b=>b.classList.toggle('on',b.dataset.t===S.tool));
+  if(S.tool==='ph'){
+   Pn.innerHTML=`<div class="phs">${P.map((p,i)=>`<div class="pht${i===S.sel?' sel':''}" data-i="${i}" style="background-image:url(${p.th})"><i>${i+1}</i></div>`).join('')}${P.length<10?'<button type="button" class="pht add" id="phAdd">+</button>':''}</div>
+   <div class="edrow phact"><button type="button" id="phL">◀</button><button type="button" id="phR">▶</button><button type="button" id="phD" class="dg">Retirer</button></div><p class="edhint">${P.length} photo${P.length>1?'s':''} · tes amis les feront défiler de gauche à droite</p>`;
+   Pn.querySelectorAll('.pht[data-i]').forEach(b=>b.onclick=()=>{S.sel=+b.dataset.i;renderPanel()});
+   const add=$('#phAdd');if(add)add.onclick=()=>$('#phFile').click();
+   $('#phL').onclick=()=>{const i=S.sel;if(i>0){[P[i-1],P[i]]=[P[i],P[i-1]];S.sel--;renderPanel()}};
+   $('#phR').onclick=()=>{const i=S.sel;if(i<P.length-1){[P[i+1],P[i]]=[P[i],P[i+1]];S.sel++;renderPanel()}};
+   $('#phD').onclick=()=>{if(P.length<=1){toast('Garde au moins une photo');return}P.splice(S.sel,1);S.sel=Math.min(S.sel,P.length-1);renderPanel()};
+  }else if(S.tool==='dur'){
+   Pn.innerHTML=`<div class="edlab" style="margin:2px 0 6px">Durée par photo</div><div class="edsp2">${[2,3,4,5].map(v=>`<button type="button" class="${v===S.dur?'on':''}" data-d="${v}">${v} s</button>`).join('')}</div>
+   <div class="edlab" style="margin:10px 0 6px">Mouvement</div><div class="edsp2">${[['zoom','Zoom'],['pan','Glisse'],['none','Fixe']].map(m=>`<button type="button" class="${m[0]===S.move?'on':''}" data-mv="${m[0]}">${m[1]}</button>`).join('')}</div>`;
+   Pn.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{S.dur=+b.dataset.d;renderPanel()});
+   Pn.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{S.move=b.dataset.mv;renderPanel()});
+  }else if(S.tool==='fx'){
+   Pn.innerHTML=`<div class="edfx">${ED_FX.map(f=>`<button type="button" class="edf${f[0]===S.fx?' on':''}" data-f="${f[0]}"><span style="background-image:url(${P[0].th});filter:${f[2]}"></span>${f[1]}</button>`).join('')}</div>`;
+   Pn.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{S.fx=b.dataset.f;Pn.querySelectorAll('[data-f]').forEach(z=>z.classList.toggle('on',z===b))});
+  }else if(S.tool==='text'){
+   Pn.innerHTML=`<input id="phIn" class="edin" maxlength="80" placeholder="Écris ton texte…" value="${esc(S.txt)}"><div class="edrow"><div class="edcol">${ED_COL.map(c=>`<button type="button" class="edc${c===S.col?' on':''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div><button type="button" class="edpl${S.pill?' on':''}" id="phPl">Aa</button></div><div class="edrow"><span class="edsm">A</span><input type="range" id="phFs" min="40" max="130" value="${Math.round(S.fs*1000)}"><span class="edbg">A</span></div><p class="edhint">Glisse le texte sur l’image pour le placer.</p>`;
+   $('#phIn').oninput=e=>{S.txt=e.target.value;drawTxt()};$('#phFs').oninput=e=>{S.fs=e.target.value/1000;drawTxt()};
+   $('#phPl').onclick=e=>{S.pill=!S.pill;e.currentTarget.classList.toggle('on',S.pill);drawTxt()};
+   Pn.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{S.col=b.dataset.c;Pn.querySelectorAll('[data-c]').forEach(z=>z.classList.toggle('on',z===b));drawTxt()});
+  }else if(S.tool==='mus'){
+   muPanel(Pn,S,()=>Math.max(4,total()),()=>{});
+  }
+ }
+ $('#phTb').onclick=e=>{const b=e.target.closest('[data-t]');if(!b)return;S.tool=b.dataset.t;renderPanel()};
+ $('#phFile').onchange=async e=>{const fl=[...e.target.files];e.target.value='';await addFiles(fl);S.sel=P.length-1;renderPanel()};
+ {let sx=0,sy=0;W.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY},{passive:true});
+  W.addEventListener('touchend',e=>{const t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;if(e.target===T||Math.abs(dx)<50||Math.abs(dy)>Math.abs(dx))return;const j=S.sel+(dx<0?1:-1);if(j>=0&&j<P.length){S.sel=j;renderPanel()}},{passive:true})}
+ $('#phX').onclick=close;
+ window.addEventListener('resize',fit);
+ try{new ResizeObserver(()=>fit()).observe(St)}catch(e){}
+ fit();renderPanel();loop();
+ /* export */
+ let cancel=false;$('#phCancel').onclick=()=>{cancel=true};
+ $('#phNext').onclick=async()=>{
+  muStop();run=false;cancelAnimationFrame(raf);
+  $('#phBusy').hidden=false;
+  const out=await phExportPhotos(P,S,p=>{$('#phPc').textContent=Math.round(p*100)+'%'},()=>cancel);
+  let aud=null;
+  if(out&&S.music){try{aud=await phAudio(S.music,S.mvol)}catch(e){aud=null}}
+  $('#phBusy').hidden=true;
+  if(!out){cancel=false;run=true;loop();if(!cancel)toast('Préparation impossible, réessaie');return}
+  const snd=S.music?S.music.name:null;
+  close();_uplEd({photos:out,audio:aud,sound:snd,dur:0,edited:true,photo:true});
+ };
+}
+/* entrée : galerie en mode publication */
+(()=>{
+ const gal=$('#camGal'),inp=$('#camFile');if(!gal||!inp)return;
+ const prev=inp.onchange;
+ gal.onclick=()=>{inp.multiple=!!postMode;inp.click()};
+ inp.onchange=e=>{
+  const fl=[...e.target.files];
+  if(postMode&&fl.length&&fl.some(f=>String(f.type).startsWith('image/'))&&!String(fl[0].type).startsWith('video/')){
+   e.target.value='';back();setTimeout(()=>phOpen(fl.filter(f=>String(f.type).startsWith('image/'))),320);return}
+  if(fl.length>1)e.target.files=(()=>{const d=new DataTransfer();d.items.add(fl[0]);return d.files})();
+  prev.call(inp,e);
+ };
+})();
+
+/* ---------- confidentialité / suppression de compte ---------- */
+function legalSheet(){
+ openSheet('Confidentialité et conditions',`<div><a class="opt" href="privacy.html" target="_blank" rel="noopener"><span>Politique de confidentialité</span></a><a class="opt" href="terms.html" target="_blank" rel="noopener"><span>Conditions d’utilisation</span></a><a class="opt" href="delete-account.html" target="_blank" rel="noopener"><span>Suppression du compte</span></a></div>
+ <p class="muted" style="font-size:13px;margin-top:12px">Une question ? Écris à @bee_dev dans l’application.</p>`);
+}
+function delAccount(){
+ openSheet('Supprimer mon compte',`<p style="margin:0 0 10px;line-height:1.45">Cette action est <b>définitive</b>. Ton profil, tes vidéos, stories, commentaires, abonnements et messages seront effacés et ne pourront pas être récupérés.</p>
+ <label class="fld">Entre ton mot de passe pour confirmer<input id="daP" type="password" autocomplete="current-password" maxlength="72"></label>
+ <p id="daE" class="aerr"></p><button class="cta" id="daGo" type="button" style="background:#e11d48">Supprimer définitivement</button>`);
+ $('#daGo').onclick=async()=>{
+  const pw=$('#daP').value,er=$('#daE'),b=$('#daGo');er.textContent='';
+  if(!pw){er.textContent='Entre ton mot de passe.';return}
+  b.disabled=true;b.textContent='Patiente…';
+  try{
+   const v=await sb.auth.signInWithPassword({email:await authMail(),password:pw});
+   if(v.error){er.textContent='Mot de passe incorrect.';b.disabled=false;b.textContent='Supprimer définitivement';return}
+   try{await sb.storage.from('vyro-avatars').remove([me.id+'.jpg'])}catch(e){}
+   const {error}=await sb.rpc('vyro_delete_account');
+   if(error){er.textContent='Suppression impossible, réessaie.';b.disabled=false;b.textContent='Supprimer définitivement';return}
+   try{await pushRemove()}catch(e){}
+   try{await sb.auth.signOut()}catch(e){}
+   try{const l=await indexedDB.databases();l.forEach(d=>{if(/^vyro/.test(d.name))indexedDB.deleteDatabase(d.name)})}catch(e){}
+   try{Object.keys(localStorage).filter(k=>/^vyro/.test(k)).forEach(k=>localStorage.removeItem(k))}catch(e){}
+   location.reload();
+  }catch(x){er.textContent='Erreur réseau. Réessaie.';b.disabled=false;b.textContent='Supprimer définitivement'}
+ };
+}
+
+/* ---------- glisser sur un contact : épingler / supprimer ---------- */
+const LSJ=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}};
+const LSS=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const pinKey=()=>'vyro_cpin_'+(me&&me.id),hidKey=()=>'vyro_chid_'+(me&&me.id);
+const cPins=()=>LSJ(pinKey(),[]);
+const cHid=()=>LSJ(hidKey(),{});
+const isCPin=id=>cPins().includes(id);
+function togglePinChat(id){
+ let a=cPins();
+ if(a.includes(id)){a=a.filter(x=>x!==id);toast('Discussion désépinglée')}
+ else{if(a.length>=5){toast('5 discussions épinglées maximum');return}a.push(id);toast('Discussion épinglée 📌')}
+ LSS(pinKey(),a);renderChats();
+}
+async function deleteChatLocal(id){
+ const c=chats.find(x=>x.id===id);if(!c)return;
+ if(!await askConfirm('Supprimer cette discussion ?','Les messages seront effacés de ce téléphone. Elle réapparaîtra vide si quelqu’un t’écrit de nouveau.','Supprimer'))return;
+ try{const l=await LDB.all('msgs',id);await dropMsgs(l)}catch(e){}
+ const h=cHid();h[id]=Date.now();LSS(hidKey(),h);
+ LSS(pinKey(),cPins().filter(x=>x!==id));
+ c.unread=0;c.last='';
+ if(cur&&cur.id===id){cur.msgs=[]}
+ renderChats();toast('Discussion supprimée');
+}
+const _rcSw=renderChats;
+renderChats=function(){
+ const all=chats,pins=cPins(),hid=cHid();
+ const keep=all.filter(c=>!(hid[c.id]&&Date.parse(c.at)<=hid[c.id]+1000));
+ const pn=pins.map(id=>keep.find(c=>c.id===id)).filter(Boolean);
+ chats=pn.concat(keep.filter(c=>!pins.includes(c.id)));
+ try{_rcSw()}finally{chats=all}
+ const L=$('#chatList');if(!L)return;
+ L.querySelectorAll('.chat[data-id]').forEach(r=>{
+  const id=r.dataset.id,p=pins.includes(id);
+  if(p){const b=r.querySelector('.r1 b');if(b&&!b.querySelector('.cpin'))b.insertAdjacentHTML('beforeend','<i class="cpin">📌</i>')}
+  r.insertAdjacentHTML('beforeend',`<div class="swa"><button type="button" data-sw="pin" class="${p?'on':''}"><span>📌</span>${p?'Désépingler':'Épingler'}</button><button type="button" data-sw="del" class="dg"><span>🗑</span>Supprimer</button></div>`);
+ });
+};
+/* geste */
+(()=>{
+ const L=$('#chatList');if(!L)return;
+ const W=148;let st=null,openId=null,moved=false,lastDrag=0;
+ const rowOf=id=>id?L.querySelector('.chat[data-id="'+id+'"]'):null;
+ const setX=(r,x,anim)=>{r.style.transition=anim?'translate .22s cubic-bezier(.2,.8,.2,1)':'none';r.style.translate=x?x+'px 0':''};
+ const closeRow=()=>{const o=rowOf(openId);if(o){setX(o,0,1);o.classList.remove('swo')}openId=null};
+ L.addEventListener('touchstart',e=>{
+  const r=e.target.closest('.chat[data-id]');
+  if(!r||e.touches.length!==1){st=null;return}
+  if(openId&&openId!==r.dataset.id)closeRow();
+  const t=e.touches[0];st={id:r.dataset.id,x:t.clientX,y:t.clientY,base:r.dataset.id===openId?W:0,lock:0};moved=false;
+ },{passive:true});
+ L.addEventListener('touchmove',e=>{
+  if(!st)return;const t=e.touches[0],dx=t.clientX-st.x,dy=t.clientY-st.y;
+  if(!st.lock){
+   if(Math.abs(dy)>10&&Math.abs(dy)>Math.abs(dx)){st=null;return}
+   if(Math.abs(dx)>10&&Math.abs(dx)>Math.abs(dy)*1.3)st.lock=1;else return;
+  }
+  e.preventDefault();moved=true;lastDrag=Date.now();st.r0=1;{const rr0=rowOf(st.id);if(rr0)rr0.classList.add('swd')}
+  let x=st.base+dx;x=Math.max(0,Math.min(W+30,x));if(x>W)x=W+(x-W)*.3;
+  st.x_=x;const rr=rowOf(st.id);if(rr)setX(rr,x,0);
+ },{passive:false});
+ const end=e=>{
+  if(!st)return;const r=rowOf(st.id);
+  if(st.lock&&r){
+   const m=st.x_||0;
+   if(m>W*.45){setX(r,W,1);r.classList.add('swo');openId=st.id}else{setX(r,0,1);r.classList.remove('swo');if(openId===st.id)openId=null}
+   lastDrag=Date.now();setTimeout(()=>{moved=false},60);r.classList.remove('swd');
+  }
+  st=null;
+ };
+ L.addEventListener('touchend',end);L.addEventListener('touchcancel',end);
+ L.addEventListener('click',e=>{
+  const b=e.target.closest('[data-sw]');
+  if(b){
+   e.stopImmediatePropagation();e.stopPropagation();
+   const r=b.closest('.chat'),id=r.dataset.id;closeRow();
+   if(b.dataset.sw==='pin')togglePinChat(id);else deleteChatLocal(id);
+   return;
+  }
+  if(moved||Date.now()-lastDrag<400){e.stopImmediatePropagation();e.stopPropagation();return}
+  if(openId){e.stopImmediatePropagation();e.stopPropagation();closeRow()}
+ },true);
+})();
+/* ---------- bandeau hors ligne ---------- */
+(()=>{
+ const el=document.createElement('div');el.id='offB';el.textContent='Pas de connexion internet';el.setAttribute('role','status');
+ $('#app').appendChild(el);
+ let tm=null;
+ const upd=()=>{
+  clearTimeout(tm);
+  if(!navigator.onLine){el.className='on';el.textContent='Pas de connexion internet'}
+  else if(el.classList.contains('on')){el.className='on ok';el.textContent='Connexion rétablie';tm=setTimeout(()=>{el.className=''},1800)}
+ };
+ window.addEventListener('offline',upd);window.addEventListener('online',upd);
+ if(!navigator.onLine)upd();
+})();
+
+/* ===== VYRO v3m : stickers perso (photos/vidéos stockés sur le téléphone) + petite photo publique pour les notifications ===== */
+
+/* ---------- stockage local des stickers (IndexedDB, un espace par compte) ---------- */
+const CS={
+ db:null,uid:null,
+ async open(){
+  if(this.db&&this.uid===me.id)return this.db;
+  this.uid=me.id;
+  this.db=await new Promise((ok,ko)=>{
+   const r=indexedDB.open('vyro_stk_'+me.id,1);
+   r.onupgradeneeded=()=>{r.result.createObjectStore('s',{keyPath:'id'})};
+   r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error);
+  });
+  return this.db;
+ },
+ async all(){
+  const d=await this.open();
+  return new Promise((ok,ko)=>{const q=d.transaction('s').objectStore('s').getAll();q.onsuccess=()=>ok((q.result||[]).sort((a,b)=>b.at-a.at));q.onerror=()=>ko(q.error)});
+ },
+ async put(r){
+  const d=await this.open();
+  return new Promise((ok,ko)=>{const t=d.transaction('s','readwrite');t.objectStore('s').put(r);t.oncomplete=ok;t.onerror=()=>ko(t.error)});
+ },
+ async del(id){
+  const d=await this.open();
+  return new Promise((ok,ko)=>{const t=d.transaction('s','readwrite');t.objectStore('s').delete(id);t.oncomplete=ok;t.onerror=()=>ko(t.error)});
+ }
+};
+const CS_MAX=60;
+let csUrls=[],csCache=[],csPress=null,csLong=false;
+
+async function csDraw(gEl){
+ gEl.innerHTML='<p class="mumsg" style="grid-column:1/-1">Chargement…</p>';
+ let list=[];
+ try{list=await CS.all()}catch(e){gEl.innerHTML='<p class="mumsg" style="grid-column:1/-1">Stockage indisponible sur ce navigateur.</p>';return}
+ csCache=list;csUrls.forEach(u=>{try{URL.revokeObjectURL(u)}catch(e){}});csUrls=[];
+ const tiles=list.map(r=>{const u=URL.createObjectURL(r.thumb);csUrls.push(u);return `<button type="button" class="csb cst" data-cs="${r.id}" aria-label="Mon sticker"><img src="${u}" alt="">${r.kind==='video'?'<i class="csv">▶</i>':''}</button>`}).join('');
+ gEl.innerHTML=`<button type="button" class="csb csnew" data-cs="new"><span>＋</span><small>Créer</small></button>${tiles}${list.length?'':'<p class="mumsg" style="grid-column:2/-1;margin:8px 0;text-align:left">Crée un sticker avec une photo ou une vidéo de ta galerie. Il reste sur ton téléphone.</p>'}`;
+ /* appui long = supprimer */
+ gEl.onpointerdown=e=>{
+  const t=e.target.closest('.cst');if(!t)return;csLong=false;clearTimeout(csPress);
+  csPress=setTimeout(async()=>{csLong=true;if(navigator.vibrate)try{navigator.vibrate(20)}catch(x){}
+   if(await askConfirm('Supprimer ce sticker ?','Il sera retiré de ton téléphone.','Supprimer')){await CS.del(t.dataset.cs);toast('Sticker supprimé');csDraw(gEl)}},520);
+ };
+ const stop=()=>clearTimeout(csPress);gEl.onpointerup=stop;gEl.onpointercancel=stop;gEl.onpointerleave=stop;gEl.onscroll=stop;
+}
+function csClick(el,closeFn){
+ if(csLong){csLong=false;return}
+ const id=el.dataset.cs;
+ if(id==='new'){
+  if(csCache.length>=CS_MAX){toast(CS_MAX+' stickers maximum');return}
+  const fi=document.createElement('input');fi.type='file';fi.accept='image/*,video/*';
+  fi.onchange=()=>{const f=fi.files[0];if(f)csEditor(f)};fi.click();return;
+ }
+ const r=csCache.find(x=>x.id===id);if(!r||!cur)return;
+ if(!MEDIA_URL){toast('Envoi de médias indisponible');return}
+ closeFn();
+ const ext=/webm/.test(r.blob.type)?'webm':'mp4';
+ sendChatMedia(r.kind,r.blob,r.kind==='video'?'sticker.'+ext:'sticker.jpg',r.kind==='video'?Math.round(r.dur||3):null,true);
+}
+
+/* ---------- éditeur : cadrer, zoomer, (début de la vidéo) puis enregistrer ---------- */
+async function csEditor(file){
+ const isVid=/^video\//.test(file.type)||(!file.type&&/\.(mp4|mov|webm|m4v|3gp)$/i.test(file.name||''));
+ if(!isVid&&!/^image\//.test(file.type)){toast('Choisis une photo ou une vidéo');return}
+ openSheet('Créer un sticker',`<div class="cse"><canvas id="csC" width="300" height="300"></canvas></div>
+ <p class="muted cseh">Glisse l’image pour la cadrer.</p>
+ <label class="csr"><span>Zoom</span><input type="range" id="csZ" min="100" max="300" value="100"></label>
+ ${isVid?'<label class="csr"><span>Début</span><input type="range" id="csS" min="0" max="0" step="0.1" value="0"></label><p class="muted cseh" id="csD">Le sticker dure 3 secondes maximum, en boucle.</p>':''}
+ <button class="cta" id="csGo" type="button" disabled>Ajouter à mes stickers</button><small class="muted" id="csI"></small>`);
+ const cv=$('#csC'),ctx=cv.getContext('2d'),go=$('#csGo'),inf=$('#csI');
+ let src=null,sw=0,sh=0,z=1,sx=0,sy=0,vid=null,start=0,dur=0,alive=true;
+ const side=()=>Math.min(sw,sh)/z;
+ const clamp=()=>{const s=side();sx=Math.max(0,Math.min(sw-s,sx));sy=Math.max(0,Math.min(sh-s,sy))};
+ const paint=(c,n)=>{const x=c.getContext('2d'),s=side();x.fillStyle='#000';x.fillRect(0,0,n,n);try{x.drawImage(src,sx,sy,s,s,0,0,n,n)}catch(e){}};
+ try{
+  if(isVid){
+   vid=document.createElement('video');vid.muted=true;vid.playsInline=true;vid.preload='auto';vid.src=URL.createObjectURL(file);
+   await new Promise((ok,ko)=>{vid.onloadedmetadata=ok;vid.onerror=()=>ko(new Error('vid'));setTimeout(()=>ko(new Error('timeout')),8000)});
+   src=vid;sw=vid.videoWidth;sh=vid.videoHeight;dur=vid.duration||3;
+   if(!sw||!sh)throw new Error('size');
+   const S=$('#csS');S.max=Math.max(0,dur-3).toFixed(1);if(dur<=3)S.parentNode.hidden=true;
+   if(dur<1){toast('Vidéo trop courte');closeSheet();return}
+   try{await vid.play()}catch(e){}
+  }else{
+   src=await loadBmp(file);sw=src.width||src.naturalWidth;sh=src.height||src.naturalHeight;
+  }
+ }catch(e){toast('Fichier illisible');closeSheet();return}
+ sx=(sw-side())/2;sy=(sh-side())/2;go.disabled=false;
+ const loop=()=>{
+  if(!alive||!document.body.contains(cv)){alive=false;if(vid){try{vid.pause();URL.revokeObjectURL(vid.src)}catch(e){}}return}
+  if(vid&&(vid.currentTime>start+3||vid.ended||vid.currentTime<start-.2)){try{vid.currentTime=start;vid.play()}catch(e){}}
+  paint(cv,300);requestAnimationFrame(loop);
+ };
+ loop();
+ $('#csZ').oninput=e=>{const c=[sx+side()/2,sy+side()/2];z=e.target.value/100;sx=c[0]-side()/2;sy=c[1]-side()/2;clamp()};
+ if(isVid)$('#csS').oninput=e=>{start=+e.target.value;try{vid.currentTime=start}catch(x){}};
+ let drag=null;
+ cv.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY};try{cv.setPointerCapture(e.pointerId)}catch(x){}};
+ cv.onpointermove=e=>{if(!drag)return;const k=side()/cv.getBoundingClientRect().width;sx-=(e.clientX-drag.x)*k;sy-=(e.clientY-drag.y)*k;drag={x:e.clientX,y:e.clientY};clamp()};
+ cv.onpointerup=cv.onpointercancel=()=>{drag=null};
+ go.onclick=async()=>{
+  go.disabled=true;go.textContent='Création…';
+  try{
+   const N=320,oc=document.createElement('canvas');oc.width=oc.height=N;
+   const tc=document.createElement('canvas');tc.width=tc.height=128;
+   let blob,kind='image',d=null;
+   if(!isVid){
+    paint(oc,N);blob=await new Promise(r=>oc.toBlob(r,'image/jpeg',.9));
+   }else{
+    kind='video';
+    if(!window.MediaRecorder||!oc.captureStream)throw new Error('norec');
+    const mt=['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
+    d=Math.min(3,Math.max(1,dur-start));
+    const chunks=[],rec=new MediaRecorder(oc.captureStream(24),Object.assign({videoBitsPerSecond:1200000},mt?{mimeType:mt}:{}));
+    rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+    const done=new Promise(r=>{rec.onstop=r});
+    vid.currentTime=start;try{await vid.play()}catch(e){}
+    const t0=performance.now();rec.start(200);
+    await new Promise(res=>{const tick=()=>{paint(oc,N);const el=(performance.now()-t0)/1000;inf.textContent='Création… '+Math.min(100,Math.round(el/d*100))+'%';if(el>=d)res();else requestAnimationFrame(tick)};tick()});
+    rec.stop();await done;
+    blob=new Blob(chunks,{type:(rec.mimeType||mt||'video/webm').split(';')[0]});
+    vid.currentTime=start;await new Promise(r=>setTimeout(r,120));
+   }
+   paint(tc,128);const thumb=await new Promise(r=>tc.toBlob(r,'image/jpeg',.8));
+   if(!blob||!blob.size||blob.size>8e6)throw new Error('size');
+   await CS.put({id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2)),kind,blob,thumb,dur:d,at:Date.now()});
+   alive=false;closeSheet();toast('Sticker ajouté ⭐');
+   const cur2=document.querySelector('#stkt .cur');if(cur2&&cur2.dataset.k==='m')csDraw($('#stkg'));
+  }catch(e){go.disabled=false;go.textContent='Ajouter à mes stickers';inf.textContent=e&&e.message==='norec'?'Les stickers vidéo ne sont pas pris en charge sur ce navigateur.':'Création impossible, réessaie.'}
+ };
+}
+
+
+/* ---------- ajouter à mes stickers un sticker reçu ---------- */
+async function stkThumb(blob,kind){
+ const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d'),u=URL.createObjectURL(blob);
+ try{
+  let el,w,h;
+  if(kind==='video'){el=document.createElement('video');el.muted=true;el.playsInline=true;el.src=u;
+   await new Promise((ok,ko)=>{el.onloadeddata=ok;el.onerror=ko;setTimeout(ko,6000)});
+   try{el.currentTime=.1;await new Promise(r=>{el.onseeked=r;setTimeout(r,800)})}catch(e){}
+   w=el.videoWidth;h=el.videoHeight}
+  else{el=new Image();el.src=u;await new Promise((ok,ko)=>{el.onload=ok;el.onerror=ko});w=el.naturalWidth;h=el.naturalHeight}
+  const s=Math.min(w,h);g.drawImage(el,(w-s)/2,(h-s)/2,s,s,0,0,128,128);
+ }finally{URL.revokeObjectURL(u)}
+ return new Promise(r=>c.toBlob(r,'image/jpeg',.8));
+}
+async function addRecvSticker(m){
+ const x=MED_RE.exec(m.body);if(!x||!x[3]||x[1]==='audio')return;
+ try{
+  const all=await CS.all();
+  if(all.some(r=>r.src===x[2])){toast('Déjà dans tes stickers ⭐');return}
+  if(all.length>=CS_MAX){toast(CS_MAX+' stickers maximum');return}
+  let blob=null;try{blob=await LDB.get('blobs',x[2])}catch(e){}
+  if(!blob)blob=await fetchChatBlob(x[2]);
+  if(!blob){toast('Sticker introuvable');return}
+  const kind=x[1]==='video'?'video':'image',thumb=await stkThumb(blob,kind);
+  await CS.put({id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2)),kind,blob,thumb,dur:3,at:Date.now(),src:x[2]});
+  toast('Sticker ajouté ⭐');
+  const cur2=document.querySelector('#stkt .cur');if(cur2&&cur2.dataset.k==='m')csDraw($('#stkg'));
+ }catch(e){toast('Impossible d’ajouter ce sticker')}
+}
+$('#tMsgs').addEventListener('click',e=>{
+ const b=e.target.closest('[data-addstk]');if(!b)return;
+ e.stopPropagation();e.preventDefault();
+ const m=cur&&cur.msgs.find(y=>String(y.id)===b.dataset.addstk);if(m)addRecvSticker(m);
+},true);
+
+/* ---------- petite photo publique (affichée dans les notifications) ---------- */
+let _pubAvBusy=false;
+async function pubAvatarSync(){
+ if(_pubAvBusy||!me||!sb.storage||!MEDIA_URL)return;
+ const key='vyro_pubav',want=me.id+':'+(me.avatar_url?String(me.avatar_url).slice(-10):'none');
+ let have='';try{have=localStorage.getItem(key)||''}catch(e){}
+ if(have===want)return;
+ _pubAvBusy=true;
+ try{
+  const bk=sb.storage.from('vyro-avatars');
+  if(!me.avatar_url){await bk.remove([me.id+'.jpg'])}
+  else{
+   const r=await fetch(aurl(me.id,me.avatar_url));if(!r.ok)throw new Error('http');
+   const jp=await squareJpeg(await r.blob(),192);
+   const u=await bk.upload(me.id+'.jpg',jp,{upsert:true,contentType:'image/jpeg',cacheControl:'3600'});
+   if(u.error)throw u.error;
+  }
+  try{localStorage.setItem(key,want)}catch(e){}
+ }catch(e){}
+ finally{_pubAvBusy=false}
+}
+{
+ const _an=applyNames;
+ applyNames=function(){const r=_an.apply(this,arguments);setTimeout(pubAvatarSync,2500);return r};
+}
+
+/* ---------- clavier d'émojis façon WhatsApp (chat) : les émojis s'ajoutent au message ---------- */
+const EMO_CATS=[
+ ['😀','Visages','😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 ☺️ 😚 😙 🥲 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶 😏 😒 🙄 😬 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 🤯 🤠 🥳 😎 🤓 🧐 😕 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 ☠️ 💩 🤡 👹 👺 👻 👽 👾 🤖 😺 😸 😹 😻 😼 😽 🙀 😿 😾 🙈 🙉 🙊'],
+ ['👋','Gestes et personnes','👋 🤚 🖐️ ✋ 🖖 👌 🤌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 👐 🤲 🤝 🙏 ✍️ 💅 🤳 💪 🦾 🦵 🦶 👂 👃 🧠 👀 👁️ 👅 👄 💋 👶 🧒 👦 👧 🧑 👱 👨 🧔 👩 🧓 👴 👵 🙍 🙎 🙅 🙆 💁 🙋 🧏 🙇 🤦 🤷 👮 💂 👷 🤴 👸 👳 🧕 🤵 👰 🤰 🤱 👼 🎅 🤶 🦸 🦹 🧙 🧚 🧛 🧜 🧝 🧞 🧟 💆 💇 🚶 🏃 💃 🕺 👯'],
+ ['❤️','Cœurs et symboles','❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 💯 💢 💥 💫 💦 💨 💬 💭 💤 ✨ ⭐ 🌟 ⚡ 🔥 ✔️ ✅ ❌ ❓ ❗ ‼️ ⚠️ 🚫 ♻️ ➕ ➖ ➡️ ⬅️ ⬆️ ⬇️ 🔴 🟠 🟡 🟢 🔵 🟣 ⚫ ⚪ 🔔 🎵 🎶 ©️ ®️ ™️ ☮️ ✝️ ☪️ ☯️'],
+ ['🐶','Animaux et nature','🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🐔 🐧 🐦 🐤 🦆 🦅 🦉 🦇 🐺 🐗 🐴 🦄 🐝 🐛 🦋 🐌 🐞 🐜 🕷️ 🦂 🐢 🐍 🦎 🐙 🦑 🦐 🦀 🐠 🐟 🐬 🐳 🐋 🦈 🐊 🐅 🐆 🦓 🦍 🐘 🦏 🐪 🐫 🦒 🐃 🐂 🐄 🐎 🐖 🐏 🐑 🐐 🦌 🐕 🐩 🐈 🐓 🦃 🕊️ 🐇 🐁 🐀 🐿️ 🦔 🌵 🎄 🌲 🌳 🌴 🌱 🌿 ☘️ 🍀 🍁 🍂 🍃 🌺 🌻 🌹 🌷 🌼 🌸 💐 🍄 🌾 🌍 🌙 ☀️ ⛅ ☁️ 🌈 ⛄ ❄️ 🌊'],
+ ['🍔','Nourriture','🍏 🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🍈 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🍆 🥑 🥦 🥒 🌶️ 🌽 🥕 🧄 🧅 🥔 🍠 🥐 🍞 🥖 🧀 🥚 🍳 🥞 🥓 🥩 🍗 🍖 🌭 🍔 🍟 🍕 🥪 🌮 🌯 🥗 🍝 🍜 🍲 🍛 🍣 🍱 🥟 🍤 🍙 🍚 🍘 🍥 🍢 🍡 🍧 🍨 🍦 🥧 🧁 🍰 🎂 🍮 🍭 🍬 🍫 🍿 🍩 🍪 🥜 🍯 🥛 ☕ 🍵 🧃 🥤 🍶 🍺 🍻 🥂 🍷 🥃 🍸 🍹 🍾'],
+ ['⚽','Activités','⚽ 🏀 🏈 ⚾ 🥎 🎾 🏐 🏉 🎱 🏓 🏸 🥊 🥋 ⛳ 🏹 🎣 🎮 🕹️ 🎲 🧩 ♟️ 🎯 🎳 🎰 🎤 🎧 🎸 🎹 🥁 🎷 🎺 🎻 🎬 🎨 🎭 🏆 🥇 🥈 🥉 🏅 🎖️ 🎗️ 🎫 🎟️ 🎪 🎉 🎊 🎈 🎁 🎀'],
+ ['🚗','Voyages','🚗 🚕 🚙 🚌 🚎 🏎️ 🚓 🚑 🚒 🚚 🚜 🏍️ 🛵 🚲 🛴 🚂 ✈️ 🛫 🛬 🚀 🛸 🚁 ⛵ 🚤 🛳️ ⚓ 🏠 🏡 🏢 🏥 🏦 🏪 🏫 🏰 🕌 ⛪ 🕋 🗼 🗽 🌆 🌃 🌉 🎡 🎢 ⛺ 🏕️ ⛰️ 🏔️ 🏝️ 🏜️ 🌋'],
+ ['💡','Objets','⌚ 📱 💻 ⌨️ 🖥️ 🖨️ 🖱️ 💽 💾 📷 📸 📹 🎥 📞 ☎️ 📺 📻 ⏰ 🔋 🔌 💡 🔦 💰 💵 💴 💶 💷 💳 💎 🔧 🔨 ⚙️ 💣 🔪 🛡️ 🔮 📿 💊 💉 🧬 🔬 🔭 📡 🧹 🧺 🔑 🗝️ 🚪 🛋️ 🛏️ 🚿 🧴 🧻 📦 📫 📝 📚 📖 📌 📎 ✂️ 🔒 🔓'],
+ ['🏁','Drapeaux','🇳🇪 🇫🇷 🇳🇬 🇬🇭 🇸🇳 🇨🇮 🇲🇱 🇧🇫 🇨🇲 🇲🇦 🇩🇿 🇹🇳 🇪🇬 🇺🇸 🇬🇧 🇧🇷 🇪🇸 🇮🇹 🇩🇪 🇨🇳 🇯🇵 🇸🇦 🇹🇷 🏳️ 🏴 🏁 🚩']
+].map(c=>[c[0],c[1],c[2].split(' ')]);
+const emoRecent=()=>{try{return JSON.parse(localStorage.getItem('vyro_emo_rec')||'[]').filter(x=>typeof x==='string').slice(0,24)}catch(e){return[]}};
+function emoDraw(gEl){
+ const rec=emoRecent();
+ const cats=(rec.length?[['🕘','Récents',rec]]:[]).concat(EMO_CATS);
+ gEl.innerHTML=`<div class="ebar">${cats.map((c,i)=>`<button type="button" data-ec="${i}" aria-label="${esc(c[1])}">${c[0]}</button>`).join('')}<button type="button" class="ebs" data-ebs="1" aria-label="Effacer">⌫</button></div>`+
+  cats.map((c,i)=>`<div class="eh" data-eh="${i}">${esc(c[1])}</div>`+c[2].map(e=>`<button type="button" class="eb" data-em="${e}">${e}</button>`).join('')).join('');
+}
+function emoClick(e,gEl){
+ const inp=$('#tIn');
+ const em=e.target.closest('[data-em]');
+ if(em){
+  const ch=em.dataset.em;
+  if(inp){
+   const s=inp.selectionStart==null?inp.value.length:inp.selectionStart,t=inp.selectionEnd==null?s:inp.selectionEnd;
+   inp.setRangeText(ch,s,t,'end');inp.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  try{const r=[ch].concat(emoRecent().filter(x=>x!==ch)).slice(0,24);localStorage.setItem('vyro_emo_rec',JSON.stringify(r))}catch(x){}
+  return true;
+ }
+ if(e.target.closest('[data-ebs]')){
+  if(inp){
+   const s=inp.selectionStart==null?inp.value.length:inp.selectionStart,t=inp.selectionEnd==null?s:inp.selectionEnd;
+   if(t>s){inp.setRangeText('',s,t,'end')}
+   else if(s>0){
+    const before=inp.value.slice(0,s);let n=1;
+    try{const seg=[...new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(before)];n=seg.length?seg[seg.length-1].segment.length:1}catch(x){n=[...before].pop().length}
+    inp.setRangeText('',s-n,s,'end');
+   }
+   inp.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  return true;
+ }
+ const ec=e.target.closest('[data-ec]');
+ if(ec){const h=gEl.querySelector('[data-eh="'+ec.dataset.ec+'"]');if(h)gEl.scrollTo({top:h.offsetTop-44,behavior:'smooth'});return true}
+ return false;
+}
+/* message composé seulement de 1 à 3 émojis : affiché en grand, comme WhatsApp */
+const BIG_EMO=/^(?:\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*\s*){1,3}$/u;
+const bigEmo=b=>typeof b==='string'&&b.length<=24&&BIG_EMO.test(b);
+
+/* ---------- sons réutilisables : toucher « ♫ nom du son » ouvre les vidéos qui utilisent ce son ---------- */
+async function soundSheet(name){
+ openSheet('♫ '+esc(name),'<p class="muted" style="text-align:center;margin:18px 0">Chargement…</p>');
+ let list=[];
+ try{
+  const {data,error}=await sb.from('vyro_videos').select(VCOLS).is('page_of',null).eq('sound',name).order('created_at',{ascending:false}).limit(30);
+  if(error)throw error;
+  list=(data||[]).map(mapPost).filter(p=>!blocks.has(p.uid));
+ }catch(e){
+  if($('#sh.on'))$('#sh').innerHTML='<div class="grab"></div><h3>♫ '+esc(name)+'</h3><p class="muted" style="text-align:center;margin:18px 0">Impossible de charger, réessaie.</p>';return;
+ }
+ if(!$('#sh.on'))return;
+ $('#sh').innerHTML=`<div class="grab"></div><h3>♫ ${esc(name)}</h3><p class="muted" style="text-align:center;margin:-4px 0 10px;font-size:13px">${list.length} vidéo${list.length>1?'s':''} avec ce son</p><div class="grid">${gridHTML(list,'Aucune vidéo avec ce son pour l’instant.')}</div>`;
+ $('#sh').onclick=e=>{const t=e.target.closest('.th');if(t){closeSheet();openViewer(list,+t.dataset.i)}};
+}
+{
+ const feed=$('#feed');
+ if(feed)feed.addEventListener('click',e=>{
+  const sd=e.target.closest('.sd');if(!sd)return;
+  const art=sd.closest('.post');const p=art&&posts.find(x=>String(x.id)===art.dataset.id);
+  if(!p||!p.sound)return;
+  e.stopPropagation();e.preventDefault();soundSheet(p.sound);
+ },true);
+}
+/* petit retour haptique sur les J'aime / favoris */
+{
+ const _tm=toggleMark;
+ toggleMark=function(){try{if(navigator.vibrate)navigator.vibrate(10)}catch(e){}return _tm.apply(this,arguments)};
+}
+/* glisser horizontalement sur une vidéo → profil du créateur (comme TikTok) */
+{
+ const feed=$('#feed');let sx=0,sy=0,st=0,sp=null,ok=false;
+ if(feed){
+  feed.addEventListener('touchstart',e=>{
+   ok=false;if(e.touches.length!==1)return;
+   const t=e.touches[0],W=window.innerWidth;
+   if(t.clientX<26||t.clientX>W-26)return; // geste « retour » d'Android
+   if(e.target.closest('input,textarea,.rail,[data-a],.tl,.seek,.pgc'))return;
+   const art=e.target.closest('.post');if(!art)return;
+   sp=posts.find(x=>String(x.id)===art.dataset.id)||null;if(!sp)return;
+   sx=t.clientX;sy=t.clientY;st=Date.now();ok=true;
+  },{passive:true});
+  feed.addEventListener('touchend',e=>{
+   if(!ok||!sp)return;ok=false;
+   const t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
+   if(Math.abs(dx)>70&&Math.abs(dy)<Math.abs(dx)*.6&&Date.now()-st<900){
+    try{if(navigator.vibrate)navigator.vibrate(8)}catch(_){}
+    openProfile(sp.uid);
+   }
+  },{passive:true});
+ }
+}
+
+/* ---------- VYRO World : écran d'accueil du jeu (le monde 3D viendra avec le jeu) ---------- */
+(function(){
+ const st=document.createElement('style');
+ st.textContent=`
+#s-world{background:#070b1d;color:#fff;overflow:hidden}
+#s-world .wbg{position:absolute;inset:0;background:radial-gradient(70% 38% at 50% 52%,rgba(236,72,153,.42),rgba(168,85,247,.22) 45%,transparent 72%),linear-gradient(180deg,#0b1030 0%,#0a0f26 48%,#10112e 100%)}
+#s-world .wfloor{position:absolute;left:-30%;right:-30%;bottom:-6%;height:50%;transform:perspective(380px) rotateX(62deg);transform-origin:50% 100%;background:linear-gradient(rgba(168,85,247,.55) 1px,transparent 1px) 0 0/100% 46px,linear-gradient(90deg,rgba(168,85,247,.55) 1px,transparent 1px) 0 0/46px 100%;-webkit-mask-image:linear-gradient(transparent,#000 40%);mask-image:linear-gradient(transparent,#000 40%);opacity:.55}
+#s-world .wring{position:absolute;left:50%;top:56%;width:230px;height:230px;margin:-115px 0 0 -115px;border-radius:50%;border:2px solid rgba(236,72,153,.55);box-shadow:0 0 40px rgba(236,72,153,.45),inset 0 0 40px rgba(168,85,247,.35);transform:rotateX(68deg);animation:wpulse 3.2s ease-in-out infinite}
+#s-world .wring.r2{width:150px;height:150px;margin:-75px 0 0 -75px;animation-delay:-1.6s;border-color:rgba(168,85,247,.7)}
+@keyframes wpulse{50%{transform:rotateX(68deg) scale(1.12);opacity:.55}}
+#s-world .wsoon{position:absolute;left:0;right:0;top:46%;text-align:center;font-weight:700;opacity:.7;font-size:15px;letter-spacing:.02em;pointer-events:none}
+#s-world .wdots i{position:absolute;width:4px;height:4px;border-radius:50%;background:#fff;opacity:.5;animation:wfl 6s ease-in-out infinite}
+@keyframes wfl{50%{transform:translateY(-18px);opacity:.15}}
+#s-world .wtop{position:absolute;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 12px) 14px 0;display:flex;align-items:center;gap:10px;z-index:2}
+#s-world .wib{flex:none;width:44px;height:44px;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:rgba(10,14,32,.72);color:#fff;display:grid;place-items:center;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#s-world .wib .ic{width:22px;height:22px}
+#s-world .wpill{margin-left:auto;display:flex;align-items:center;gap:10px;height:50px;padding:0 16px 0 5px;border-radius:26px;background:rgba(10,14,32,.72);border:1px solid rgba(255,255,255,.1);min-width:0;max-width:62%;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#s-world .wpill .av{flex:none;width:40px!important;height:40px!important;box-shadow:0 0 0 2px #f5b04a}
+#s-world .wpill b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#s-world .wstats{position:absolute;left:14px;top:calc(env(safe-area-inset-top,0px) + 74px);z-index:2;display:flex;flex-direction:column;gap:9px;padding:13px 18px 13px 14px;border-radius:22px;background:rgba(10,14,32,.72);border:1px solid rgba(255,255,255,.1);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#s-world .wst{display:flex;align-items:center;gap:12px;font-weight:800;font-size:20px;line-height:1}
+#s-world .wst span{flex:none;width:30px;text-align:center;font-size:25px;filter:drop-shadow(0 0 8px rgba(250,204,21,.45))}
+#s-world .wst.g span{filter:drop-shadow(0 0 8px rgba(56,189,248,.6))}
+#s-world .wenter{position:absolute;left:18px;right:18px;bottom:calc(env(safe-area-inset-bottom,0px) + 106px);z-index:2;height:64px;border:3px solid #0b1a14;border-radius:34px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:20px;font-weight:900;letter-spacing:.02em;color:#fff;background:linear-gradient(#34d762,#17a94a);box-shadow:0 6px 0 #0f7a33,0 12px 30px rgba(34,197,94,.35);text-transform:uppercase}
+#s-world .wenter:active{transform:translateY(4px);box-shadow:0 2px 0 #0f7a33}
+#s-world .wenter i{width:44px;height:36px;border-radius:9px;background:#fff;display:grid;place-items:center;color:#17a94a}
+#s-world .wenter i .ic{width:20px;height:20px;fill:currentColor;stroke:none}
+#s-world .wnav{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;padding:8px 8px calc(env(safe-area-inset-bottom,0px) + 8px);background:rgba(8,12,28,.92);border-radius:30px 30px 0 0;border-top:1px solid rgba(255,255,255,.08)}
+#s-world .wnav button{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;border:0;background:none;color:rgba(255,255,255,.72);font-weight:700;font-size:14px;padding:8px 0 10px}
+#s-world .wnav svg{width:34px;height:34px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#s-world .wnav button.cur{color:#fff}
+#s-world .wnav button.cur::after{content:"";position:absolute;left:18%;right:18%;bottom:0;height:3px;border-radius:2px;background:#22c55e;box-shadow:0 0 10px #22c55e}
+.wsoonbox{text-align:center;padding:18px 10px 8px}.wsoonbox .e{font-size:44px}.wsoonbox p{opacity:.7;margin:8px 0 0}
+.wchar{position:absolute;left:50%;top:56%;width:112px;height:min(240px,33vh);margin:calc(-1 * min(224px,31vh)) 0 0 -56px;z-index:1;pointer-events:none;filter:drop-shadow(0 0 18px rgba(168,85,247,.55))}
+.wchar svg{width:100%;height:100%;overflow:visible}
+.wchar img{position:absolute;left:50%;bottom:-8%;height:125%;width:auto;max-width:none;transform:translateX(-50%);animation:wimg 3.4s ease-in-out infinite}
+@keyframes wimg{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-5px)}}
+.wchar .bob{animation:wbob 3.4s ease-in-out infinite}
+.wchar .al{transform-origin:30px 84px;animation:wsw 3.4s ease-in-out infinite}
+.wchar .ar{transform-origin:90px 84px;animation:wsw 3.4s ease-in-out infinite reverse}
+.wchar .cape{transform-origin:60px 84px;animation:wcape 3.4s ease-in-out infinite}
+.wchar .eye{transform-origin:center;transform-box:fill-box;animation:wblink 4.6s infinite}
+@keyframes wbob{50%{transform:translateY(-4px)}}
+@keyframes wsw{50%{transform:rotate(4deg)}}
+@keyframes wcape{50%{transform:skewX(3deg)}}
+@keyframes wblink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}
+`;
+ document.head.appendChild(st);
+ const sec=document.createElement('section');sec.className='screen';sec.id='s-world';
+ const IC={
+  home:'<svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-5.5h4V20"/></svg>',
+  shop:'<svg viewBox="0 0 24 24"><path d="M3 4h2.5l2.2 11h10.6l2-8H6.3"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></svg>',
+  bag:'<svg viewBox="0 0 24 24"><path d="M9 6V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V6"/><rect x="5" y="6" width="14" height="15" rx="4"/><path d="M9 14h6M8 10h8"/></svg>',
+  users:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><path d="M15.5 14.3c3 0 5.5 2 5.5 5.2"/></svg>'
+ };
+ sec.innerHTML=`<div class="wbg"></div><div class="wfloor"></div><div class="wring"></div><div class="wring r2"></div><div class="wchar" id="wChar"></div>
+ <div class="wdots">${[[12,30,0],[84,22,1.2],[22,62,2.1],[76,58,.6],[50,18,3],[90,70,1.8],[8,76,2.7]].map(d=>`<i style="left:${d[0]}%;top:${d[1]}%;animation-delay:-${d[2]}s"></i>`).join('')}</div>
+  <div class="wtop"><button type="button" class="wib" data-go="back" aria-label="Retour">${I('back')}</button><div class="wpill" id="wPill"></div><button type="button" class="wib" id="wGear" aria-label="Réglages">${I('gear')}</button></div>
+ <div class="wstats"><div class="wst"><span>⭐</span><b id="wLv">Niv. 1</b></div><div class="wst"><span>🐝</span><b id="wBc">0</b></div><div class="wst g"><span>💎</span><b id="wGm">0</b></div></div>
+ <button type="button" class="wenter" id="wEnter"><i>${I('play')}</i>Entrer dans le monde</button>
+ <div class="wnav" id="wNav"><button type="button" data-w="home" class="cur">${IC.home}Accueil</button><button type="button" data-w="shop">${IC.shop}Boutique</button><button type="button" data-w="inv">${IC.bag}Inventaire</button><button type="button" data-w="friends">${IC.users}Amis</button></div>`;
+ const host=document.getElementById('s-notifs');host.parentNode.insertBefore(sec,host.nextSibling);
+
+  function wLook(){
+  try{const im=localStorage.getItem('vyro_world_char_'+(me&&me.id||''));if(im&&/^data:image\/png;base64,/.test(im))return `<img src="${im}" alt="" draggable="false">`}catch(e){}
+  let S={};try{const d=JSON.parse(localStorage.getItem('monmonde5_'+(me&&me.id||''))||'null');if(d&&d.S)S=d.S}catch(e){}
+  const hx=(c,d)=>{c=(typeof c==='number'?c:0)>>>0;let r=c>>16&255,g=c>>8&255,b=c&255;const f=d||0;r=Math.max(0,Math.min(255,Math.round(r*(1+f))));g=Math.max(0,Math.min(255,Math.round(g*(1+f))));b=Math.max(0,Math.min(255,Math.round(b*(1+f))));return'#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1)};
+  const skin=typeof S.skin==='number'?S.skin:0xf5c9a0,hair=typeof S.hair==='number'?S.hair:0xd2541c,shirt=typeof S.shirt==='number'?S.shirt:0x15151a,pants=typeof S.pants==='number'?S.pants:0x15151a;
+  const own=S.own||{cape:0,helm:0,armor:0},eq=S.eq||{cape:1,helm:1,armor:1};
+  const cape=own.cape&&eq.cape,helm=own.helm&&eq.helm,armor=own.armor&&eq.armor;
+  const st='stroke="rgba(0,0,0,.45)" stroke-width="1.5" stroke-linejoin="round"';
+  return `<svg viewBox="0 0 120 250" aria-hidden="true">
+  <ellipse cx="60" cy="243" rx="40" ry="7" fill="rgba(0,0,0,.45)"/>
+  <g class="bob">
+   ${cape?`<g class="cape"><path d="M38 86 L82 86 L90 200 L30 200 Z" fill="#c0392b" ${st}/><path d="M60 86 L60 200" stroke="rgba(0,0,0,.2)" stroke-width="2"/></g>`:''}
+   <rect x="38" y="152" width="20" height="84" rx="4" fill="${hx(pants)}" ${st}/><rect x="62" y="152" width="20" height="84" rx="4" fill="${hx(pants)}" ${st}/>
+   <rect x="38" y="222" width="20" height="14" rx="3" fill="${hx(pants,-.35)}"/><rect x="62" y="222" width="20" height="14" rx="3" fill="${hx(pants,-.35)}"/>
+   <g class="al"><rect x="14" y="84" width="20" height="62" rx="5" fill="${hx(shirt)}" ${st}/><rect x="14" y="132" width="20" height="16" rx="4" fill="${hx(skin)}" ${st}/></g>
+   <g class="ar"><rect x="86" y="84" width="20" height="62" rx="5" fill="${hx(shirt)}" ${st}/><rect x="86" y="132" width="20" height="16" rx="4" fill="${hx(skin)}" ${st}/></g>
+   <rect x="34" y="82" width="52" height="74" rx="6" fill="${armor?'#aab4c4':hx(shirt)}" ${st}/>
+   <rect x="34" y="82" width="52" height="16" rx="6" fill="rgba(255,255,255,.12)"/>
+   ${armor?'<path d="M60 90 L60 148" stroke="#6b7686" stroke-width="2"/><circle cx="60" cy="108" r="6" fill="#facc15" stroke="rgba(0,0,0,.4)"/>':''}
+   <rect x="52" y="72" width="16" height="12" fill="${hx(skin,-.08)}"/>
+   <rect x="38" y="22" width="44" height="52" rx="11" fill="${hx(skin)}" ${st}/>
+   <path d="M38 40 Q38 20 60 20 Q82 20 82 40 L82 34 Q82 14 60 14 Q38 14 38 34 Z" fill="${hx(hair)}"/>
+   <path d="M36 44 L36 28 Q36 12 60 12 Q84 12 84 28 L84 44 L78 44 L78 32 Q60 26 42 32 L42 44 Z" fill="${hx(hair)}" ${st}/>
+   <rect class="eye" x="48" y="48" width="6" height="9" rx="2" fill="#111"/><rect class="eye" x="66" y="48" width="6" height="9" rx="2" fill="#111"/>
+   <path d="M52 63 Q60 69 68 63" stroke="#111" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+   ${helm?`<path d="M34 42 L34 26 Q34 8 60 8 Q86 8 86 26 L86 42 L80 42 L80 30 L40 30 L40 42 Z" fill="#c4ccd8" ${st}/><rect x="56" y="8" width="8" height="22" fill="#9aa5b6"/>`:''}
+  </g></svg>`;
+ }
+ function wChar(){const e=$('#wChar');if(e)e.innerHTML=wLook()}
+ function wRender(){
+  if(!me)return;
+  wChar();
+  try{const t=JSON.parse(localStorage.getItem('vyro_world_stat_'+me.id)||'null');if(t&&t.lv)$('#wLv').textContent='Niv. '+t.lv}catch(e){}
+  const nm=me.display_name||me.username||'?';
+  $('#wPill').innerHTML=av({name:nm,h:hue(me.username||nm),uid:me.id,avatar:me.avatar_url},40)+'<b>'+esc(nm)+'</b>';
+  let bc=0;try{bc=+localStorage.getItem('vyro_bc_'+me.id)||0}catch(e){}
+  $('#wBc').textContent=bc.toLocaleString('fr-FR');
+  walSync().then(b=>{if(b!=null){const e=$('#wBc');if(e)e.textContent=b.toLocaleString('fr-FR')}});
+ }
+ window.worldSetTab=function(t){$$('#wNav button').forEach(b=>b.classList.toggle('cur',b.dataset.w===t))};
+ async function wFriends(){
+  const l=chats.filter(c=>c.type!=='group'&&c.uid);
+  const sh=openSheet('Mes amis VYRO',l.length?`<div id="wFl">${l.map(c=>`<div class="urow" data-u="${c.uid}">${av(c,44)}<div><b>${esc(c.name)}</b><small>Ami VYRO</small></div></div>`).join('')}</div>`:'<p class="empty" style="padding:20px 10px;line-height:1.5">Pas encore d’amis ici.<br>Commence une discussion dans l’onglet Chat pour les retrouver dans VYRO World.</p>');
+  sheetHook=()=>worldSetTab('home');
+  sh.onclick=e=>{const u=e.target.closest('[data-u]');if(u){closeSheet();openProfile(u.dataset.u)}};
+  if(!l.length)return;
+  try{
+   const {data}=await sb.rpc('vyro_presence',{p_ids:l.map(c=>c.uid).slice(0,50)});
+   (data||[]).forEach(r=>{PRES[r.id]=r.last_seen});
+   const el=$('#wFl');if(el)applyDots(el);
+  }catch(e){}
+ }
+ function wSoon(t,e,m){openSheet(t,`<div class="wsoonbox"><div class="e">${e}</div><b>Bientôt disponible</b><p>${m}</p></div>`);sheetHook=()=>worldSetTab('home')}
+ $('#wNav').addEventListener('click',e=>{
+  const b=e.target.closest('[data-w]');if(!b)return;
+  const w=b.dataset.w;worldSetTab(w);
+  if(w==='home')closeSheet();
+  else if(w==='shop')wSoon('Boutique','🛍️','Vêtements, accessoires et effets pour ton personnage, à payer en BeeCoins.');
+  else if(w==='inv')wSoon('Inventaire','🎒','Retrouve ici tout ce que tu as acheté ou reçu.');
+  else wFriends();
+ });
+ $('#wGear').onclick=()=>push('settings');
+ $('#wEnter').onclick=()=>worldEnterGame();
+ window.WORLD_ON=true; /* false = World en pause (Bientôt disponible) */
+ window.openWorld=function(){
+  if(!window.WORLD_ON){openSheet('VYRO World',`<div class="wsoonbox"><div class="e">🌍</div><b>Bientôt disponible</b><p>VYRO World est en pause pour le moment. On prépare une grosse mise à jour, reste connecté !</p></div>`);return}
+  wRender();worldSetTab('home');push('world')};
+ window.wRender=wRender;
+})();
+
+/* ---------- VYRO World : lancement du jeu (plein écran + paysage automatique) ---------- */
+(function(){
+ const st=document.createElement('style');
+ st.textContent=`
+#s-wgame{position:fixed;inset:0;z-index:400;background:#000;transform:none!important;overflow:hidden}
+#wgBox{position:absolute;top:0;left:0;width:100%;height:100%;background:#000;overflow:hidden}
+#wgBox.rot{transform-origin:0 0;transform:rotate(90deg)}
+#wgFrame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#9fd3ff}
+#wgLoad{position:absolute;inset:0;z-index:2;overflow:hidden;color:#fff;text-align:center;background:#07030f;transition:opacity .6s ease,transform .6s ease}
+#wgLoad.out{opacity:0;transform:scale(1.06);pointer-events:none;visibility:hidden;transition:opacity .6s ease,transform .6s ease,visibility 0s .6s}
+#s-wgame,#s-wgame *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#wgLoad .cb{position:absolute;inset:-8%;width:116%;height:116%;object-fit:cover;filter:blur(22px) brightness(.55) saturate(1.2)}
+#wgLoad .ci{position:absolute;top:0;left:50%;height:100%;aspect-ratio:1;transform:translateX(-50%);object-fit:cover;animation:wgzoom 6s ease-out both}
+@keyframes wgzoom{from{transform:translateX(-50%) scale(1.06)}to{transform:translateX(-50%) scale(1)}}
+#wgLoad .lb{position:absolute;inset:0;pointer-events:none}
+#wgLoad .lb>*{pointer-events:auto}
+#wgLoad .bar{position:absolute;left:0;right:0;bottom:0;height:7px;background:rgba(255,255,255,.14);overflow:hidden}
+#wgLoad .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#a855f7,#ec4899,#22c55e);box-shadow:0 0 12px #ec4899;transition:width .25s}
+#wgLoad small{position:absolute;right:calc(env(safe-area-inset-right,0px) + 16px);bottom:22px;max-width:22%;text-align:right;opacity:.9;font-size:13px;text-shadow:0 1px 6px #000}
+#wgAct{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);display:flex}
+#wgLoad button{border:0;border-radius:18px;padding:10px 20px;font-weight:800;color:#fff;background:#7c3aed}
+#wgLoad button.g{background:rgba(255,255,255,.14)}
+`;
+ document.head.appendChild(st);
+ const sec=document.createElement('section');sec.className='screen';sec.id='s-wgame';
+ sec.innerHTML=`<div id="wgBox"><iframe id="wgFrame" title="VYRO World" allow="fullscreen; autoplay; accelerometer; gyroscope"></iframe>
+ <div id="wgLoad"><img class="cb" src="world-cover.jpg" alt=""><img class="ci" src="world-cover.jpg" alt=""><div class="lb"><div class="bar"><i id="wgBar"></i></div><small id="wgTip">Chargement du monde…</small><div id="wgAct" style="display:none;gap:10px"></div></div></div></div>`;
+ document.body.appendChild(sec);
+
+ const F=$('#wgFrame'),BOX=$('#wgBox'),LD=$('#wgLoad'),BAR=$('#wgBar'),TIP=$('#wgTip'),ACT=$('#wgAct');
+ const META=document.querySelector('meta[name=viewport]');let metaOld=null,fsSeen=false,t0=0,pTimer=0,loading=false,readyT=0;
+ const TIPS=['Parle aux Capitaines ⚓ pour voyager entre les îles','Appuie sur 🗺️ pour voir la carte de l’archipel','Chaque île a ses quêtes : cherche le panneau QUEST','Attention à la lave 🌋 : elle brûle !','Les ennemis des îles lointaines sont plus forts : monte de niveau','Un boss apparaît toutes les 5 vagues'];
+
+ function fit(){
+  if(!sec.classList.contains('on'))return;
+  const W=window.innerWidth,H=window.innerHeight;
+  if(H>W){BOX.classList.add('rot');BOX.style.width=H+'px';BOX.style.height=W+'px';BOX.style.left=W+'px'}
+  else{BOX.classList.remove('rot');BOX.style.width='100%';BOX.style.height='100%';BOX.style.left='0'}
+ }
+ ['resize','orientationchange'].forEach(ev=>window.addEventListener(ev,()=>{fit();setTimeout(fit,150);setTimeout(fit,500)}));
+
+ function setBar(p){BAR.style.width=Math.min(100,p)+'%'}
+ function fail(msg){
+  loading=false;clearInterval(pTimer);clearTimeout(readyT);
+  TIP.textContent=msg;ACT.style.display='flex';
+  ACT.innerHTML='<button type="button" id="wgRetry">Réessayer</button><button type="button" class="g" id="wgQuit">Retour</button>';
+  $('#wgRetry').onclick=start;$('#wgQuit').onclick=leave;
+ }
+ function start(){
+  loading=true;t0=Date.now();ACT.style.display='none';LD.classList.remove('out');setBar(6);
+  TIP.textContent=TIPS[Math.floor(Math.random()*TIPS.length)];
+  let p=6;clearInterval(pTimer);pTimer=setInterval(()=>{p+=(88-p)*.06;setBar(p)},180);
+  const uid=(me&&me.id)||'';
+  F.onload=()=>{
+   if(!loading)return;
+   let ok=false;try{ok=!!(F.contentWindow.BABYLON||F.contentWindow.THREE)}catch(e){}
+   if(!ok)fail('Impossible de charger le jeu. Vérifie ta connexion.');
+  };
+  clearTimeout(readyT);readyT=setTimeout(()=>{if(loading)fail('Le chargement est trop long. Vérifie ta connexion.')},60000);
+  F.onerror=()=>fail('Impossible de charger le jeu.');
+  F.src='world.html?u='+encodeURIComponent(uid)+'&r='+Date.now();
+ }
+ function lockLandscape(){
+  const el=document.documentElement;
+  const lk=()=>{try{const o=screen.orientation;if(o&&o.lock)return o.lock('landscape').catch(()=>{})}catch(e){}};
+  try{
+   const r=el.requestFullscreen?el.requestFullscreen({navigationUI:'hide'}):el.webkitRequestFullscreen?el.webkitRequestFullscreen():null;
+   if(r&&r.then)r.then(()=>{fsSeen=true;return lk()}).catch(()=>lk());else lk();
+  }catch(e){lk()}
+ }
+ window.worldEnterGame=function(){
+  if(!me){toast('Connecte-toi pour jouer');return}
+  metaOld=META.getAttribute('content');
+  META.setAttribute('content','width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no');
+  lockLandscape();
+  push('wgame');fit();setTimeout(fit,120);
+  start();
+ };
+ function cleanup(){
+  loading=false;clearInterval(pTimer);clearTimeout(readyT);
+  try{F.onload=null;F.removeAttribute('src');F.src='about:blank'}catch(e){}
+  if(metaOld!==null){META.setAttribute('content',metaOld);metaOld=null}
+  try{if(screen.orientation&&screen.orientation.unlock)screen.orientation.unlock()}catch(e){}
+  try{if(document.fullscreenElement)document.exitFullscreen();else if(document.webkitFullscreenElement)document.webkitExitFullscreen()}catch(e){}
+  fsSeen=false;
+ }
+ function leave(){if(curScreen==='wgame')back()}
+ const _show=show;
+ show=function(n){
+  const was=curScreen;
+  _show.apply(this,arguments);
+  if(n==='wgame')setTimeout(fit,0);
+  if(was==='wgame'&&n!=='wgame'){cleanup();if(typeof wRender==='function')wRender()}
+ };
+ window.addEventListener('message',e=>{
+  if(e.source!==F.contentWindow||!e.data)return;
+  if(e.data.vyroWorld==='exit')leave();
+  else if(e.data.vyroWorld==='ready'&&loading){
+   clearInterval(pTimer);clearTimeout(readyT);setBar(100);
+   setTimeout(()=>{LD.classList.add('out');loading=false;try{F.contentWindow.focus()}catch(e){}},Math.max(300,1500-(Date.now()-t0)));
+  }
+ });
+ const fsch=()=>{
+  const on=!!(document.fullscreenElement||document.webkitFullscreenElement);
+  if(on)fsSeen=true;
+  else if(fsSeen&&curScreen==='wgame'){fsSeen=false;leave()}
+ };
+ document.addEventListener('fullscreenchange',fsch);document.addEventListener('webkitfullscreenchange',fsch);
+})();
+
+/* mode léger automatique pour les téléphones modestes (moins d'animations et d'effets de flou) */
+(()=>{let lite=false;try{const m=navigator.deviceMemory,c=navigator.hardwareConcurrency,f=localStorage.getItem('vyro_lite');lite=!!((m&&m<=3)||(c&&c<=4));if(f==='1')lite=true;if(f==='0')lite=false}catch(e){}
+ if(lite)document.documentElement.classList.add('lite');
+})();
+
+/* ---------- appli Android native (Capacitor) : jeton de notifications, ouverture depuis une notification, appels ---------- */
+const isNativeApp=()=>/VyroApp/.test(navigator.userAgent);
+async function nativePushSave(){
+ const t=window.__fcmTok;
+ if(!t||typeof me==='undefined'||!me||!me.id||window.__fcmSaved===t)return;
+ window.__fcmSaved=t;
+ try{const {error}=await sb.rpc('vyro_fcm_save',{p_token:t});if(error)window.__fcmSaved=null}catch(e){window.__fcmSaved=null}
+}
+async function nativePushRemove(){
+ try{if(window.__fcmTok){await sb.rpc('vyro_fcm_remove',{p_token:window.__fcmTok});window.__fcmSaved=null}}catch(e){}
+}
+if(isNativeApp()){
+ document.documentElement.classList.add('native');
+ window.addEventListener('vyro-fcm',nativePushSave);
+ setInterval(nativePushSave,4000);
+ setInterval(()=>{try{const c=$('meta[name=theme-color]').content;if(c&&c!==window.__bar&&window.VyroBar){window.__bar=c;window.VyroBar.set(c)}}catch(e){}},1500);
+ setInterval(()=>{
+  const q=window.__vyroOpenQ;
+  if(q&&typeof chats!=='undefined'&&chats&&chats.length){
+   window.__vyroOpenQ=null;
+   const L=window.__vyroLast;if(L&&L.c===q&&Date.now()-L.t<9000)return;
+   const c=chats.find(x=>x.id===q);if(c){window.__vyroLast={c:q,t:Date.now()};try{openThread(q)}catch(e){}}
+  }
+  if(window.__vyroCall){const t=window.__vyroCall;window.__vyroCall=0;if(Date.now()-t<15000&&typeof me!=='undefined'&&me)try{pendingInvites()}catch(e){}}
+ },600);
+}
+
+/* ---------- appli Android : bouton « Télécharger » + alerte de mise à jour ---------- */
+const APK_URL='https://github.com/Abeew-ux/Vyro-/releases/download/apk-latest/VYRO.apk';
+const APK_API='https://api.github.com/repos/Abeew-ux/Vyro-/releases/tags/apk-latest';
+let apkLatest=0,apkBar=null;
+const apkCur=()=>{const m=/VyroApp\/(\d+)/.exec(navigator.userAgent);return m?+m[1]:0};
+function apkGo(){try{const a=document.createElement('a');a.href=APK_URL;a.rel='noopener';if(!isNativeApp())a.download='VYRO.apk';document.body.appendChild(a);a.click();a.remove()}catch(e){location.href=APK_URL}}
+function apkUI(){
+ const nat=isNativeApp(),and=/Android/i.test(navigator.userAgent),upd=nat&&apkLatest>apkCur();
+ const row=$('#rowApk');
+ if(row){
+  row.style.display=(nat||and)?'':'none';
+  const b=row.querySelector('b'),s=row.querySelector('small');
+  if(nat){b.textContent=upd?'Mise à jour disponible':'Application Android';s.textContent=upd?'Touche pour télécharger la nouvelle version':'Tu as la dernière version'}
+  else{b.textContent='Télécharger l’appli Android';s.textContent='Messages et appels même appli fermée'}
+ }
+ let seen='';try{seen=localStorage.getItem('vyro_apk_seen')||''}catch(e){}
+ const key=nat?String(apkLatest):'web';
+ const show=(nat?upd:and)&&seen!==key;
+ const L=$('#chatList');
+ if(show&&!apkBar&&L&&L.parentNode){
+  apkBar=document.createElement('div');apkBar.className='apkbar';
+  apkBar.innerHTML=`<span class="ab-i">${I('download')}</span><div class="ab-t"><b>${nat?'Mise à jour disponible':'VYRO pour Android'}</b><small>${nat?'Une nouvelle version de l’appli est prête':'Messages et appels même appli fermée'}</small></div><button type="button" class="ab-go">Télécharger</button><button type="button" class="ab-x" aria-label="Fermer">✕</button>`;
+  L.parentNode.insertBefore(apkBar,L);
+  apkBar.querySelector('.ab-go').onclick=()=>apkGo();
+  apkBar.querySelector('.ab-x').onclick=()=>{try{localStorage.setItem('vyro_apk_seen',key)}catch(e){}apkBar.remove();apkBar=null};
+ }else if(!show&&apkBar){apkBar.remove();apkBar=null}
+}
+async function apkCheck(){
+ try{const c=sessionStorage.getItem('vyro_apk_v');if(c!==null){apkLatest=+c||0;apkUI();return}}catch(e){}
+ try{
+  const r=await fetch(APK_API,{headers:{Accept:'application/vnd.github+json'}});
+  if(r.ok){const j=await r.json();const m=/build\s*(\d+)/i.exec((j.name||'')+' '+(j.body||''));apkLatest=m?+m[1]:0;try{sessionStorage.setItem('vyro_apk_v',String(apkLatest))}catch(e){}}
+ }catch(e){}
+ apkUI();
+}
+document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('#rowApk'))apkGo()});
+setTimeout(apkCheck,2500);
+setInterval(()=>{if(document.visibilityState==='visible')apkUI()},20000);
+/*@@MOD-END*/
+/* ---------- démarrage ---------- */
+boot();
+(()=>{const s=document.getElementById('splash');if(!s)return;const t0=Date.now();let d=0;
+ const go=()=>{if(d)return;d=1;s.classList.add('out');setTimeout(()=>s.remove(),700)};
+ const arm=()=>setTimeout(go,Math.max(0,1100-(Date.now()-t0)));
+ if(document.readyState==='complete')arm();else addEventListener('load',arm);
+ setTimeout(go,3500)})();
+})();
