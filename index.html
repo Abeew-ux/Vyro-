@@ -3843,11 +3843,11 @@ async function openProfile(uid){
  $('#uTitle').textContent='';$('#uBody').innerHTML='<p class="empty">Chargement…</p>';userCur=null;
  const cnt=f=>sb.from('vyro_follows').select('*',{count:'exact',head:true}).eq(f,uid);
  const [pr,fe,fi,vs]=await Promise.all([
-  sb.from('vyro_profiles').select('id,username,display_name,bio,avatar_url,is_private,created_at').eq('id',uid).maybeSingle(),
+  sb.from('vyro_profiles').select('id,username,display_name,bio,avatar_url,avatar_cfg,is_private,created_at').eq('id',uid).maybeSingle(),
   cnt('following_id'),cnt('follower_id'),
   sb.from('vyro_videos').select(VCOLS).is('page_of',null).eq('user_id',uid).order('created_at',{ascending:false}).limit(60)]);
  if(curScreen!=='user')return;
- if(!pr.data){$('#uBody').innerHTML='<p class="empty">Profil introuvable</p>';return}
+ if(!pr.data){$('#uBody').innerHTML='<p class="empty">Profil introuvable</p>';return}window.UCFG=pr.data.avatar_cfg||null;
  userCur={u:pr.data,followers:fe.count||0,following:fi.count||0,vids:(vs.data||[]).map(mapPost)};
  renderUser();
 }
@@ -6988,6 +6988,54 @@ function avPhoto(cfg){
  };
  const _ss=setStatus;
  setStatus=function(){const r=_ss.apply(this,arguments);try{typPop()}catch(e){}return r};
+}
+
+/* ---------- l'avatar remplit la case photo en haut du profil ---------- */
+function avFillPav(p,cfg){
+ if(!p)return;
+ let o=p.querySelector('.avsvg');
+ if(!cfg){p.classList.remove('hasavx');if(o)o.remove();return}
+ if(!o){o=document.createElement('span');o.className='avsvg';p.appendChild(o)}
+ if(o.dataset.c!==cfg){o.innerHTML=avSVG(cfg).replace('viewBox="0 0 120 150"','viewBox="9 0 102 102"');o.dataset.c=cfg}
+ p.classList.add('hasavx');
+}
+{
+ const st=document.createElement('style');
+ st.textContent=`.pav.hasavx>span:not(.avsvg),.pav.hasavx>img{display:none!important}
+.avsvg{position:absolute;inset:0;display:block;border-radius:50%;overflow:hidden}
+.avsvg .avx{width:100%;height:100%;overflow:hidden;animation:avbr 3.2s ease-in-out infinite;transform-origin:50% 100%}
+@keyframes avbr{50%{transform:scale(1.03)}}`;
+ document.head.appendChild(st);
+ const own=()=>{const c=me&&me.avatar_cfg||null;document.querySelectorAll('#s-profile .pav,#s-settings .pav,#sh .avedit .pav').forEach(p=>avFillPav(p,c))};
+ const _an=applyNames;
+ applyNames=function(){const r=_an.apply(this,arguments);try{own()}catch(e){}return r};
+ const ub=document.getElementById('uBody');
+ if(ub)new MutationObserver(()=>{const p=ub.querySelector('.phead .pav');if(p&&!p.querySelector('.avsvg')&&window.UCFG)avFillPav(p,window.UCFG)}).observe(ub,{childList:true,subtree:true});
+}
+
+/* ---------- grand avatar dans le bandeau du profil ---------- */
+function avBan(ph,cfg,mine){
+ if(!ph)return;
+ let o=ph.querySelector(':scope>.avban');
+ if(!cfg){ph.classList.remove('hasban');if(o)o.remove();return}
+ if(!o){o=document.createElement('span');o.className='avban';ph.insertBefore(o,ph.firstChild);
+  if(mine)o.onclick=avOpenCreator}
+ if(o.dataset.c!==cfg){o.innerHTML=avSVG(cfg);o.dataset.c=cfg}
+ ph.classList.add('hasban');
+}
+{
+ const st=document.createElement('style');
+ st.textContent=`.phead.hasban{padding-top:92px!important}
+.phead.hasban::before,.phead.hasban::after{height:114px!important}
+.avban{position:absolute;right:18px;top:4px;width:90px;height:110px;z-index:2;display:block;clip-path:inset(0 -24px 0 -24px);filter:drop-shadow(0 0 14px rgba(255,255,255,.35));animation:avbn 3.6s ease-in-out infinite;transform-origin:50% 100%}
+.avban .avx{width:100%;height:100%;overflow:visible}
+@keyframes avbn{50%{transform:translateY(-3px) scale(1.02)}}
+#s-profile .phead.hasban .pname{max-width:calc(100% - 112px)}`;
+ document.head.appendChild(st);
+ const _an2=applyNames;
+ applyNames=function(){const r=_an2.apply(this,arguments);try{avBan(document.querySelector('#s-profile .phead'),me&&me.avatar_cfg||null,true)}catch(e){}return r};
+ const ub=document.getElementById('uBody');
+ if(ub)new MutationObserver(()=>{const ph=ub.querySelector('.phead');if(ph&&!ph.querySelector(':scope>.avban')&&window.UCFG)avBan(ph,window.UCFG,false)}).observe(ub,{childList:true,subtree:true});
 }
 /*@@MOD-END*/
 /* ---------- démarrage ---------- */
