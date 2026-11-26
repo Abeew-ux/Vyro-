@@ -9223,6 +9223,406 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
 `;
  document.head.appendChild(st);
 })();
+
+/* =====================================================================
+   SALONS OTAKU : annuaire par catégories (Mes salons / Découvrir), création, invitation,
+   et salon « Regarder » : séance vidéo synchronisée (YouTube ou lien vidéo direct) à côté du chat.
+   Synchro : canal temps réel Supabase `watch:<salon>` (broadcast + présence).
+   ===================================================================== */
+(function(){
+ const CATS=[['all','Tous','🎌'],['general','Général','💬'],['shonen','Shonen','⚔️'],['isekai','Isekai','🌀'],['romance','Romance','🌸'],['manga','Manga','📚'],['cosplay','Cosplay','🎨'],['watch','Regarder','🎬']];
+ const CN=Object.fromEntries(CATS.map(c=>[c[0],c]));
+ const EMO=['🎌','⚔️','🌀','🌸','📚','🎨','🎬','🍥','👹','🐉','🎮','🎧','🔥','⭐','🦊','🌙'];
+ const RM={list:[],by:{},ts:0,cat:'all',busy:false};
+ const ST=(typeof sb!=='undefined')?sb:null;
+
+ /* ---------------- données ---------------- */
+ async function loadRooms(force){
+  if(!me||RM.busy||(!force&&Date.now()-RM.ts<15000))return;
+  RM.busy=true;
+  try{
+   const {data,error}=await sb.rpc('vyro_rooms_list',{p_cat:null});
+   if(!error&&data){RM.list=data;RM.by={};data.forEach(r=>RM.by[r.id]=r);RM.ts=Date.now()}
+  }catch(e){}
+  RM.busy=false;
+  if(filter==='group'&&curScreen==='chat')renderChats();
+ }
+ window.__RM=RM;
+
+ /* ---------------- vue « Salons » ---------------- */
+ function roomCard(r){
+  const c=CN[r.category]||CN.general;
+  return `<div class="rmc" data-rid="${r.id}"><span class="rme">${esc(r.emoji||c[2])}</span><div class="rmt"><b>${esc(r.name)}${r.official?'<i class="rmo" title="Officiel">✔</i>':''}</b><small>${esc(r.descr||c[1])}</small><span class="rmm">👥 ${r.members}${r.watching?'<em class="rml">● Séance en cours</em>':''}<em>${esc(c[1])}</em></span></div><button type="button" class="rmj" data-rj="${r.id}">Rejoindre</button></div>`;
+ }
+ function decorate(){
+  const L=$('#chatList');if(!L||filter!=='group'||q)return;
+  const cat=RM.cat;
+  const rows=[...L.querySelectorAll('.chat')];
+  const mine=[];
+  rows.forEach(row=>{
+   const r=RM.by[row.dataset.id];
+   if(cat!=='all'&&(!r||r.category!==cat)){row.remove();return}
+   if(r){
+    const a=row.querySelector('.av');
+    if(a){a.classList.add('rmav');a.innerHTML=`<span>${esc(r.emoji)}</span>`}
+    const lm=row.querySelector('.r1 b');
+    if(lm&&!lm.querySelector('.rmtag'))lm.insertAdjacentHTML('beforeend',`<i class="rmtag">${esc((CN[r.category]||CN.general)[1])}</i>${r.watching?'<i class="rmtag live">● LIVE</i>':''}`);
+   }
+   mine.push(row);
+  });
+  const chips=`<div class="rmch" id="rmCh">${CATS.map(([k,l,e])=>`<button type="button" class="${cat===k?'cur':''}" data-rc="${k}">${e} ${l}</button>`).join('')}</div>`;
+  const disc=RM.list.filter(r=>!r.joined&&(cat==='all'||r.category===cat));
+  const w=L.querySelector('.wchat');
+  L.innerHTML='';
+  if(w)L.appendChild(w);
+  L.insertAdjacentHTML('beforeend',chips+`<div class="rmsec"><b>Mes salons</b><em>${mine.length}</em></div>`);
+  mine.forEach(r=>L.appendChild(r));
+  if(!mine.length)L.insertAdjacentHTML('beforeend',`<p class="rmempty">${RM.ts?'Tu n’as rejoint aucun salon dans cette catégorie.':'Chargement des salons…'}</p>`);
+  L.insertAdjacentHTML('beforeend',`<div class="rmsec"><b>Découvrir</b><em>${disc.length}</em></div>`+(disc.map(roomCard).join('')||`<p class="rmempty">${RM.ts?'Plus de salon à découvrir ici. Crée le tien !':'…'}</p>`)+`<button type="button" class="rmnew" id="rmNew">＋ Créer un salon</button>`);
+ }
+ const _rc=renderChats;
+ renderChats=function(){
+  const r=_rc.apply(this,arguments);
+  try{
+   const sc=$('#s-chat');if(sc)sc.classList.toggle('rmsal',filter==='group');
+   if(filter==='group'&&curScreen==='chat'){decorate();loadRooms(false)}
+   const fb=$('#fbar em');if(fb&&filter==='group')fb.textContent=String((chats||[]).filter(c=>c.type==='group').length);
+  }catch(e){}
+  return r;
+ };
+ const _tab=tab;
+ tab=function(n){const r=_tab.apply(this,arguments);try{if(n==='salons'){loadRooms(true)}}catch(e){}return r};
+
+ const L0=$('#chatList');
+ L0.addEventListener('click',async e=>{
+  const c=e.target.closest('[data-rc]');
+  if(c){e.stopPropagation();RM.cat=c.dataset.rc;renderChats();return}
+  const j=e.target.closest('[data-rj]');
+  if(j){e.stopPropagation();joinRoom(j.dataset.rj,j);return}
+  const cd=e.target.closest('.rmc');
+  if(cd){e.stopPropagation();const b=cd.querySelector('[data-rj]');if(b)joinRoom(b.dataset.rj,b);return}
+  if(e.target.closest('#rmNew')){e.stopPropagation();createSheet()}
+ },true);
+
+ async function joinRoom(id,btn){
+  if(btn){btn.disabled=true;btn.textContent='…'}
+  const {error}=await sb.rpc('vyro_room_join',{p_id:id});
+  if(error){toast(/full/.test(error.message||'')?'Salon complet':'Impossible de rejoindre');if(btn){btn.disabled=false;btn.textContent='Rejoindre'}return}
+  await loadChats();await loadRooms(true);
+  if(chats.some(c=>c.id===id))openThread(id);
+ }
+
+ /* le bouton « + » crée un salon quand on est dans l'onglet Salons */
+ const fab=$('#fab'),_f=fab.onclick;
+ fab.onclick=function(){if(filter==='group'&&curScreen==='chat')return createSheet();return _f&&_f.apply(this,arguments)};
+ const bn=$('#bNew'),_b=bn&&bn.onclick;
+ if(bn)bn.onclick=function(){if(filter==='group'&&curScreen==='chat')return createSheet();return _b&&_b.apply(this,arguments)};
+
+ /* ---------------- créer un salon ---------------- */
+ function friendsList(){return (chats||[]).filter(c=>c.type!=='group'&&c.uid)}
+ function createSheet(){
+  let cat='general',emo='🎌',pub=true;const inv=new Set();
+  const fr=friendsList();
+  const s=openSheet('Créer un salon',`
+   <label class="fld">Nom du salon<input id="rcN" maxlength="40" placeholder="ex : Team One Piece"></label>
+   <label class="fld">Description (facultatif)<input id="rcD" maxlength="140" placeholder="De quoi on parle ici ?"></label>
+   <div class="rcl">Catégorie</div><div class="rcw" id="rcC">${CATS.filter(c=>c[0]!=='all').map(([k,l,e])=>`<button type="button" data-k="${k}" class="${k===cat?'cur':''}">${e} ${l}</button>`).join('')}</div>
+   <div class="rcl">Icône</div><div class="rcw" id="rcE">${EMO.map(e=>`<button type="button" data-e="${e}" class="${e===emo?'cur':''}">${e}</button>`).join('')}</div>
+   <div class="rcl">Accès</div><div class="rcw" id="rcP"><button type="button" data-p="1" class="cur">🌍 Public</button><button type="button" data-p="0">🔒 Privé (sur invitation)</button></div>
+   ${fr.length?`<div class="rcl">Inviter des amis</div><div class="rcf" id="rcF">${fr.map(f=>`<button type="button" data-u="${f.uid}">${esc(f.name)}</button>`).join('')}</div>`:''}
+   <button class="cta" id="rcGo" style="margin-top:12px">Créer le salon</button>`);
+  const tg=(box,attr,fn)=>s.querySelector(box).onclick=e=>{const b=e.target.closest('['+attr+']');if(!b)return;fn(b);};
+  tg('#rcC','data-k',b=>{cat=b.dataset.k;s.querySelectorAll('#rcC button').forEach(x=>x.classList.toggle('cur',x===b))});
+  tg('#rcE','data-e',b=>{emo=b.dataset.e;s.querySelectorAll('#rcE button').forEach(x=>x.classList.toggle('cur',x===b))});
+  tg('#rcP','data-p',b=>{pub=b.dataset.p==='1';s.querySelectorAll('#rcP button').forEach(x=>x.classList.toggle('cur',x===b))});
+  const F=s.querySelector('#rcF');if(F)F.onclick=e=>{const b=e.target.closest('[data-u]');if(!b)return;const u=b.dataset.u;inv.has(u)?inv.delete(u):inv.add(u);b.classList.toggle('cur',inv.has(u))};
+  s.querySelector('#rcGo').onclick=async ev=>{
+   const nm=s.querySelector('#rcN').value.trim();
+   if(nm.length<2){toast('Donne un nom au salon');return}
+   const go=ev.currentTarget;go.disabled=true;
+   const {data,error}=await sb.rpc('vyro_room_create',{p_name:nm,p_desc:s.querySelector('#rcD').value,p_cat:cat,p_public:pub,p_emoji:emo});
+   if(error){go.disabled=false;toast(/too_many/.test(error.message||'')?'Limite de salons atteinte (10)':'Création impossible');return}
+   if(inv.size)try{await sb.rpc('vyro_room_invite',{p_id:data,p_users:[...inv]})}catch(e){}
+   closeSheet();toast('Salon créé ✅');
+   await loadChats();await loadRooms(true);
+   if(chats.some(c=>c.id===data))openThread(data);
+  };
+ }
+
+ /* ---------------- infos / invitation / quitter ---------------- */
+ function infoSheet(){
+  if(!cur||!W.room)return;
+  const r=W.room,rl=RM.by[cur.id]||{},c=CN[r.category]||CN.general,fr=friendsList();
+  const s=openSheet(`${esc(r.emoji)} ${esc(r.name)}`,`
+   <p class="rmdesc">${esc(r.descr||'')||'Pas de description.'}</p>
+   <p class="rmmeta">${esc(c[2])} ${esc(c[1])} · ${r.is_public?'🌍 Public':'🔒 Privé'}${rl.members?' · 👥 '+rl.members:''}</p>
+   ${fr.length?`<div class="rcl">Inviter des amis</div><div class="rcf" id="ivF">${fr.map(f=>`<button type="button" data-u="${f.uid}">${esc(f.name)}</button>`).join('')}</div><button class="cta" id="ivGo" style="margin-top:10px">Inviter</button>`:''}
+   <button class="rmquit" id="rmQ">Quitter le salon</button>`);
+  const pick=new Set(),F=s.querySelector('#ivF');
+  if(F)F.onclick=e=>{const b=e.target.closest('[data-u]');if(!b)return;const u=b.dataset.u;pick.has(u)?pick.delete(u):pick.add(u);b.classList.toggle('cur',pick.has(u))};
+  const g=s.querySelector('#ivGo');
+  if(g)g.onclick=async()=>{if(!pick.size){toast('Choisis au moins un ami');return}
+   g.disabled=true;const {data,error}=await sb.rpc('vyro_room_invite',{p_id:cur.id,p_users:[...pick]});
+   g.disabled=false;if(error){toast('Invitation impossible');return}toast(data?data+' ami(s) ajouté(s) ✅':'Déjà dans le salon');closeSheet();loadRooms(true)};
+  s.querySelector('#rmQ').onclick=async()=>{
+   if(!confirm('Quitter ce salon ?'))return;
+   const id=cur.id;await sb.rpc('vyro_room_leave',{p_id:id});closeSheet();
+   await loadChats();await loadRooms(true);tab('salons');toast('Tu as quitté le salon');
+  };
+ }
+ const _ti=$('#tInfo');
+ _ti.addEventListener('click',e=>{if(cur&&cur.type==='group'&&W.room&&W.room.id===cur.id){e.stopPropagation();infoSheet()}},true);
+
+ /* =================== REGARDER ENSEMBLE =================== */
+ const W={room:null,ch:null,joined:false,url:'',title:'',host:null,ad:null,poll:0,hb:0,sup:0,lastP:false,lastT:0,need:false,cid:null,err:''};
+ const wp=document.createElement('div');wp.className='wp';wp.id='wp';wp.hidden=true;
+ wp.innerHTML=`<div class="wlive" id="wLive" hidden><span>🎬</span><div class="wlt"><b>Séance en cours</b><small id="wLt"></small></div><button type="button" id="wLj">Rejoindre</button></div>
+  <div class="wbox" id="wBox" hidden><div class="wscr" id="wScr"><div id="wv"></div><div class="wov" id="wOv" hidden><button type="button" id="wOvB">▶ Rejoindre la séance</button><small id="wOvT"></small></div></div>
+  <div class="wbar"><div class="wti"><b id="wTi"></b><small id="wSb"></small></div><button type="button" id="wSync" title="Resynchroniser">⟳</button><button type="button" id="wChg">Changer</button><button type="button" id="wEnd">Terminer</button><button type="button" id="wMin" title="Réduire">▾</button></div></div>`;
+ $('#tMsgs').before(wp);
+ const tw=document.createElement('button');tw.type='button';tw.className='ib';tw.id='tWatch';tw.hidden=true;tw.setAttribute('aria-label','Regarder ensemble');tw.textContent='🎬';
+ $('#tMenu').before(tw);
+
+ const canCtl=()=>!!(W.room&&(!W.room.is_public||W.room.is_admin||W.host===me.id));
+ const ytId=u=>{const m=/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|shorts\/|live\/))([\w-]{11})/.exec(u||'');return m?m[1]:null};
+ const send=(ev,p)=>{if(W.ch)try{W.ch.send({type:'broadcast',event:ev,payload:Object.assign({uid:me.id},p||{})})}catch(e){}};
+
+ function ui(){
+  const on=!!W.url,has=!!W.room;
+  wp.hidden=!has;tw.hidden=!has;
+  $('#wLive').hidden=!(on&&!W.joined);
+  $('#wBox').hidden=!(on&&W.joined);
+  $('#wLt').textContent=W.title||'Vidéo partagée';
+  $('#wTi').textContent=W.title||'Séance vidéo';
+  $('#wEnd').hidden=!(on&&(canCtl()));
+  $('#wChg').hidden=!(on&&canCtl());
+  tw.classList.toggle('live',on);
+  if(!on&&W.joined)stopPlayer(),W.joined=false,$('#wBox').hidden=true;
+  setSub();
+ }
+ function setSub(){
+  let n=1;try{n=Math.max(1,Object.keys(W.ch.presenceState()).length)}catch(e){}
+  $('#wSb').textContent=`👥 ${n} en train de regarder${W.room&&W.room.is_public&&!canCtl()?' · l’hôte contrôle':''}`;
+ }
+
+ /* --- lecteur --- */
+ function stopPlayer(){
+  clearInterval(W.poll);clearInterval(W.hb);W.poll=W.hb=0;
+  try{if(W.ad&&W.ad.destroy)W.ad.destroy()}catch(e){}
+  W.ad=null;const v=$('#wv');if(v)v.innerHTML='';$('#wOv').hidden=true;
+  try{W.ch&&W.ch.untrack&&W.ch.untrack()}catch(e){}
+ }
+ let ytReady=null;
+ function ytApi(){
+  if(window.YT&&window.YT.Player)return Promise.resolve();
+  if(ytReady)return ytReady;
+  ytReady=new Promise((res,rej)=>{
+   const prev=window.onYouTubeIframeAPIReady;
+   window.onYouTubeIframeAPIReady=()=>{try{prev&&prev()}catch(e){}res()};
+   const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';s.onerror=()=>{ytReady=null;rej(new Error('yt'))};document.head.appendChild(s);
+   setTimeout(()=>{if(!(window.YT&&window.YT.Player)){ytReady=null;rej(new Error('yt-timeout'))}},12000);
+  });
+  return ytReady;
+ }
+ function fail(msg){$('#wOv').hidden=false;$('#wOvB').hidden=true;$('#wOvT').textContent=msg}
+ async function loadSource(){
+  stopPlayer();W.err='';
+  const box=$('#wv');box.innerHTML='';
+  const url=W.url,id=ytId(url);
+  $('#wOvB').hidden=false;$('#wOvT').textContent='';$('#wOv').hidden=true;
+  if(id){
+   const d=document.createElement('div');d.id='wyt';box.appendChild(d);
+   try{await ytApi()}catch(e){fail('YouTube est inaccessible. Vérifie ta connexion.');return}
+   if(W.url!==url)return;
+   await new Promise(res=>{
+    const p=new YT.Player('wyt',{videoId:id,width:'100%',height:'100%',playerVars:{playsinline:1,rel:0,modestbranding:1,origin:location.origin&&/^https?:/.test(location.origin)?location.origin:undefined},
+     events:{onReady:()=>res(),onError:ev=>{fail('Cette vidéo YouTube ne peut pas être lue ici (code '+ev.data+'). Essaie un autre lien.');res()}}});
+    W.ad={kind:'yt',p,
+     play(){try{p.playVideo()}catch(e){}},pause(){try{p.pauseVideo()}catch(e){}},seek(t){try{p.seekTo(t,true)}catch(e){}},
+     time(){try{return p.getCurrentTime()||0}catch(e){return 0}},
+     playing(){try{const s=p.getPlayerState();return s===1||s===3}catch(e){return false}},
+     destroy(){try{p.destroy()}catch(e){}}};
+   });
+  }else{
+   const v=document.createElement('video');v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');v.controls=true;v.preload='auto';v.src=url;
+   v.onerror=()=>fail('Lien non lisible. Utilise un lien YouTube ou un fichier vidéo direct (.mp4, .webm).');
+   box.appendChild(v);
+   W.ad={kind:'v',v,play(){const r=v.play();if(r&&r.catch)r.catch(()=>{W.need=true;needTap()})},pause(){v.pause()},seek(t){try{v.currentTime=t}catch(e){}},time(){return v.currentTime||0},playing(){return !v.paused&&!v.ended},destroy(){try{v.pause();v.removeAttribute('src');v.load()}catch(e){}}};
+  }
+  W.lastP=false;W.lastT=0;
+  W.poll=setInterval(tick,500);
+  W.hb=setInterval(()=>{if(W.ad&&W.ad.playing()&&canCtl())send('st',{p:true,t:W.ad.time(),hb:1})},4000);
+  try{W.ch&&W.ch.track&&W.ch.track({uid:me.id})}catch(e){}
+  send('hello');
+ }
+ function needTap(){const o=$('#wOv');o.hidden=false;$('#wOvB').hidden=false;$('#wOvT').textContent='Touche pour lancer la lecture'}
+ $('#wOvB').onclick=()=>{
+  $('#wOv').hidden=true;
+  if(W.ad){W.sup=Date.now()+1500;if(W.last){const t=W.last.t+(W.last.p?(Date.now()-W.last.at)/1000:0);W.ad.seek(t);W.last.p?W.ad.play():W.ad.pause()}else W.ad.play()}
+ };
+ function tick(){
+  const a=W.ad;if(!a)return;
+  const p=a.playing(),t=a.time();
+  if(Date.now()<W.sup){W.lastP=p;W.lastT=t;return}
+  const jump=Math.abs(t-(W.lastT+(W.lastP?.5:0)))>1.4;
+  if(p!==W.lastP||jump){
+   if(canCtl())send('st',{p,t});
+   else if(W.last){ /* spectateur : la télécommande appartient à l'hôte, on se recale au prochain battement */ }
+  }
+  W.lastP=p;W.lastT=t;
+ }
+ function applySt(m){
+  const a=W.ad;if(!a||!W.joined)return;
+  W.last={p:!!m.p,t:+m.t||0,at:Date.now()};
+  const target=W.last.t+(W.last.p?.35:0),tol=m.hb?2.5:.8;
+  W.sup=Date.now()+1500;
+  if(Math.abs(a.time()-target)>tol)a.seek(target);
+  if(W.last.p&&!a.playing())a.play();
+  if(!W.last.p&&a.playing())a.pause();
+  W.lastP=W.last.p;W.lastT=target;
+ }
+
+ /* --- canal temps réel --- */
+ function openChan(id){
+  closeChan();
+  try{
+   const ch=sb.channel('watch:'+id,{config:{broadcast:{self:false},presence:{key:me.id}}});
+   W.ch=ch;
+   ch.on('broadcast',{event:'st'},m=>{const p=m&&m.payload;if(!p||p.uid===me.id||!cur||cur.id!==id)return;applySt(p)});
+   ch.on('broadcast',{event:'hello'},m=>{const p=m&&m.payload;if(!p||p.uid===me.id)return;if(W.joined&&W.ad&&canCtl())send('st',{p:W.ad.playing(),t:W.ad.time()})});
+   ch.on('broadcast',{event:'src'},m=>{const p=m&&m.payload;if(!p||p.uid===me.id||!cur||cur.id!==id)return;
+    W.url=p.url||'';W.title=p.title||'';W.host=p.host||p.uid;if(W.room)W.room.watch_url=W.url;
+    if(W.joined)loadSource();ui();if(!W.joined&&W.url)toast('🎬 Séance lancée dans ce salon')});
+   ch.on('broadcast',{event:'end'},m=>{const p=m&&m.payload;if(!p||p.uid===me.id||!cur||cur.id!==id)return;
+    W.url='';W.title='';W.host=null;if(W.joined){stopPlayer();W.joined=false;toast('La séance est terminée')}ui()});
+   ch.on('presence',{event:'sync'},()=>setSub());
+   ch.subscribe();
+  }catch(e){W.ch=null}
+ }
+ function closeChan(){if(W.ch){try{sb.removeChannel(W.ch)}catch(e){}W.ch=null}}
+
+ /* --- actions --- */
+ function join(){if(!W.url)return;W.joined=true;ui();loadSource()}
+ $('#wLj').onclick=join;
+ $('#wMin').onclick=()=>{stopPlayer();W.joined=false;ui()};
+ $('#wSync').onclick=()=>{if(W.last)applySt(Object.assign({},W.last,{hb:0}));else send('hello');toast('Resynchronisation…')};
+ $('#wEnd').onclick=async()=>{
+  if(!confirm('Terminer la séance pour tout le monde ?'))return;
+  const {error}=await sb.rpc('vyro_room_watch_set',{p_id:cur.id,p_url:'',p_title:''});
+  if(error){toast('Impossible de terminer');return}
+  send('end');W.url='';W.title='';W.host=null;stopPlayer();W.joined=false;ui();
+ };
+ $('#wChg').onclick=()=>startSheet(true);
+ tw.onclick=()=>{
+  if(!W.room)return;
+  if(W.url){if(!W.joined)join();else{stopPlayer();W.joined=false;ui()}return}
+  startSheet(false);
+ };
+ function startSheet(change){
+  const s=openSheet(change?'Changer de vidéo':'🎬 Regarder ensemble',`
+   <p class="rmdesc">Colle un lien <b>YouTube</b> ou un lien <b>vidéo direct</b> (.mp4 / .webm en https). Tout le monde dans le salon pourra rejoindre et regarder en même temps que toi.</p>
+   <label class="fld">Lien de la vidéo<input id="wuU" type="url" inputmode="url" placeholder="https://youtu.be/…" autocomplete="off"></label>
+   <label class="fld">Titre (facultatif)<input id="wuT" maxlength="80" placeholder="ex : One Piece épisode 1"></label>
+   <p class="rmnote">Ne partage que des vidéos que tu as le droit de diffuser (contenu libre, ta propre vidéo ou une chaîne officielle).</p>
+   <button class="cta" id="wuGo" style="margin-top:10px">${change?'Changer':'Lancer la séance'}</button>`);
+  s.querySelector('#wuGo').onclick=async ev=>{
+   let u=s.querySelector('#wuU').value.trim();const t=s.querySelector('#wuT').value.trim();
+   if(u&&!/^https?:\/\//i.test(u))u='https://'+u;
+   u=u.replace(/^http:\/\//i,'https://');
+   if(!/^https:\/\/[^\s]+\.[^\s]+/.test(u)){toast('Colle un lien valide (https://…)');return}
+   const go=ev.currentTarget;go.disabled=true;
+   const title=t||(ytId(u)?'Vidéo YouTube':'Vidéo partagée');
+   const {error}=await sb.rpc('vyro_room_watch_set',{p_id:cur.id,p_url:u,p_title:title});
+   if(error){go.disabled=false;toast(/not_host/.test(error.message||'')?'Une séance est déjà en cours (seul l’hôte peut la changer)':'Lien refusé');return}
+   closeSheet();
+   const had=!!W.url;
+   W.url=u;W.title=title;W.host=me.id;W.room.watch_url=u;
+   send('src',{url:u,title,host:me.id});
+   W.joined=true;ui();loadSource();
+   if(!had)try{Promise.resolve(postMsg(cur.id,'🎬 '+(me.display_name||me.username||'Quelqu’un')+' a lancé une séance : '+title)).catch(()=>{})}catch(e){}
+  };
+ }
+
+ /* --- ouverture / fermeture d'un fil --- */
+ async function roomOpen(id){
+  const {data}=await sb.rpc('vyro_room_get',{p_id:id});
+  if(!cur||cur.id!==id)return;
+  const r=data&&data[0];
+  if(!r){W.room=null;ui();return}
+  W.room=r;W.url=r.watch_url||'';W.title=r.watch_title||'';W.host=r.watch_host||null;
+  openChan(id);ui();
+ }
+ const _ot=openThread;
+ openThread=function(id){
+  const p=_ot.apply(this,arguments);
+  try{
+   wpReset();
+   if(cur&&cur.type==='group')roomOpen(cur.id);
+  }catch(e){}
+  return p;
+ };
+ function wpReset(){stopPlayer();closeChan();W.room=null;W.url='';W.title='';W.host=null;W.joined=false;W.last=null;ui()}
+ const _lt=leaveThread;
+ leaveThread=function(){try{wpReset()}catch(e){}return _lt.apply(this,arguments)};
+
+ /* ---------------- style ---------------- */
+ const css=`
+ #s-chat.rmsal #hDeco{display:none!important}
+ .rmch{display:flex;gap:7px;overflow-x:auto;padding:6px 12px 8px;scrollbar-width:none}
+ .rmch::-webkit-scrollbar{display:none}
+ .rmch button{flex:none;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:7px 13px;font-size:13.5px;font-weight:600;white-space:nowrap}
+ .rmch button.cur{background:#2f6df6;border-color:#2f6df6;color:#fff}
+ .rmsec{display:flex;align-items:center;gap:8px;padding:10px 16px 4px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+ .rmsec b{font-weight:700}.rmsec em{font-style:normal;background:var(--card);border-radius:999px;padding:1px 8px;font-size:12px}
+ .rmempty{margin:6px 16px 4px;font-size:14px;color:var(--muted)}
+ .rmav{display:flex!important;align-items:center;justify-content:center;background:linear-gradient(135deg,#e8eefc,#f3e8fc)!important}
+ .rmav span{font-size:28px;line-height:1}
+ .rmtag{font-style:normal;font-size:10.5px;font-weight:700;margin-left:7px;padding:2px 7px;border-radius:999px;background:rgba(47,109,246,.12);color:#2f6df6;vertical-align:middle}
+ .rmtag.live{background:rgba(239,68,68,.12);color:#e23b3b}
+ .rmc{display:flex;align-items:center;gap:12px;margin:6px 12px;padding:11px 12px;border:1px solid var(--line);border-radius:16px;background:var(--card);cursor:pointer}
+ .rme{flex:none;width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;background:linear-gradient(135deg,#e8eefc,#f3e8fc)}
+ .rmt{flex:1;min-width:0}.rmt b{display:block;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .rmo{font-style:normal;color:#2f6df6;font-size:12px;margin-left:5px}
+ .rmt small{display:block;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+ .rmm{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);margin-top:3px}
+ .rmm em{font-style:normal;background:rgba(47,109,246,.1);color:#2f6df6;padding:1px 7px;border-radius:999px;font-weight:600}
+ .rmm em.rml{background:rgba(239,68,68,.12);color:#e23b3b}
+ .rmj{flex:none;border:0;background:#2f6df6;color:#fff;font-weight:700;font-size:13.5px;border-radius:999px;padding:9px 15px}
+ .rmj:disabled{opacity:.6}
+ .rmnew{display:block;margin:12px auto 90px;border:1.5px dashed #2f6df6;color:#2f6df6;background:transparent;font-weight:700;border-radius:14px;padding:12px 22px;font-size:15px}
+ .rcl{font-size:12.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:12px 2px 6px;font-weight:700}
+ .rcw,.rcf{display:flex;flex-wrap:wrap;gap:7px}
+ .rcw button,.rcf button{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:8px 13px;font-size:14px}
+ .rcw button.cur,.rcf button.cur{background:#2f6df6;border-color:#2f6df6;color:#fff}
+ #rcE button{width:42px;height:42px;padding:0;font-size:22px;border-radius:12px}
+ .rcf{max-height:130px;overflow:auto}
+ .rmdesc{font-size:14.5px;line-height:1.4;margin:2px 0 6px}.rmmeta{color:var(--muted);font-size:13.5px;margin:2px 0 8px}
+ .rmnote{font-size:12px;color:var(--muted);margin:6px 0 0}
+ .rmquit{display:block;width:100%;margin-top:14px;border:0;background:rgba(239,68,68,.1);color:#e23b3b;font-weight:700;border-radius:12px;padding:12px;font-size:15px}
+ #tWatch{font-size:21px;line-height:1}
+ #tWatch.live{animation:wpulse 1.6s infinite}
+ @keyframes wpulse{50%{transform:scale(1.15)}}
+ .wp{flex:none}
+ .wlive{display:flex;align-items:center;gap:10px;padding:8px 14px;background:rgba(47,109,246,.1);border-bottom:1px solid var(--line)}
+ .wlive>span{font-size:22px}.wlt{flex:1;min-width:0}.wlt b{display:block;font-size:14px}.wlt small{display:block;color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .wlive button{border:0;background:#2f6df6;color:#fff;font-weight:700;border-radius:999px;padding:8px 16px;font-size:14px}
+ .wscr{position:relative;background:#000;aspect-ratio:16/9;max-height:34vh;width:100%;margin:0 auto}
+ .wscr #wv,.wscr #wv>div,.wscr iframe,.wscr video{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+ .wscr video{object-fit:contain}
+ .wov{position:absolute;inset:0;background:rgba(0,0,0,.72);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;z-index:3;text-align:center;padding:14px}
+ .wov button{border:0;background:#2f6df6;color:#fff;font-weight:700;border-radius:999px;padding:11px 20px;font-size:15px}
+ .wov small{color:#fff;font-size:13px}
+ .wbar{display:flex;align-items:center;gap:6px;padding:7px 10px;background:var(--card);border-bottom:1px solid var(--line)}
+ .wti{flex:1;min-width:0}.wti b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wti small{display:block;color:var(--muted);font-size:12px}
+ .wbar button{flex:none;border:1px solid var(--line);background:transparent;color:var(--text);border-radius:10px;padding:6px 10px;font-size:13px;font-weight:600}
+ .wbar #wEnd{color:#e23b3b;border-color:rgba(239,68,68,.35)}
+ .wbar[hidden],.wbox[hidden],.wlive[hidden]{display:none!important}
+ `;
+ const st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
+
+ /* premier rendu si on est déjà sur l'onglet Salons */
+ try{if(filter==='group'&&curScreen==='chat')loadRooms(true)}catch(e){}
+})();
 /*@@MOD-END*/
 /* ---------- démarrage ---------- */
 boot();
