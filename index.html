@@ -9285,10 +9285,43 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
   if(!mine.length)L.insertAdjacentHTML('beforeend',`<p class="rmempty">${RM.ts?'Tu n’as rejoint aucun salon dans cette catégorie.':'Chargement des salons…'}</p>`);
   L.insertAdjacentHTML('beforeend',`<div class="rmsec"><b>Découvrir</b><em>${disc.length}</em></div>`+(disc.map(roomCard).join('')||`<p class="rmempty">${RM.ts?'Plus de salon à découvrir ici.':'…'}</p>`)+(RM.can?`<button type="button" class="rmnew" id="rmNew">＋ Créer un salon d’anime</button>`:'<div style="height:96px"></div>'));
  }
+ /* ---------------- paramètres : bouton engrenage dans Profil (remplace la palette) ---------------- */
+ try{
+  const pb=document.getElementById('pBnBtn');
+  if(pb){pb.innerHTML=I('gear');pb.setAttribute('aria-label','Paramètres');pb.onclick=()=>{try{go('settings')}catch(e){}}}
+ }catch(e){}
+ /* ---------------- bandeau de l'ami derrière sa carte (liste) ---------------- */
+ const CB={};
+ function cbnApply(){
+  try{
+   const bx=window.BNX;if(!bx)return;
+   document.querySelectorAll('#chatList .chat[data-id]').forEach(el=>{
+    if(el.querySelector(':scope>.cbn'))return;
+    const c=(chats||[]).find(x=>x.id===el.dataset.id);
+    if(!c||c.type==='group'||!c.uid||CB[c.uid]===undefined||CB[c.uid]===null)return;
+    el.classList.add('hasbn');
+    el.insertAdjacentHTML('afterbegin','<div class="cbn bnart">'+bx.bnHTML(CB[c.uid]||'gardien')+'</div>');
+   });
+  }catch(e){}
+ }
+ async function cbnLoad(){
+  try{
+   const ids=[...new Set((chats||[]).filter(c=>c.type!=='group'&&c.uid&&CB[c.uid]===undefined).map(c=>c.uid))];
+   if(!ids.length){cbnApply();return}
+   ids.forEach(u=>{CB[u]=null});
+   let rows=null;
+   try{const {data}=await sb.from('vyro_profiles').select('id,banner_id').in('id',ids);rows=data}catch(e){}
+   ids.forEach(u=>{CB[u]=''});
+   (rows||[]).forEach(r=>{CB[r.id]=r.banner_id||''});
+   if(window.BNX&&!window.BNX.BN.loaded)try{await window.BNX.load()}catch(e){}
+   if(curScreen==='chat')renderChats();
+  }catch(e){}
+ }
  const _rc=renderChats;
  renderChats=function(){
   const r=_rc.apply(this,arguments);
   try{
+   cbnApply();cbnLoad();
    const sc=$('#s-chat');if(sc)sc.classList.toggle('rmsal',filter==='group');sc.classList.toggle('rmnc',filter==='group'&&!RM.can);
    if(filter==='group'&&curScreen==='chat'){decorate();loadRooms(false)}
    else if(curScreen==='chat'){annRender();loadAnn();emptyHome()}
@@ -9686,6 +9719,28 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
 
  /* ---------------- style ---------------- */
  const css=`
+.hprof{display:flex!important;padding:6px 14px 0!important;margin-top:0!important}
+.hhero{height:calc(env(safe-area-inset-top) + 318px)!important;overflow:visible}
+.hbtop [data-go=settings]{display:none!important}
+.hbtop{padding-right:12px!important}
+#s-chat .hpn,#s-chat .hpn .ic{color:#fff!important;text-shadow:0 2px 8px rgba(0,0,0,.75)}
+#s-chat .hpi .muted{color:#e2d0ff!important;text-shadow:0 1px 6px rgba(0,0,0,.8)}
+#s-chat .hpw{width:84px;height:84px}
+#s-chat .hpw .pav{color:#fff}
+#s-chat .hpw .pav{width:84px;height:84px}
+#s-chat .hbad button{width:38px;height:38px}
+#s-chat .hbad button svg{width:22px;height:22px}
+#s-chat .hshop{color:#fff!important;font-size:15px}
+#s-chat .hshop .hsi{width:28px;height:28px}
+#pBnBtn svg.ic{width:24px;height:24px;color:#1f2023}
+#s-chat #chatList .chat.hasbn{position:relative;border-color:rgba(255,255,255,.5)!important;background:#1b1230!important}
+#s-chat #chatList .chat .cbn{position:absolute;inset:0;z-index:0;-webkit-mask-image:none;mask-image:none;border-radius:inherit;pointer-events:none}
+#s-chat #chatList .chat .cbn::after{background:linear-gradient(90deg,rgba(8,4,20,.68) 0%,rgba(8,4,20,.42) 55%,rgba(8,4,20,.08) 100%)!important}
+#s-chat #chatList .chat.hasbn>:not(.cbn){position:relative;z-index:1}
+#s-chat #chatList .chat.hasbn::after{display:none!important}
+#s-chat #chatList .chat.hasbn b,#s-chat #chatList .chat.hasbn .nm,#s-chat #chatList .chat.hasbn .r1 b{color:#fff!important;text-shadow:0 1px 4px rgba(0,0,0,.65)}
+#s-chat #chatList .chat.hasbn .lm,#s-chat #chatList .chat.hasbn .lm *,#s-chat #chatList .chat.hasbn .tm,#s-chat #chatList .chat.hasbn time{color:#fff!important;text-shadow:0 1px 4px rgba(0,0,0,.65)}
+#s-chat #chatList .chat.hasbn .av{box-shadow:0 0 0 2px rgba(255,255,255,.85)!important}
  /* discussion : la photo du bandeau doit se voir À TRAVERS le cadre de l'en-tête */
  #s-thread .tban .bnart{-webkit-mask-image:linear-gradient(180deg,#000 90%,transparent 100%)!important;mask-image:linear-gradient(180deg,#000 90%,transparent 100%)!important}
  #s-thread .thead,html[data-theme=light] #s-thread .thead{margin:-74px 10px 8px!important;background:linear-gradient(180deg,rgba(8,4,20,.06),rgba(8,4,20,.26))!important;border:1px solid rgba(255,255,255,.42)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important}
