@@ -9230,10 +9230,10 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
    Synchro : canal temps réel Supabase `watch:<salon>` (broadcast + présence).
    ===================================================================== */
 (function(){
- const CATS=[['all','Tous','🎌'],['general','Général','💬'],['shonen','Shonen','⚔️'],['isekai','Isekai','🌀'],['romance','Romance','🌸'],['manga','Manga','📚'],['cosplay','Cosplay','🎨'],['watch','Regarder','🎬']];
+ const CATS=[['all','Tous','🎌'],['general','Général','💬'],['anime','Animes','🎬']];
  const CN=Object.fromEntries(CATS.map(c=>[c[0],c]));
- const EMO=['🎌','⚔️','🌀','🌸','📚','🎨','🎬','🍥','👹','🐉','🎮','🎧','🔥','⭐','🦊','🌙'];
- const RM={list:[],by:{},ts:0,cat:'all',busy:false};
+ const EMO=['🎬','🏴‍☠️','🦊','🐉','🧱','🗡️','🔮','🦸','⚔️','🌀','🌸','👹','🎮','🔥','⭐','🌙'];
+ const RM={list:[],by:{},ts:0,cat:'all',busy:false,can:false,canTs:0,aj:{}};
  const ST=(typeof sb!=='undefined')?sb:null;
 
  /* ---------------- données ---------------- */
@@ -9243,6 +9243,10 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
   try{
    const {data,error}=await sb.rpc('vyro_rooms_list',{p_cat:null});
    if(!error&&data){RM.list=data;RM.by={};data.forEach(r=>RM.by[r.id]=r);RM.ts=Date.now()}
+   if(!RM.canTs){const c=await sb.rpc('vyro_room_can_create');if(!c.error){RM.can=!!c.data;RM.canTs=1}}
+   /* tout le monde est dans le salon général */
+   const g=RM.list.find(r=>r.category==='general'&&r.official&&!r.joined&&!RM.aj[r.id]);
+   if(g){RM.aj[g.id]=1;const j=await sb.rpc('vyro_room_join',{p_id:g.id});if(!j.error){RM.busy=false;await loadChats();RM.ts=0;return loadRooms(true)}}
   }catch(e){}
   RM.busy=false;
   if(filter==='group'&&curScreen==='chat')renderChats();
@@ -9270,6 +9274,7 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
    }
    mine.push(row);
   });
+  mine.sort((a,b)=>((RM.by[b.dataset.id]||{}).category==='general')-((RM.by[a.dataset.id]||{}).category==='general'));
   const chips=`<div class="rmch" id="rmCh">${CATS.map(([k,l,e])=>`<button type="button" class="${cat===k?'cur':''}" data-rc="${k}">${e} ${l}</button>`).join('')}</div>`;
   const disc=RM.list.filter(r=>!r.joined&&(cat==='all'||r.category===cat));
   const w=L.querySelector('.wchat');
@@ -9278,13 +9283,13 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
   L.insertAdjacentHTML('beforeend',chips+`<div class="rmsec"><b>Mes salons</b><em>${mine.length}</em></div>`);
   mine.forEach(r=>L.appendChild(r));
   if(!mine.length)L.insertAdjacentHTML('beforeend',`<p class="rmempty">${RM.ts?'Tu n’as rejoint aucun salon dans cette catégorie.':'Chargement des salons…'}</p>`);
-  L.insertAdjacentHTML('beforeend',`<div class="rmsec"><b>Découvrir</b><em>${disc.length}</em></div>`+(disc.map(roomCard).join('')||`<p class="rmempty">${RM.ts?'Plus de salon à découvrir ici. Crée le tien !':'…'}</p>`)+`<button type="button" class="rmnew" id="rmNew">＋ Créer un salon</button>`);
+  L.insertAdjacentHTML('beforeend',`<div class="rmsec"><b>Découvrir</b><em>${disc.length}</em></div>`+(disc.map(roomCard).join('')||`<p class="rmempty">${RM.ts?'Plus de salon à découvrir ici.':'…'}</p>`)+(RM.can?`<button type="button" class="rmnew" id="rmNew">＋ Créer un salon d’anime</button>`:'<div style="height:96px"></div>'));
  }
  const _rc=renderChats;
  renderChats=function(){
   const r=_rc.apply(this,arguments);
   try{
-   const sc=$('#s-chat');if(sc)sc.classList.toggle('rmsal',filter==='group');
+   const sc=$('#s-chat');if(sc)sc.classList.toggle('rmsal',filter==='group');sc.classList.toggle('rmnc',filter==='group'&&!RM.can);
    if(filter==='group'&&curScreen==='chat'){decorate();loadRooms(false)}
    const fb=$('#fbar em');if(fb&&filter==='group')fb.textContent=String((chats||[]).filter(c=>c.type==='group').length);
   }catch(e){}
@@ -9314,25 +9319,23 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
 
  /* le bouton « + » crée un salon quand on est dans l'onglet Salons */
  const fab=$('#fab'),_f=fab.onclick;
- fab.onclick=function(){if(filter==='group'&&curScreen==='chat')return createSheet();return _f&&_f.apply(this,arguments)};
+ fab.onclick=function(){if(filter==='group'&&curScreen==='chat')return RM.can?createSheet():undefined;return _f&&_f.apply(this,arguments)};
  const bn=$('#bNew'),_b=bn&&bn.onclick;
- if(bn)bn.onclick=function(){if(filter==='group'&&curScreen==='chat')return createSheet();return _b&&_b.apply(this,arguments)};
+ if(bn)bn.onclick=function(){if(filter==='group'&&curScreen==='chat')return RM.can?createSheet():undefined;return _b&&_b.apply(this,arguments)};
 
  /* ---------------- créer un salon ---------------- */
  function friendsList(){return (chats||[]).filter(c=>c.type!=='group'&&c.uid)}
  function createSheet(){
-  let cat='general',emo='🎌',pub=true;const inv=new Set();
+  let emo='🎬',pub=true;const inv=new Set();
   const fr=friendsList();
-  const s=openSheet('Créer un salon',`
-   <label class="fld">Nom du salon<input id="rcN" maxlength="40" placeholder="ex : Team One Piece"></label>
-   <label class="fld">Description (facultatif)<input id="rcD" maxlength="140" placeholder="De quoi on parle ici ?"></label>
-   <div class="rcl">Catégorie</div><div class="rcw" id="rcC">${CATS.filter(c=>c[0]!=='all').map(([k,l,e])=>`<button type="button" data-k="${k}" class="${k===cat?'cur':''}">${e} ${l}</button>`).join('')}</div>
+  const s=openSheet('Créer un salon d’anime',`
+   <label class="fld">Nom de l’anime<input id="rcN" maxlength="40" placeholder="ex : One Piece"></label>
+   <label class="fld">Description (facultatif)<input id="rcD" maxlength="140" placeholder="ex : Regardons les épisodes ensemble"></label>
    <div class="rcl">Icône</div><div class="rcw" id="rcE">${EMO.map(e=>`<button type="button" data-e="${e}" class="${e===emo?'cur':''}">${e}</button>`).join('')}</div>
    <div class="rcl">Accès</div><div class="rcw" id="rcP"><button type="button" data-p="1" class="cur">🌍 Public</button><button type="button" data-p="0">🔒 Privé (sur invitation)</button></div>
    ${fr.length?`<div class="rcl">Inviter des amis</div><div class="rcf" id="rcF">${fr.map(f=>`<button type="button" data-u="${f.uid}">${esc(f.name)}</button>`).join('')}</div>`:''}
    <button class="cta" id="rcGo" style="margin-top:12px">Créer le salon</button>`);
   const tg=(box,attr,fn)=>s.querySelector(box).onclick=e=>{const b=e.target.closest('['+attr+']');if(!b)return;fn(b);};
-  tg('#rcC','data-k',b=>{cat=b.dataset.k;s.querySelectorAll('#rcC button').forEach(x=>x.classList.toggle('cur',x===b))});
   tg('#rcE','data-e',b=>{emo=b.dataset.e;s.querySelectorAll('#rcE button').forEach(x=>x.classList.toggle('cur',x===b))});
   tg('#rcP','data-p',b=>{pub=b.dataset.p==='1';s.querySelectorAll('#rcP button').forEach(x=>x.classList.toggle('cur',x===b))});
   const F=s.querySelector('#rcF');if(F)F.onclick=e=>{const b=e.target.closest('[data-u]');if(!b)return;const u=b.dataset.u;inv.has(u)?inv.delete(u):inv.add(u);b.classList.toggle('cur',inv.has(u))};
@@ -9340,8 +9343,8 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
    const nm=s.querySelector('#rcN').value.trim();
    if(nm.length<2){toast('Donne un nom au salon');return}
    const go=ev.currentTarget;go.disabled=true;
-   const {data,error}=await sb.rpc('vyro_room_create',{p_name:nm,p_desc:s.querySelector('#rcD').value,p_cat:cat,p_public:pub,p_emoji:emo});
-   if(error){go.disabled=false;toast(/too_many/.test(error.message||'')?'Limite de salons atteinte (10)':'Création impossible');return}
+   const {data,error}=await sb.rpc('vyro_room_create',{p_name:nm,p_desc:s.querySelector('#rcD').value,p_cat:'anime',p_public:pub,p_emoji:emo});
+   if(error){go.disabled=false;toast(/not_allowed/.test(error.message||'')?'Seul l’administrateur peut créer des salons':'Création impossible');return}
    if(inv.size)try{await sb.rpc('vyro_room_invite',{p_id:data,p_users:[...inv]})}catch(e){}
    closeSheet();toast('Salon créé ✅');
    await loadChats();await loadRooms(true);
@@ -9357,14 +9360,14 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
    <p class="rmdesc">${esc(r.descr||'')||'Pas de description.'}</p>
    <p class="rmmeta">${esc(c[2])} ${esc(c[1])} · ${r.is_public?'🌍 Public':'🔒 Privé'}${rl.members?' · 👥 '+rl.members:''}</p>
    ${fr.length?`<div class="rcl">Inviter des amis</div><div class="rcf" id="ivF">${fr.map(f=>`<button type="button" data-u="${f.uid}">${esc(f.name)}</button>`).join('')}</div><button class="cta" id="ivGo" style="margin-top:10px">Inviter</button>`:''}
-   <button class="rmquit" id="rmQ">Quitter le salon</button>`);
+   ${r.category==='general'?'':'<button class="rmquit" id="rmQ">Quitter le salon</button>'}`);
   const pick=new Set(),F=s.querySelector('#ivF');
   if(F)F.onclick=e=>{const b=e.target.closest('[data-u]');if(!b)return;const u=b.dataset.u;pick.has(u)?pick.delete(u):pick.add(u);b.classList.toggle('cur',pick.has(u))};
   const g=s.querySelector('#ivGo');
   if(g)g.onclick=async()=>{if(!pick.size){toast('Choisis au moins un ami');return}
    g.disabled=true;const {data,error}=await sb.rpc('vyro_room_invite',{p_id:cur.id,p_users:[...pick]});
    g.disabled=false;if(error){toast('Invitation impossible');return}toast(data?data+' ami(s) ajouté(s) ✅':'Déjà dans le salon');closeSheet();loadRooms(true)};
-  s.querySelector('#rmQ').onclick=async()=>{
+  const qb=s.querySelector('#rmQ');if(qb)qb.onclick=async()=>{
    if(!confirm('Quitter ce salon ?'))return;
    const id=cur.id;await sb.rpc('vyro_room_leave',{p_id:id});closeSheet();
    await loadChats();await loadRooms(true);tab('salons');toast('Tu as quitté le salon');
@@ -9376,7 +9379,8 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  /* =================== REGARDER ENSEMBLE =================== */
  const W={room:null,ch:null,joined:false,url:'',title:'',host:null,ad:null,poll:0,hb:0,sup:0,lastP:false,lastT:0,need:false,cid:null,err:''};
  const wp=document.createElement('div');wp.className='wp';wp.id='wp';wp.hidden=true;
- wp.innerHTML=`<div class="wlive" id="wLive" hidden><span>🎬</span><div class="wlt"><b>Séance en cours</b><small id="wLt"></small></div><button type="button" id="wLj">Rejoindre</button></div>
+ wp.innerHTML=`<div class="widle" id="wIdle" hidden><span>🎬</span><div class="wlt"><b>Aucune séance en cours</b><small>Lance une vidéo : tout le salon peut la regarder avec toi</small></div><button type="button" id="wIdB">Lancer</button></div>
+  <div class="wlive" id="wLive" hidden><span>🎬</span><div class="wlt"><b>Séance en cours</b><small id="wLt"></small></div><button type="button" id="wLj">Rejoindre</button></div>
   <div class="wbox" id="wBox" hidden><div class="wscr" id="wScr"><div id="wv"></div><div class="wov" id="wOv" hidden><button type="button" id="wOvB">▶ Rejoindre la séance</button><small id="wOvT"></small></div></div>
   <div class="wbar"><div class="wti"><b id="wTi"></b><small id="wSb"></small></div><button type="button" id="wSync" title="Resynchroniser">⟳</button><button type="button" id="wChg">Changer</button><button type="button" id="wEnd">Terminer</button><button type="button" id="wMin" title="Réduire">▾</button></div></div>`;
  $('#tMsgs').before(wp);
@@ -9388,8 +9392,9 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  const send=(ev,p)=>{if(W.ch)try{W.ch.send({type:'broadcast',event:ev,payload:Object.assign({uid:me.id},p||{})})}catch(e){}};
 
  function ui(){
-  const on=!!W.url,has=!!W.room;
+  const on=!!W.url,has=!!(W.room&&W.room.category==='anime');
   wp.hidden=!has;tw.hidden=!has;
+  $('#wIdle').hidden=!(has&&!on);
   $('#wLive').hidden=!(on&&!W.joined);
   $('#wBox').hidden=!(on&&W.joined);
   $('#wLt').textContent=W.title||'Vidéo partagée';
@@ -9504,6 +9509,7 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  /* --- actions --- */
  function join(){if(!W.url)return;W.joined=true;ui();loadSource()}
  $('#wLj').onclick=join;
+ $('#wIdB').onclick=()=>startSheet(false);
  $('#wMin').onclick=()=>{stopPlayer();W.joined=false;ui()};
  $('#wSync').onclick=()=>{if(W.last)applySt(Object.assign({},W.last,{hb:0}));else send('hello');toast('Resynchronisation…')};
  $('#wEnd').onclick=async()=>{
@@ -9567,6 +9573,11 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
 
  /* ---------------- style ---------------- */
  const css=`
+ /* discussion : la photo du bandeau doit se voir À TRAVERS le cadre de l'en-tête */
+ #s-thread .tban .bnart{-webkit-mask-image:linear-gradient(180deg,#000 90%,transparent 100%)!important;mask-image:linear-gradient(180deg,#000 90%,transparent 100%)!important}
+ #s-thread .thead,html[data-theme=light] #s-thread .thead{margin:-74px 10px 8px!important;background:linear-gradient(180deg,rgba(8,4,20,.06),rgba(8,4,20,.26))!important;border:1px solid rgba(255,255,255,.42)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important}
+ #s-thread .thead .ib,html[data-theme=light] #s-thread .thead .ib{background:rgba(8,4,20,.30)!important;border:1px solid rgba(255,255,255,.4)!important;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+ #s-thread .thead #tName,#s-thread .thead #tSt{text-shadow:0 1px 5px rgba(0,0,0,.85),0 0 2px rgba(0,0,0,.6)}
  #s-chat.rmsal #hDeco{display:none!important}
  .rmch{display:flex;gap:7px;overflow-x:auto;padding:6px 12px 8px;scrollbar-width:none}
  .rmch::-webkit-scrollbar{display:none}
@@ -9603,6 +9614,10 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  #tWatch.live{animation:wpulse 1.6s infinite}
  @keyframes wpulse{50%{transform:scale(1.15)}}
  .wp{flex:none}
+ .widle{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--card);border-bottom:1px solid var(--line)}
+ .widle>span{font-size:22px}.widle button{border:0;background:#2f6df6;color:#fff;font-weight:700;border-radius:999px;padding:8px 16px;font-size:14px}
+ .widle[hidden]{display:none!important}
+ #s-chat.rmnc #fab{display:none!important}
  .wlive{display:flex;align-items:center;gap:10px;padding:8px 14px;background:rgba(47,109,246,.1);border-bottom:1px solid var(--line)}
  .wlive>span{font-size:22px}.wlt{flex:1;min-width:0}.wlt b{display:block;font-size:14px}.wlt small{display:block;color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .wlive button{border:0;background:#2f6df6;color:#fff;font-weight:700;border-radius:999px;padding:8px 16px;font-size:14px}
