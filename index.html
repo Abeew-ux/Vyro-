@@ -9291,15 +9291,40 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
   try{
    const sc=$('#s-chat');if(sc)sc.classList.toggle('rmsal',filter==='group');sc.classList.toggle('rmnc',filter==='group'&&!RM.can);
    if(filter==='group'&&curScreen==='chat'){decorate();loadRooms(false)}
+   else if(curScreen==='chat'){annRender();loadAnn();emptyHome()}
    const fb=$('#fbar em');if(fb&&filter==='group')fb.textContent=String((chats||[]).filter(c=>c.type==='group').length);
   }catch(e){}
   return r;
  };
+
+ /* ---------------- annonces de l'admin (accueil) ---------------- */
+ const ANN={list:[],ts:0};
+ const annSeen=()=>{try{return new Set(JSON.parse(localStorage.getItem('vyro_ann_seen')||'[]'))}catch(e){return new Set()}};
+ const annMark=id=>{try{const s=annSeen();s.add(id);localStorage.setItem('vyro_ann_seen',JSON.stringify([...s].slice(-50)))}catch(e){}};
+ async function loadAnn(){
+  if(!me||Date.now()-ANN.ts<60000)return;ANN.ts=Date.now();
+  try{const {data,error}=await sb.rpc('vyro_announcements_active');if(!error&&data){ANN.list=data;if(curScreen==='chat'&&filter!=='group')annRender()}}catch(e){}
+ }
+ function annRender(){
+  const L=$('#chatList');if(!L)return;
+  L.querySelectorAll('.annc').forEach(x=>x.remove());
+  const seen=annSeen(),items=ANN.list.filter(a=>!seen.has(a.id));
+  if(!items.length)return;
+  L.insertAdjacentHTML('afterbegin',items.map(a=>`<div class="annc" data-aid="${a.id}"><span class="anni">📣</span><div class="anbd"><b>${esc(a.title)}</b>${a.body?`<small>${esc(a.body)}</small>`:''}</div><button type="button" class="anx" data-anx="${a.id}" aria-label="Fermer">×</button></div>`).join(''));
+ }
+ function emptyHome(){
+  const L=$('#chatList');if(!L||L.querySelector('.chat')||L.querySelector('.emp'))return;
+  const p=[...L.children].find(x=>/Aucune conversation/.test(x.textContent||''));if(!p)return;
+  p.outerHTML=`<div class="emp"><div class="empi"><svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#e8eefc"/><path d="M14 44V24a6 6 0 0 1 6-6h24a6 6 0 0 1 6 6v14a6 6 0 0 1-6 6H28l-9 7v-7h-5z" fill="#2f6df6"/><circle cx="25" cy="31" r="2.6" fill="#fff"/><circle cx="33" cy="31" r="2.6" fill="#fff"/><circle cx="41" cy="31" r="2.6" fill="#fff"/></svg></div><b>Pas encore de discussion</b><small>Ajoute un ami pour commencer à discuter, ou rejoins un salon d’anime.</small><div class="empb"><button type="button" id="empAdd">＋ Trouver des amis</button><button type="button" id="empSal">Voir les salons</button></div></div>`;
+ }
  const _tab=tab;
  tab=function(n){const r=_tab.apply(this,arguments);try{if(n==='salons'){loadRooms(true)}}catch(e){}return r};
 
  const L0=$('#chatList');
  L0.addEventListener('click',async e=>{
+  const ax=e.target.closest('[data-anx]');if(ax){e.stopPropagation();annMark(ax.dataset.anx);const c=ax.closest('.annc');if(c)c.remove();return}
+  if(e.target.closest('#empAdd')){e.stopPropagation();return _f&&_f.call(fab)}
+  if(e.target.closest('#empSal')){e.stopPropagation();return tab('salons')}
   const c=e.target.closest('[data-rc]');
   if(c){e.stopPropagation();RM.cat=c.dataset.rc;renderChats();return}
   const j=e.target.closest('[data-rj]');
@@ -9381,8 +9406,11 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  const wp=document.createElement('div');wp.className='wp';wp.id='wp';wp.hidden=true;
  wp.innerHTML=`<div class="widle" id="wIdle" hidden><span>🎬</span><div class="wlt"><b>Aucune séance en cours</b><small>Lance une vidéo : tout le salon peut la regarder avec toi</small></div><button type="button" id="wIdB">Lancer</button></div>
   <div class="wlive" id="wLive" hidden><span>🎬</span><div class="wlt"><b>Séance en cours</b><small id="wLt"></small></div><button type="button" id="wLj">Rejoindre</button></div>
-  <div class="wbox" id="wBox" hidden><div class="wscr" id="wScr"><div id="wv"></div><div class="wov" id="wOv" hidden><button type="button" id="wOvB">▶ Rejoindre la séance</button><small id="wOvT"></small></div></div>
-  <div class="wbar"><div class="wti"><b id="wTi"></b><small id="wSb"></small></div><button type="button" id="wSync" title="Resynchroniser">⟳</button><button type="button" id="wChg">Changer</button><button type="button" id="wEnd">Terminer</button><button type="button" id="wMin" title="Réduire">▾</button></div></div>`;
+  <div class="wbox" id="wBox" hidden><div class="wscr" id="wScr"><div id="wv"></div><div class="wfl" id="wFl"></div><div class="wov" id="wOv" hidden><button type="button" id="wOvB">▶ Rejoindre la séance</button><small id="wOvT"></small></div></div>
+  <div class="wbar"><div class="wti"><b id="wTi"></b><small id="wSb"></small></div><button type="button" id="wSync" title="Resynchroniser">⟳</button><button type="button" id="wChg">Changer</button><button type="button" id="wEnd">Terminer</button><button type="button" id="wMin" title="Réduire">▾</button></div>
+  <div class="wrx" id="wRx">${['🔥','😂','😮','😭','👏','❤️'].map(e=>`<button type="button" data-rx="${e}">${e}</button>`).join('')}</div></div>
+  <div class="wact" id="wAct" hidden><button type="button" id="wAEv">🗓️ Programmer</button><button type="button" id="wAPo">📊 Sondage</button></div>
+  <div id="wEvs"></div><div id="wPoll"></div>`;
  $('#tMsgs').before(wp);
  const tw=document.createElement('button');tw.type='button';tw.className='ib';tw.id='tWatch';tw.hidden=true;tw.setAttribute('aria-label','Regarder ensemble');tw.textContent='🎬';
  $('#tMenu').before(tw);
@@ -9394,7 +9422,7 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  function ui(){
   const on=!!W.url,has=!!(W.room&&W.room.category==='anime');
   wp.hidden=!has;tw.hidden=!has;
-  $('#wIdle').hidden=!(has&&!on);
+  $('#wIdle').hidden=!(has&&!on);$('#wAct').hidden=!has;
   $('#wLive').hidden=!(on&&!W.joined);
   $('#wBox').hidden=!(on&&W.joined);
   $('#wLt').textContent=W.title||'Vidéo partagée';
@@ -9487,6 +9515,87 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
   W.lastP=W.last.p;W.lastT=target;
  }
 
+ /* --- séances programmées --- */
+ W.evs=[];W.pl=null;W.tm=0;W.nt={};
+ const fmtWhen=d=>new Date(d).toLocaleString('fr-FR',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+ const untilTxt=ms=>{if(ms<=0)return 'C’est l’heure !';const m=Math.round(ms/60000);if(m<60)return 'dans '+m+' min';const h=Math.floor(m/60);if(h<24)return 'dans '+h+' h'+(m%60?' '+String(m%60).padStart(2,'0'):'');return 'dans '+Math.floor(h/24)+' j'};
+ function renderEvs(){
+  const box=$('#wEvs');if(!box)return;
+  if(!W.room||!W.evs.length){box.innerHTML='';return}
+  box.innerHTML=W.evs.map(e=>{const ms=new Date(e.start_at)-Date.now(),now=ms<=0;
+   if(now&&!W.nt[e.id]){W.nt[e.id]=1;toast('🎬 C’est l’heure : '+e.title)}
+   return `<div class="wev${now?' now':''}"><span class="wei">🗓️</span><div class="wlt"><b>${esc(e.title)}</b><small>${esc(fmtWhen(e.start_at))} · ${untilTxt(ms)}</small></div>${now&&!W.url?`<button type="button" data-evgo="${e.id}">Lancer</button>`:''}${(e.mine||W.room.is_admin)?`<button type="button" class="wx" data-evdel="${e.id}" aria-label="Supprimer">×</button>`:''}</div>`}).join('');
+ }
+ async function loadEvents(){if(!W.room)return;const id=W.room.id;const {data}=await sb.rpc('vyro_room_events',{p_id:id});if(!W.room||W.room.id!==id)return;W.evs=data||[];renderEvs()}
+ $('#wEvs').onclick=async e=>{
+  const d=e.target.closest('[data-evdel]'),g=e.target.closest('[data-evgo]');
+  if(d){if(!confirm('Supprimer cette séance programmée ?'))return;const {error}=await sb.rpc('vyro_room_event_delete',{p_event:d.dataset.evdel});if(error){toast('Impossible de supprimer');return}send('ev');loadEvents()}
+  if(g){const ev=W.evs.find(x=>x.id===g.dataset.evgo);startSheet(false,ev)}
+ };
+ function evSheet(){
+  const pad=n=>String(n).padStart(2,'0'),d0=new Date(Date.now()+3600e3);
+  const def=`${d0.getFullYear()}-${pad(d0.getMonth()+1)}-${pad(d0.getDate())}T${pad(d0.getHours())}:00`;
+  const s=openSheet('🗓️ Programmer une séance',`
+   <p class="rmdesc">Choisis le jour et l’heure : le salon est prévenu par un message, et la séance s’affiche ici avec un compte à rebours.</p>
+   <label class="fld">Titre<input id="evT" maxlength="60" placeholder="ex : One Piece, épisodes 1 à 3"></label>
+   <label class="fld">Date et heure<input id="evD" type="datetime-local" value="${def}"></label>
+   <label class="fld">Lien de la vidéo (facultatif, tu pourras l’ajouter au moment de lancer)<input id="evU" type="url" inputmode="url" placeholder="https://youtu.be/…" autocomplete="off"></label>
+   <button class="cta" id="evGo" style="margin-top:10px">Programmer</button>`);
+  s.querySelector('#evGo').onclick=async ev=>{
+   const t=s.querySelector('#evT').value.trim(),dv=s.querySelector('#evD').value;let u=s.querySelector('#evU').value.trim();
+   if(t.length<1){toast('Donne un titre à la séance');return}
+   const dt=new Date(dv);if(!dv||isNaN(dt)){toast('Choisis une date');return}
+   if(dt<Date.now()-60000){toast('Cette date est déjà passée');return}
+   if(u){if(!/^https?:\/\//i.test(u))u='https://'+u;u=u.replace(/^http:\/\//i,'https://')}
+   const go=ev.currentTarget;go.disabled=true;
+   const {error}=await sb.rpc('vyro_room_event_create',{p_id:cur.id,p_title:t,p_url:u||null,p_start:dt.toISOString()});
+   if(error){go.disabled=false;toast(/too_many/.test(error.message||'')?'Déjà 5 séances programmées':/bad_date/.test(error.message||'')?'Date invalide (30 jours maximum)':'Programmation impossible');return}
+   closeSheet();toast('Séance programmée ✅');send('ev');loadEvents();
+   try{Promise.resolve(postMsg(cur.id,'🗓️ Séance programmée : '+t+' — '+fmtWhen(dt))).catch(()=>{})}catch(e){}
+  };
+ }
+ $('#wAEv').onclick=evSheet;
+
+ /* --- sondage --- */
+ function renderPoll(){
+  const box=$('#wPoll');if(!box)return;const p=W.pl;
+  if(!p||!W.room){box.innerHTML='';return}
+  const tot=p.counts.reduce((a,b)=>a+b,0);
+  box.innerHTML=`<div class="wpl"><div class="wplh"><b>📊 ${esc(p.question)}</b>${p.closed?'<i>Terminé</i>':(p.owner||W.room.is_admin)?'<button type="button" data-plclose="1">Clore</button>':''}</div>${p.options.map((o,i)=>{const c=p.counts[i]||0,pc=tot?Math.round(c*100/tot):0;return `<button type="button" class="wpo${p.mine===i?' me':''}" data-plv="${i}" ${p.closed?'disabled':''}><span class="wpb" style="width:${pc}%"></span><span class="wpt">${esc(o)}</span><span class="wpp">${c} · ${pc}%</span></button>`}).join('')}<small>${tot} vote${tot>1?'s':''}${p.closed?'':' · touche une option pour voter'}</small></div>`;
+ }
+ async function loadPoll(){if(!W.room)return;const id=W.room.id;const {data}=await sb.rpc('vyro_poll_get',{p_id:id});if(!W.room||W.room.id!==id)return;W.pl=data||null;renderPoll()}
+ $('#wPoll').onclick=async e=>{
+  const v=e.target.closest('[data-plv]'),c=e.target.closest('[data-plclose]');
+  if(v&&W.pl&&!W.pl.closed){const {error}=await sb.rpc('vyro_poll_vote',{p_poll:W.pl.id,p_idx:+v.dataset.plv});if(error){toast('Vote impossible');return}send('ev');loadPoll()}
+  if(c&&W.pl){if(!confirm('Clore ce sondage ?'))return;await sb.rpc('vyro_poll_close',{p_poll:W.pl.id});send('ev');loadPoll()}
+ };
+ function pollSheet(){
+  const s=openSheet('📊 Créer un sondage',`
+   <label class="fld">Question<input id="plQ" maxlength="100" placeholder="ex : Quel épisode ce soir ?"></label>
+   <div id="plO"><label class="fld">Option 1<input maxlength="40" class="plo"></label><label class="fld">Option 2<input maxlength="40" class="plo"></label></div>
+   <button type="button" class="rcw" id="plAdd" style="border:1px dashed var(--line);background:transparent;color:var(--text);border-radius:12px;padding:9px 14px;margin-top:6px">＋ Ajouter une option</button>
+   <button class="cta" id="plGo" style="margin-top:12px">Publier le sondage</button>`);
+  s.querySelector('#plAdd').onclick=()=>{const n=s.querySelectorAll('.plo').length;if(n>=5){toast('5 options maximum');return}s.querySelector('#plO').insertAdjacentHTML('beforeend',`<label class="fld">Option ${n+1}<input maxlength="40" class="plo"></label>`)};
+  s.querySelector('#plGo').onclick=async ev=>{
+   const q=s.querySelector('#plQ').value.trim(),o=[...s.querySelectorAll('.plo')].map(x=>x.value.trim()).filter(Boolean);
+   if(q.length<2){toast('Écris la question');return}if(o.length<2){toast('Mets au moins 2 options');return}
+   const go=ev.currentTarget;go.disabled=true;
+   const {error}=await sb.rpc('vyro_poll_create',{p_id:cur.id,p_q:q,p_opts:o});
+   if(error){go.disabled=false;toast('Création impossible');return}
+   closeSheet();send('ev');loadPoll();
+  };
+ }
+ $('#wAPo').onclick=pollSheet;
+
+ /* --- réactions en direct --- */
+ function floatRx(e){
+  const l=$('#wFl');if(!l)return;
+  const n=document.createElement('span');n.className='wfx';n.textContent=e;n.style.left=(8+Math.random()*80)+'%';n.style.setProperty('--dx',(Math.random()*40-20)+'px');
+  l.appendChild(n);setTimeout(()=>n.remove(),2200);
+ }
+ let rxAt=0;
+ $('#wRx').onclick=e=>{const b=e.target.closest('[data-rx]');if(!b)return;if(Date.now()-rxAt<180)return;rxAt=Date.now();floatRx(b.dataset.rx);send('rx',{e:b.dataset.rx})};
+
  /* --- canal temps réel --- */
  function openChan(id){
   closeChan();
@@ -9500,6 +9609,8 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
     if(W.joined)loadSource();ui();if(!W.joined&&W.url)toast('🎬 Séance lancée dans ce salon')});
    ch.on('broadcast',{event:'end'},m=>{const p=m&&m.payload;if(!p||p.uid===me.id||!cur||cur.id!==id)return;
     W.url='';W.title='';W.host=null;if(W.joined){stopPlayer();W.joined=false;toast('La séance est terminée')}ui()});
+   ch.on('broadcast',{event:'rx'},m=>{const p=m&&m.payload;if(!p||p.uid===me.id||!W.joined)return;if(['🔥','😂','😮','😭','👏','❤️'].includes(p.e))floatRx(p.e)});
+   ch.on('broadcast',{event:'ev'},m=>{const p=m&&m.payload;if(!p||p.uid===me.id||!cur||cur.id!==id)return;loadEvents();loadPoll()});
    ch.on('presence',{event:'sync'},()=>setSub());
    ch.subscribe();
   }catch(e){W.ch=null}
@@ -9524,13 +9635,14 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
   if(W.url){if(!W.joined)join();else{stopPlayer();W.joined=false;ui()}return}
   startSheet(false);
  };
- function startSheet(change){
+ function startSheet(change,pre){
   const s=openSheet(change?'Changer de vidéo':'🎬 Regarder ensemble',`
    <p class="rmdesc">Colle un lien <b>YouTube</b> ou un lien <b>vidéo direct</b> (.mp4 / .webm en https). Tout le monde dans le salon pourra rejoindre et regarder en même temps que toi.</p>
    <label class="fld">Lien de la vidéo<input id="wuU" type="url" inputmode="url" placeholder="https://youtu.be/…" autocomplete="off"></label>
    <label class="fld">Titre (facultatif)<input id="wuT" maxlength="80" placeholder="ex : One Piece épisode 1"></label>
    <p class="rmnote">Ne partage que des vidéos que tu as le droit de diffuser (contenu libre, ta propre vidéo ou une chaîne officielle).</p>
    <button class="cta" id="wuGo" style="margin-top:10px">${change?'Changer':'Lancer la séance'}</button>`);
+  if(pre){s.querySelector('#wuU').value=pre.url||'';s.querySelector('#wuT').value=pre.title||''}
   s.querySelector('#wuGo').onclick=async ev=>{
    let u=s.querySelector('#wuU').value.trim();const t=s.querySelector('#wuT').value.trim();
    if(u&&!/^https?:\/\//i.test(u))u='https://'+u;
@@ -9545,6 +9657,7 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
    W.url=u;W.title=title;W.host=me.id;W.room.watch_url=u;
    send('src',{url:u,title,host:me.id});
    W.joined=true;ui();loadSource();
+   if(pre&&pre.id){sb.rpc('vyro_room_event_delete',{p_event:pre.id}).then(()=>{send('ev');loadEvents()},()=>{})}
    if(!had)try{Promise.resolve(postMsg(cur.id,'🎬 '+(me.display_name||me.username||'Quelqu’un')+' a lancé une séance : '+title)).catch(()=>{})}catch(e){}
   };
  }
@@ -9556,7 +9669,7 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
   const r=data&&data[0];
   if(!r){W.room=null;ui();return}
   W.room=r;W.url=r.watch_url||'';W.title=r.watch_title||'';W.host=r.watch_host||null;
-  openChan(id);ui();
+  openChan(id);ui();loadEvents();loadPoll();clearInterval(W.tm);W.tm=setInterval(renderEvs,30000);
  }
  const _ot=openThread;
  openThread=function(id){
@@ -9567,7 +9680,7 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
   }catch(e){}
   return p;
  };
- function wpReset(){stopPlayer();closeChan();W.room=null;W.url='';W.title='';W.host=null;W.joined=false;W.last=null;ui()}
+ function wpReset(){clearInterval(W.tm);W.evs=[];W.pl=null;W.nt={};renderEvs();renderPoll();stopPlayer();closeChan();W.room=null;W.url='';W.title='';W.host=null;W.joined=false;W.last=null;ui()}
  const _lt=leaveThread;
  leaveThread=function(){try{wpReset()}catch(e){}return _lt.apply(this,arguments)};
 
@@ -9578,6 +9691,35 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  #s-thread .thead,html[data-theme=light] #s-thread .thead{margin:-74px 10px 8px!important;background:linear-gradient(180deg,rgba(8,4,20,.06),rgba(8,4,20,.26))!important;border:1px solid rgba(255,255,255,.42)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important}
  #s-thread .thead .ib,html[data-theme=light] #s-thread .thead .ib{background:rgba(8,4,20,.30)!important;border:1px solid rgba(255,255,255,.4)!important;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
  #s-thread .thead #tName,#s-thread .thead #tSt{text-shadow:0 1px 5px rgba(0,0,0,.85),0 0 2px rgba(0,0,0,.6)}
+ .wact{display:flex;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);background:var(--card)}
+ .wact[hidden]{display:none!important}
+ .wact button{flex:1;border:1px solid var(--line);background:transparent;color:var(--text);border-radius:12px;padding:8px 10px;font-size:13.5px;font-weight:600}
+ .wev{display:flex;align-items:center;gap:10px;padding:8px 14px;background:rgba(47,109,246,.07);border-bottom:1px solid var(--line)}
+ .wev.now{background:rgba(34,197,94,.12)}
+ .wev .wei{font-size:20px}.wev button{border:0;background:#2f6df6;color:#fff;font-weight:700;border-radius:999px;padding:7px 14px;font-size:13px}
+ .wev .wx{background:transparent;color:var(--muted);font-size:20px;padding:2px 8px;line-height:1}
+ .wpl{padding:10px 14px;border-bottom:1px solid var(--line);background:var(--card)}
+ .wplh{display:flex;align-items:center;gap:8px;margin-bottom:8px}.wplh b{flex:1;font-size:14.5px}.wplh i{font-style:normal;font-size:12px;color:var(--muted)}
+ .wplh button{border:1px solid var(--line);background:transparent;color:var(--text);border-radius:999px;padding:4px 11px;font-size:12px;font-weight:600}
+ .wpo{position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;margin:0 0 6px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:transparent;color:var(--text);overflow:hidden;font-size:14px;text-align:left}
+ .wpo .wpb{position:absolute;left:0;top:0;bottom:0;background:rgba(47,109,246,.16);transition:width .35s}
+ .wpo.me{border-color:#2f6df6}.wpo.me .wpb{background:rgba(47,109,246,.28)}
+ .wpo .wpt,.wpo .wpp{position:relative}.wpo .wpp{font-size:12.5px;color:var(--muted);white-space:nowrap}
+ .wpl>small{color:var(--muted);font-size:12px}
+ .wrx{display:flex;justify-content:space-around;padding:6px 10px;background:var(--card);border-bottom:1px solid var(--line)}
+ .wrx button{border:0;background:transparent;font-size:23px;line-height:1;padding:4px 10px;border-radius:12px;transition:transform .12s}
+ .wrx button:active{transform:scale(1.35)}
+ .wfl{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:4}
+ .wfx{position:absolute;bottom:6px;font-size:30px;animation:wfloat 2.1s ease-out forwards}
+ @keyframes wfloat{0%{transform:translate(0,0) scale(.6);opacity:0}15%{opacity:1;transform:translate(0,-12px) scale(1.1)}100%{transform:translate(var(--dx),-210px) scale(1);opacity:0}}
+ .annc{display:flex;align-items:flex-start;gap:11px;margin:8px 12px 2px;padding:11px 12px;border-radius:16px;background:linear-gradient(135deg,#eaf0ff,#f6eaff);border:1px solid #d9dffa}
+ .annc .anni{font-size:22px;line-height:1.1}.anbd{flex:1;min-width:0}.anbd b{display:block;font-size:14.5px;color:#1f2023}.anbd small{display:block;margin-top:2px;font-size:13px;color:#4b4f63;line-height:1.35}
+ .anx{border:0;background:transparent;color:#6b6f85;font-size:22px;line-height:1;padding:0 4px}
+ .emp{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:34px 26px 20px}
+ .emp b{font-size:17px}.emp small{color:var(--muted);font-size:14px;line-height:1.4;max-width:290px}
+ .empb{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:10px}
+ .empb button{border:0;background:#2f6df6;color:#fff;font-weight:700;border-radius:999px;padding:10px 16px;font-size:14px}
+ .empb button+button{background:rgba(47,109,246,.12);color:#2f6df6}
  #s-chat.rmsal #hDeco{display:none!important}
  .rmch{display:flex;gap:7px;overflow-x:auto;padding:6px 12px 8px;scrollbar-width:none}
  .rmch::-webkit-scrollbar{display:none}
@@ -9613,7 +9755,7 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  #tWatch{font-size:21px;line-height:1}
  #tWatch.live{animation:wpulse 1.6s infinite}
  @keyframes wpulse{50%{transform:scale(1.15)}}
- .wp{flex:none}
+ .wp{flex:none;max-height:50vh;overflow-y:auto;overscroll-behavior:contain}
  .widle{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--card);border-bottom:1px solid var(--line)}
  .widle>span{font-size:22px}.widle button{border:0;background:#2f6df6;color:#fff;font-weight:700;border-radius:999px;padding:8px 16px;font-size:14px}
  .widle[hidden]{display:none!important}
