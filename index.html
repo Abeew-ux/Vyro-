@@ -9719,20 +9719,30 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
 
  /* ---------------- style ---------------- */
  const css=`
-.hprof{display:flex!important;padding:6px 14px 0!important;margin-top:0!important}
-.hhero{height:calc(env(safe-area-inset-top) + 318px)!important;overflow:visible}
+.hprof{display:flex!important;gap:16px!important;padding:26px 14px 0!important;margin-top:0!important}
+.hhero{height:calc(env(safe-area-inset-top) + 284px)!important;overflow:visible}
+#hLogo img{width:158px!important}
 .hbtop [data-go=settings]{display:none!important}
 .hbtop{padding-right:12px!important}
+#s-chat .hpn{font-size:21px!important}
+#s-chat .hpi .muted{font-size:12.5px!important}
 #s-chat .hpn,#s-chat .hpn .ic{color:#fff!important;text-shadow:0 2px 8px rgba(0,0,0,.75)}
 #s-chat .hpi .muted{color:#e2d0ff!important;text-shadow:0 1px 6px rgba(0,0,0,.8)}
-#s-chat .hpw{width:84px;height:84px}
+#s-chat .hpw{width:96px;height:96px}
 #s-chat .hpw .pav{color:#fff}
-#s-chat .hpw .pav{width:84px;height:84px}
-#s-chat .hbad button{width:38px;height:38px}
-#s-chat .hbad button svg{width:22px;height:22px}
-#s-chat .hshop{color:#fff!important;font-size:15px}
-#s-chat .hshop .hsi{width:28px;height:28px}
+#s-chat .hpw .pav{width:96px;height:96px;font-size:40px}
+#s-chat .hbad button{width:34px;height:34px}
+#s-chat .hbad button svg{width:20px;height:20px}
+#s-chat .hshop{color:#fff!important;font-size:13.5px;padding:8px 7px 8px 7px;gap:5px}
+#s-chat .hshop .hsi{width:26px;height:26px}
 #pBnBtn svg.ic{width:24px;height:24px;color:#1f2023}
+/* contacts : un peu plus petits, comme sur la capture */
+#s-chat #chatList .chat{height:70px!important;min-height:70px!important;margin-bottom:14px!important;padding:0 12px!important;border-radius:23px!important}
+#s-chat #chatList .chat .av{width:62px!important;height:62px!important;font-size:26px!important}
+#s-chat #chatList .chat .r1 b{font-size:15.5px!important}
+#s-chat #chatList .chat .lm{font-size:13px!important}
+#s-chat #chatList .chat .tm{font-size:14px!important}
+#s-chat #chatList .chat .pmoon{width:20px!important;height:20px!important}
 #s-chat #chatList .chat.hasbn{position:relative;border-color:rgba(255,255,255,.5)!important;background:#1b1230!important}
 #s-chat #chatList .chat .cbn{position:absolute;inset:0;z-index:0;-webkit-mask-image:none;mask-image:none;border-radius:inherit;pointer-events:none}
 #s-chat #chatList .chat .cbn::after{background:linear-gradient(90deg,rgba(8,4,20,.68) 0%,rgba(8,4,20,.42) 55%,rgba(8,4,20,.08) 100%)!important}
