@@ -274,6 +274,12 @@ jobs:
                       requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 77);
                   }
                   try {
+                      /* même taille d'affichage que le site : le WebView doit lire la balise viewport (sinon tout paraît trop grand) */
+                      android.webkit.WebSettings ws = getBridge().getWebView().getSettings();
+                      ws.setUseWideViewPort(true);
+                      ws.setLoadWithOverviewMode(false);
+                  } catch (Throwable e) { /* pas grave */ }
+                  try {
                       getBridge().getWebView().addJavascriptInterface(new Object() {
                           @JavascriptInterface public void set(final String c) { bar(c); }
                       }, "VyroBar");
