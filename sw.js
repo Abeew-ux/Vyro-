@@ -1,24 +1,34 @@
 /* VYRO — service worker : démarrage rapide, hors-ligne de base, clic sur une notification */
-const V = 'vyro-v72';
+const V = 'vyro-v77';
+const LIB = 'vyro-lib';
+const LIBS = ['cdn.jsdelivr.net'];
+const LIBURL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(V).then(c => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));
+  e.waitUntil(Promise.all([caches.open(V).then(c => c.addAll(SHELL).catch(() => {})), caches.open(LIB).then(c => c.match(LIBURL).then(m => m || fetch(LIBURL, { mode: 'no-cors' }).then(r => c.put(LIBURL, r)))).catch(() => {})]).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V && k !== LIB).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
-// réseau d'abord (toujours la dernière version), cache en secours
+// bibliothèques externes (supabase-js) : gardées en cache pour ouvrir VYRO sans internet
+const timeout = (p, ms) => new Promise((res, rej) => { const t = setTimeout(() => rej(new Error('timeout')), ms); p.then(v => { clearTimeout(t); res(v); }, e => { clearTimeout(t); rej(e); }); });
 self.addEventListener('fetch', e => {
   const r = e.request;
   if (r.method !== 'GET') return;
   const u = new URL(r.url);
-  if (u.origin !== location.origin) return;
+  if (u.origin !== location.origin) {
+    if (r.destination === 'script' && LIBS.includes(u.hostname)) {
+      e.respondWith(caches.open(LIB).then(c => c.match(r.url).then(m => m || fetch(r).then(res => { try { c.put(r.url, res.clone()); } catch (_) {} return res; }))));
+    }
+    return;
+  }
+  // réseau d'abord (dernière version), mais si le réseau traîne plus de 4 s on sert la copie gardée
+  const fresh = fetch(r).then(res => {
+    if (res && res.ok) { const cp = res.clone(); caches.open(V).then(c => c.put(r, cp)).catch(() => {}); }
+    return res;
+  });
   e.respondWith(
-    fetch(r).then(res => {
-      const cp = res.clone();
-      caches.open(V).then(c => c.put(r, cp)).catch(() => {});
-      return res;
-    }).catch(() => caches.match(r).then(m => m || caches.match('./index.html')))
+    timeout(fresh, 4000).catch(() => caches.match(r).then(m => m || (r.mode === 'navigate' ? caches.match('./index.html') : null) || fresh))
   );
 });
 // notification push : message ou appel reçu appli fermée

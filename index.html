@@ -1366,8 +1366,8 @@ i.lk .ic{width:13px;height:13px}
 
 <canvas id="fxc" aria-hidden="true"></canvas>
 <nav id="nav">
- <button data-t="chat" class="cur"><span class="ico" data-i="home"></span>Accueil<i class="nb" id="nbChat" hidden></i></button>
- <button data-t="salons"><span class="ico" data-i="chat"></span>Salons</button>
+ <button data-t="chat" class="cur"><span class="ico" data-i="chat"></span>Chat<i class="nb" id="nbChat" hidden></i></button>
+ <button data-t="salons"><span class="ico" data-i="hash"></span>Salons</button>
  <button data-t="profile"><span class="ico" data-i="user"></span>Profil</button>
 </nav>
 
@@ -1582,30 +1582,64 @@ $('#aForm').onsubmit=async e=>{
  finally{btn.disabled=false;if($('#aGo').textContent==='Patiente…')btn.textContent=old}
 };
 renderAuth();
+let OFF=false,STALE=false;
+const PROF_K=id=>'vyro_prof_'+id;
+const cachedProf=id=>{try{return JSON.parse(localStorage.getItem(PROF_K(id))||'null')}catch(e){return null}};
+const saveProf=p=>{try{localStorage.setItem(PROF_K(p.id),JSON.stringify(p))}catch(e){}};
+function storedSession(){try{const k=Object.keys(localStorage).find(x=>/^sb-.*-auth-token$/.test(x));if(!k)return null;const j=JSON.parse(localStorage.getItem(k));return j&&j.user?j:null}catch(e){return null}}
 async function boot(){
  applyTheme();
- if(!sb){show('auth');$('#aErr').textContent='Impossible de charger Supabase. Vérifie ta connexion internet.';return}
+ if(!sb){show('auth');$('#aErr').textContent='Impossible de charger Supabase. Ouvre VYRO une fois avec internet.';return}
  sb.auth.onAuthStateChange((ev,s)=>{tok=s?s.access_token:''});
- const {data}=await sb.auth.getSession();
- if(data&&data.session)await enter();else show('auth');
+ let sess=null;
+ try{const {data}=await sb.auth.getSession();sess=data&&data.session}catch(e){}
+ if(sess){await enter();return}
+ /* session illisible (souvent : pas d'internet pour la rafraîchir) : on ouvre quand même avec le profil gardé sur le téléphone */
+ const ss=storedSession();
+ if(ss&&cachedProf(ss.user.id)){await enter(ss);return}
+ show('auth');
 }
-async function enter(){
- const {data:{session}}=await sb.auth.getSession();
- if(!session){show('auth');return}
- tok=session.access_token;
- const {data:p}=await sb.from('vyro_profiles').select('*').eq('id',session.user.id).maybeSingle();
- if(!p){await sb.auth.signOut();show('auth');$('#aErr').textContent='Ce compte n’existe pas sur VYRO.';return}
+async function enter(fs){
+ let session=null;
+ if(!fs){try{const r=await sb.auth.getSession();session=r.data&&r.data.session}catch(e){}}
+ const user=session?session.user:(fs&&fs.user);
+ if(!user){show('auth');return}
+ tok=session?session.access_token:((fs&&fs.access_token)||'');
+ let p=null,perr=null;
+ if(session){try{const r=await sb.from('vyro_profiles').select('*').eq('id',user.id).maybeSingle();p=r.data;perr=r.error}catch(e){perr=e||{message:'net'}}}
+ else perr={message:'offline'};
+ if(perr){
+  p=cachedProf(user.id);
+  if(!p){show('auth');$('#aErr').textContent='Connexion impossible. Vérifie ton internet puis réessaie.';return}
+  OFF=true;
+ }else if(!p){await sb.auth.signOut();show('auth');$('#aErr').textContent='Ce compte n’existe pas sur VYRO.';return}
+ else saveProf(p);
  me=p;
  const st=p.settings||{};
  if(st.priv)Object.assign(S.priv,st.priv);
  if(st.notif)Object.assign(S.notif,st.notif);
  S.priv.private=!!p.is_private;
  applyNames();renderPrivacy();renderNotifs();
- await Promise.all([loadFollows(),loadMarks(),loadBlocks()]);
- await localInit();
- subscribe();initExtras();
+ if(!OFF)await Promise.all([loadFollows(),loadMarks(),loadBlocks()]);
+ await localInit();unsLoad();
+ try{subscribe()}catch(e){}
+ try{initExtras()}catch(e){}
  tab('chat');
+ flushUns();
 }
+/* retour d'internet : on remet tout à jour et on envoie les messages restés en attente */
+let recon=false;
+async function reconnect(){
+ if(!me||recon)return;recon=true;
+ try{
+  try{await sb.auth.getSession()}catch(e){}
+  if(OFF){try{const r=await sb.from('vyro_profiles').select('*').eq('id',me.id).maybeSingle();if(r.data){me=r.data;saveProf(me);applyNames()}if(!r.error){OFF=false;await Promise.all([loadFollows(),loadMarks(),loadBlocks()])}}catch(e){}}
+  if(OFF||STALE)await loadChats();
+  await flushUns();
+  syncInbox();
+ }finally{recon=false}
+}
+window.addEventListener('online',()=>{setTimeout(reconnect,700)});
 async function logout(){try{await pushRemove()}catch(e){}try{await sb.auth.signOut()}catch(e){}location.reload()}
 
 /* ---------- suivis / likes / favoris ---------- */
@@ -1810,14 +1844,16 @@ async function uiIngest(list,o){
 }
 function markRead(){
  const c=cur;if(!c)return;
- const t=c.msgs.reduce((a,m)=>Math.max(a,m.ts||0),RD[c.id]||0);
+ const t=c.msgs.reduce((a,m)=>m.tmp?a:Math.max(a,m.ts||0),RD[c.id]||0);
  RD[c.id]=t;saveRD();c.unread=0;{const cc=chats.find(x=>x.id===c.id);if(cc)cc.unread=0}renderChats();
- sb.rpc('vyro_mark_read',{p_conv:c.id});
+ if(!STALE)sb.rpc('vyro_mark_read',{p_conv:c.id}).then(()=>{},()=>{});
 }
-async function postMsg(cid,body,reply){
+async function postMsg(cid,body,reply,tmp){
  const row={conversation_id:cid,sender_id:me.id,body};if(reply)row.reply_to=reply;
- const {data,error}=await sb.from('vyro_messages').insert(row).select('id,conversation_id,sender_id,body,created_at,reply_to').single();
+ let data,error;
+ try{({data,error}=await sb.from('vyro_messages').insert(row).select('id,conversation_id,sender_id,body,created_at,reply_to').single())}catch(e){error=e||{message:'net'}}
  if(error)return {error};
+ if(tmp){unsDrop(tmp.id);const c=chats.find(x=>x.id===cid);if(c&&c.msgs)c.msgs=c.msgs.filter(m=>m.id!==tmp.id)}
  await ingest([data],{own:true});
  return {data};
 }
@@ -1875,10 +1911,19 @@ const FRM={};
 const av=(c,size=58,fr)=>`<div class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size*.4)}px;background:linear-gradient(135deg,hsl(${c.h} 80% 62%),hsl(${(c.h+50)%360} 70% 30%))">${esc(c.type==='group'?'👥':(c.name||'?')[0].toUpperCase())}${(c.avatar&&c.uid&&MEDIA_URL)?`<img src="${aurl(c.uid,c.avatar)}" alt="" onerror="avErr(this)" loading="lazy">`:''}${typeof frameMk==='function'?frameMk(fr===undefined?(c.uid&&FRM[c.uid]):fr):''}</div>`;
 let purged=false;
 async function loadChats(){
- const {data,error}=await sb.rpc('vyro_my_chats');
- if(error){toast('Impossible de charger les conversations');return}
- chats=(data||[]).map(c=>{const name=c.type==='group'?(c.name||'Groupe'):(c.peer_name||c.peer_username||'Utilisateur');
+ let data,error;
+ try{({data,error}=await sb.rpc('vyro_my_chats'))}catch(e){error=e||{message:'net'}}
+ if(error){
+  /* hors ligne : on reprend la liste gardée sur le téléphone */
+  let cc=null;try{cc=await LDB.get('meta','chats')}catch(e){}
+  if(!(cc&&cc.length)){if(!chats.length)toast('Impossible de charger les conversations');return}
+  STALE=true;
+  chats=cc.map(c=>({...c,msgs:[],reacts:{},reply:null,unread:0}));
+  data=null;
+ }else STALE=false;
+ if(data)chats=(data||[]).map(c=>{const name=c.type==='group'?(c.name||'Groupe'):(c.peer_name||c.peer_username||'Utilisateur');
   return {id:c.id,type:c.type==='group'?'group':'friend',name,uid:c.type==='group'?null:c.peer_id,avatar:c.type==='group'?null:c.peer_avatar,h:hue(c.peer_username||name),last:'Nouvelle conversation',at:c.last_message_at||c.created_at||new Date(0).toISOString(),unread:0,ttl:c.ttl_hours||0}});
+ if(data)LDB.set('meta','chats',chats.map(c=>({id:c.id,type:c.type,name:c.name,uid:c.uid,avatar:c.avatar,h:c.h,last:c.last,at:c.at,ttl:c.ttl}))).catch(()=>{});
  if(cur){const n=chats.find(x=>x.id===cur.id);if(n){n.msgs=cur.msgs;n.reacts=cur.reacts;n.reply=cur.reply;cur=n}}
  try{
   if(chats.some(c=>RD[c.id]==null)){
@@ -1888,7 +1933,7 @@ async function loadChats(){
   await purgeLocal();await refreshMeta();
  }catch(e){}
  renderChats();
- if(!purged){purged=true;sb.rpc('vyro_purge_expired');syncInbox();openFromUrl()}
+ if(!purged){purged=true;if(!STALE){sb.rpc('vyro_purge_expired');syncInbox()}openFromUrl()}
 }
 function renderChats(){
  const cnt=t=>chats.filter(c=>t==='all'||c.type===t).length;
@@ -1934,7 +1979,7 @@ async function openThread(id){
  try{await purgeLocal();[loc,rxs]=await Promise.all([LDB.all('msgs',id),LDB.all('rx',id)])}catch(e){}
  loc=loc.filter(m=>!m.ctl).sort((a,b)=>a.ts-b.ts||a.id-b.id).slice(-400);
  if(!cur||cur.id!==id)return;
- cur.msgs=loc;cur.reacts={};rxs.forEach(r=>{(cur.reacts[r.message_id]=cur.reacts[r.message_id]||{})[r.user_id]=r.emoji});
+ cur.msgs=loc.concat(UNS.filter(m=>m.conversation_id===id));cur.reacts={};rxs.forEach(r=>{(cur.reacts[r.message_id]=cur.reacts[r.message_id]||{})[r.user_id]=r.emoji});
  await prepBlobs(loc);
  if(!cur||cur.id!==id)return;
  renderMsgs();markRead();
@@ -1977,7 +2022,7 @@ function msgHTML(m,i,arr){
    body=`<div class="aw ${mine?'mine':'theirs'}">${mine?'':vav}<audio class="caud" src="${mu(md[2])}" controls preload="metadata"></audio><button type="button" class="spd" aria-label="Vitesse de lecture">1×</button>${mine?vav:''}</div>`;
   }
  }else body=(typeof bigEmo==='function'&&bigEmo(m.body))?`<span class="bigemo">${esc(m.body)}</span>`:`<span>${lkBody(m.body)}</span>`;
- const rd=!mine?'':(cur.type!=='group'&&d.getTime()<=peerRead?'<i class="tk rd">✓✓</i>':m.dlv?'<i class="tk dl">✓✓</i>':'<i class="tk">✓</i>');
+ const rd=!mine?'':m.tmp?(m.st==='f'?'<i class="tk er">⚠</i>':'<i class="tk pd">🕓</i>'):(cur.type!=='group'&&d.getTime()<=peerRead?'<i class="tk rd">✓✓</i>':m.dlv?'<i class="tk dl">✓✓</i>':'<i class="tk">✓</i>');
  const rs=cur.reacts&&cur.reacts[m.id],g={};
  if(rs)for(const u in rs){const e=rs[u];(g[e]=g[e]||{n:0,me:false}).n++;if(u===me.id)g[e].me=true}
  const rx=Object.keys(g).length?`<div class="rx">${Object.entries(g).map(([e,v])=>`<button type="button" data-rx="${e}" class="${v.me?'me':''}">${e}${v.n>1?'<i>'+v.n+'</i>':''}</button>`).join('')}</div>`:'';
@@ -1990,7 +2035,7 @@ function msgHTML(m,i,arr){
    mav=`<span class="mav">${av({name:nm,h:hue(nm),uid:sid,avatar:pic},34,null)}</span>`;
   }
  }
- return h+`<div class="b ${mine?'me2':'th2'}${cls}${hav}" data-id="${m.id}">${mav}${sn}${q}${body}<small>${hm(d)}${rd}</small>${rx}</div>`;
+ return h+`<div class="b ${mine?'me2':'th2'}${cls}${hav}" ${m.tmp?`data-tmp="${m.id}"`:`data-id="${m.id}"`}>${mav}${sn}${q}${body}<small>${hm(d)}${rd}</small>${rx}${m.tmp&&m.st==='f'?`<button type="button" class="rtry" data-retry="${m.id}">Non envoyé · Réessayer</button>`:''}</div>`;
 }
 function visibleMsgs(){
  const lim=cur.ttl?Date.now()-cur.ttl*3600e3:0;
@@ -2013,11 +2058,49 @@ function renderMsgs(){
  if(!arr.length&&!s.querySelector('.empty'))s.insertAdjacentHTML('beforeend','<p class="empty">Dis bonjour 👋</p>');
  if(bottom)s.scrollTop=s.scrollHeight;
 }
+$('#tMsgs').addEventListener('click',e=>{const b=e.target.closest('[data-retry]');if(!b)return;const id=+b.dataset.retry,m=UNS.find(x=>x.id===id);if(m){m.net=1;trySend(m)}});
 $('#tMsgs').addEventListener('scroll',()=>{const s=$('#tMsgs');stick=s.scrollHeight-s.scrollTop-s.clientHeight<80});
 $('#tMsgs').addEventListener('load',e=>{if(e.target.tagName==='IMG'&&stick){const s=$('#tMsgs');s.scrollTop=s.scrollHeight}},true);
 function bump(c,body,at){c.last=prev(body);c.at=at;chats.sort((a,b)=>new Date(b.at)-new Date(a.at))}
+/* ---- envoi instantané : le message s'affiche tout de suite (🕓), puis ✓ quand le serveur confirme ; sinon « Non envoyé » */
+let UNS=[],tmpN=0;
+const unsKey=()=>'vyro_uns_'+(me?me.id:'');
+const unsSave=()=>{try{localStorage.setItem(unsKey(),JSON.stringify(UNS.map(m=>({id:m.id,conversation_id:m.conversation_id,body:m.body,reply_to:m.reply_to,created_at:m.created_at,ts:m.ts}))))}catch(e){}};
+function unsLoad(){try{UNS=(JSON.parse(localStorage.getItem(unsKey())||'[]')||[]).map(m=>({...m,sender_id:me.id,tmp:1,st:'f',net:1}));tmpN=UNS.reduce((a,m)=>Math.max(a,-m.id),0)}catch(e){UNS=[]}}
+function unsDrop(id){UNS=UNS.filter(m=>m.id!==id);unsSave()}
+const redrawTmp=m=>{if(cur&&cur.id===m.conversation_id)renderMsgs()};
+async function trySend(tm){
+ if(tm.busy)return;tm.busy=1;tm.st='p';redrawTmp(tm);
+ const r=await postMsg(tm.conversation_id,tm.body,tm.reply_to,tm);
+ tm.busy=0;
+ if(!r.error)return;
+ if(r.error.code==='42501'){
+  unsDrop(tm.id);const c=chats.find(x=>x.id===tm.conversation_id);if(c&&c.msgs)c.msgs=c.msgs.filter(m=>m!==tm);
+  redrawTmp(tm);toast('Tu ne peux pas écrire à cette personne.');return;
+ }
+ tm.st='f';tm.net=!r.error.code;redrawTmp(tm);
+}
+async function flushUns(){
+ if(!me||!navigator.onLine)return;
+ for(const m of UNS.filter(x=>x.st==='f'&&x.net&&!x.busy)){
+  const c=chats.find(x=>x.id===m.conversation_id);
+  if(c&&c.msgs&&!c.msgs.includes(m)&&cur&&cur.id===c.id)c.msgs.push(m);
+  await trySend(m);
+ }
+}
 async function sendBody(t,c){
  c=c||cur;if(!t||!c)return false;
+ if(!MED_RE.test(t)){
+  const now=new Date(),tm={id:-(++tmpN),tmp:1,st:'p',net:1,conversation_id:c.id,sender_id:me.id,body:t,reply_to:(c.reply&&c.reply.id)||null,created_at:now.toISOString(),ts:now.getTime()};
+  UNS.push(tm);unsSave();
+  if(c.msgs)c.msgs.push(tm);
+  bump(c,t,tm.created_at);
+  c.reply=null;if(cur===c)setReply(null);
+  stick=true;popOut();
+  if(cur===c)renderMsgs();renderChats();
+  trySend(tm);
+  return true;
+ }
  const r=await postMsg(c.id,t,c.reply&&c.reply.id);
  if(r.error){toast(r.error.code==='42501'?'Tu ne peux pas écrire à cette personne.':'Message non envoyé');return false}
  c.reply=null;if(cur===c)setReply(null);
@@ -6023,12 +6106,12 @@ renderChats=function(){
 })();
 /* ---------- bandeau hors ligne ---------- */
 (()=>{
- const el=document.createElement('div');el.id='offB';el.textContent='Pas de connexion internet';el.setAttribute('role','status');
+ const el=document.createElement('div');el.id='offB';el.textContent='Hors connexion · tes messages partiront au retour du réseau';el.setAttribute('role','status');
  $('#app').appendChild(el);
  let tm=null;
  const upd=()=>{
   clearTimeout(tm);
-  if(!navigator.onLine){el.className='on';el.textContent='Pas de connexion internet'}
+  if(!navigator.onLine){el.className='on';el.textContent='Hors connexion · tes messages partiront au retour du réseau'}
   else if(el.classList.contains('on')){el.className='on ok';el.textContent='Connexion rétablie';tm=setTimeout(()=>{el.className=''},1800)}
  };
  window.addEventListener('offline',upd);window.addEventListener('online',upd);
@@ -7766,21 +7849,28 @@ ${R('.avgz')}{animation:avrg 8s ease-in-out infinite}
 .gmc .gt{font-weight:900;font-size:14px;margin-bottom:6px}
 .gmc .gs{font-size:13px;opacity:.92;margin:6px 0 2px}
 .gmc .gbd{display:grid;grid-template-columns:repeat(3,56px);gap:6px;justify-content:center}
-.gmc .gmx{width:56px;height:56px;border:0;border-radius:12px;background:rgba(0,0,0,.28);font-size:28px;color:#fff;display:grid;place-items:center;padding:0}
-.gmc .gmx.w{background:rgba(124,255,178,.35)}
-.gmc .gmx:not([disabled]){box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+.gmc .gmx{width:56px;height:56px;border:0;border-radius:12px;background:#dcdce6;font-size:28px;color:#1f2023;display:grid;place-items:center;padding:0}
+.gmc .gmx.w{background:#b8f0cf}
+.gmc .gmx:not([disabled]){box-shadow:inset 0 0 0 2px #7d6bd6;background:#e9e6fb}
 .gmc .gr{display:flex;gap:8px;justify-content:center;margin:4px 0}
-.gmc .gr button,.gmc .gr span.gv{width:60px;height:60px;border:0;border-radius:14px;background:rgba(0,0,0,.28);font-size:30px;color:#fff;display:grid;place-items:center}
-.gmc .gr button:not([disabled]){box-shadow:inset 0 0 0 2px rgba(255,255,255,.4)}
-.gmc .ga{display:block;width:100%;border:0;border-radius:12px;padding:9px;margin-top:6px;font-weight:800;color:#fff;background:linear-gradient(135deg,#a855f7,#ec4899)}
+.gmc .gr button,.gmc .gr span.gv{width:60px;height:60px;border:0;border-radius:14px;background:#dcdce6;font-size:30px;font-weight:800;color:#1f2023;display:grid;place-items:center}
+.gmc .gr button:not([disabled]){box-shadow:inset 0 0 0 2px #7d6bd6;background:#e9e6fb}
+.gmc .ga{display:block;width:100%;border:0;border-radius:12px;padding:10px;margin-top:6px;font-weight:800;color:#fff;background:linear-gradient(135deg,#8b5cf6,#ec4899)}
 .gmc .ga[disabled]{opacity:.5}
 .gmc .gz{font-size:22px;font-weight:900;text-align:center;margin:6px 0}
-.gmp{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:6px 2px}
-.gmp button{border:1px solid rgba(255,255,255,.18);border-radius:18px;padding:14px 4px;background:rgba(255,255,255,.07);color:#fff;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px}
-.gmp button i{font-style:normal;font-size:34px}
-.gmn{grid-column:1/-1;text-align:center;opacity:.8;font-size:13px;padding:10px}
+.c4g{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:6px;border-radius:12px;background:#3b5bdb;max-width:262px;margin:0 auto}
+.c4x{aspect-ratio:1;border:0;border-radius:50%;background:#e8ecff;padding:0;min-width:0}
+.c4x.x{background:#ef4444}.c4x.o{background:#facc15}.c4x.w{box-shadow:0 0 0 3px #fff;animation:c4w .8s ease-in-out infinite alternate}
+.c4x:not([disabled]):not(.x):not(.o){background:#cfd8ff}
+@keyframes c4w{to{transform:scale(1.12)}}
+.gmp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:4px 2px;width:100%;grid-column:1/-1;box-sizing:border-box}
+.gmp button{border:1px solid var(--line,#dcdce2);border-radius:16px;padding:8px 2px;background:var(--card,#f0f0f4);color:var(--text,#1f2023);font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px;font-size:10.5px;line-height:1.15;min-width:0;text-align:center;min-height:78px}
+.gmp button i{font-style:normal;font-size:26px;line-height:1.1}
+.gmn{grid-column:1/-1;text-align:center;opacity:.8;font-size:12px;padding:4px 6px;color:var(--text,#1f2023)}
 .qzq{font-weight:800;font-size:17px;margin:8px 0 12px;line-height:1.3}
-.qzo{display:block;width:100%;text-align:left;border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:13px;margin:0 0 8px;background:rgba(255,255,255,.07);color:#fff;font-weight:700;font-size:15px}
+.qzo{display:block;width:100%;text-align:left;border:1px solid var(--line,#dcdce2);border-radius:14px;padding:13px;margin:0 0 8px;background:var(--card,#f0f0f4);color:var(--text,#1f2023);font-weight:700;font-size:15px}
+.rxa{display:block;width:100%;height:190px;border:0;border-radius:20px;margin-top:10px;font-size:22px;font-weight:900;color:#fff;background:#6b6e76}
+.rxa.wait{background:#dc2626}.rxa.go{background:#16a34a}
 .qzo.ok{background:rgba(124,255,178,.3);border-color:#7CFFB2}.qzo.ko{background:rgba(255,80,100,.3);border-color:#ff5064}
 `;
  document.head.appendChild(st);
@@ -7877,9 +7967,10 @@ ${R('.avgz')}{animation:avrg 8s ease-in-out infinite}
  renderMsgs=function(){const r=_rm.apply(this,arguments);try{fxScan()}catch(e){}return r};
 
  /* ---------- 3. MINI-JEUX À DEUX ---------- */
- const GM_RE=/^\[gm:(ttt|rps|qz):([a-z0-9]{4,8}):([^\]]*)\]$/;
+ const GM_RE=/^\[gm:(ttt|c4|rps|de|rx|qz|qa):([a-z0-9]{4,8}):([^\]]*)\]$/;
  window.GM_RE=GM_RE;
- const GN={ttt:'Morpion',rps:'Pierre-feuille-ciseaux',qz:'Quiz duel'};
+ const GN={ttt:'Morpion',c4:'Puissance 4',rps:'Pierre-feuille-ciseaux',de:'Duel de dés',rx:'Réflexe',qz:'Quiz duel',qa:'Quiz anime'};
+ const GI={ttt:'❌',c4:'🔴',rps:'✊',de:'🎲',rx:'⚡',qz:'🧠',qa:'🎌'};
  const LINES=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
  const RPS=['🪨','📄','✂️'];
  const QB=[
@@ -7899,9 +7990,28 @@ ${R('.avgz')}{animation:avrg 8s ease-in-out infinite}
   ['Quel est le plus long fleuve d’Afrique ?','Le Congo|Le Nil|Le Niger',1],['Qui a gagné la Coupe du monde de football en 2018 ?','La Croatie|La France|La Belgique',1],
   ['Combien d’os a un adulte (environ) ?','106|206|306',1],['Quel est le plus grand mammifère du monde ?','La baleine bleue|L’éléphant|L’orque',0]
  ];
+ const QA=[
+  ['Qui est le capitaine des Chapeaux de paille ?','Zoro|Luffy|Sanji',1],['Quel est le rêve de Naruto Uzumaki ?','Devenir Hokage|Devenir Roi des pirates|Devenir Shinigami',0],
+  ['Comment s’appelle le peuple de Goku à l’origine ?','Namekians|Terriens|Saiyans',2],['Comment s’appelle le Shinigami de Light dans Death Note ?','Rem|Ryuk|Gelus',1],
+  ['Qui est le héros de L’Attaque des Titans ?','Levi|Armin|Eren Jäger',2],['Quel est le prénom du héros de Demon Slayer ?','Tanjiro|Zenitsu|Inosuke',0],
+  ['Comment s’appelle le sabre d’Ichigo dans Bleach ?','Senbonzakura|Zangetsu|Benihime',1],['Quel fruit a mangé Luffy ?','Mera Mera no Mi|Hito Hito no Mi|Gomu Gomu no Mi',2],
+  ['Qui a créé Dragon Ball ?','Akira Toriyama|Eiichiro Oda|Masashi Kishimoto',0],['Qui a créé One Piece ?','Tite Kubo|Eiichiro Oda|Hajime Isayama',1],
+  ['Quel démon est scellé dans Naruto ?','Shukaku|Gyuki|Kyubi',2],['Quel est le prénom du héros de Jujutsu Kaisen ?','Yuji Itadori|Megumi|Nobara',0],
+  ['Qui est le héros n°1 au début de My Hero Academia ?','Endeavor|All Might|Hawks',1],['Comment s’appellent les frères de Fullmetal Alchemist ?','Naruto et Sasuke|Light et L|Edward et Alphonse',2],
+  ['Qui est le meilleur ami de Gon dans Hunter x Hunter ?','Killua|Kurapika|Leorio',0],['Quel est le Pokémon emblématique de Sacha ?','Salamèche|Pikachu|Roucool',1],
+  ['Combien y a-t-il de boules de cristal dans Dragon Ball ?','5|9|7',2],['Comment s’appelle le village de Naruto ?','Suna|Konoha|Kiri',1],
+  ['Comment s’appelle le « chirurgien de la mort » dans One Piece ?','Trafalgar Law|Eustass Kidd|Bartolomeo',0],['Comment s’appelle le détective rival de Light dans Death Note ?','Near|Mello|L',2],
+  ['Comment s’appelle la petite télépathe de Spy x Family ?','Anya|Yor|Becky',0],['Quel est le prénom du héros de Chainsaw Man ?','Aki|Denji|Power',1],
+  ['Qui a fondé le studio Ghibli avec Isao Takahata ?','Akira Toriyama|Makoto Shinkai|Hayao Miyazaki',2],['Dans One Piece, comment s’appelle le sabreur de l’équipage de Luffy ?','Zoro|Usopp|Brook',0]
+ ];
+ const c4Board=mv=>{const b=Array(42).fill('.');for(let i=0;i<mv.length;i++){const c=+mv[i],sy=i%2?'O':'X';for(let r=5;r>=0;r--){if(b[r*7+c]==='.'){b[r*7+c]=sy;break}}}return b};
+ function c4Win(b){const D=[[0,1],[1,0],[1,1],[1,-1]];
+  for(let r=0;r<6;r++)for(let c=0;c<7;c++){const v=b[r*7+c];if(v==='.')continue;
+   for(const [dr,dc] of D){const ls=[];let ok=true;for(let k=0;k<4;k++){const rr=r+dr*k,cc=c+dc*k;if(rr<0||rr>5||cc<0||cc>6||b[rr*7+cc]!==v){ok=false;break}ls.push(rr*7+cc)}if(ok)return ls}}
+  return null}
  function seedRand(str){let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}
   return ()=>{h|=0;h=h+0x6D2B79F5|0;let t=Math.imul(h^h>>>15,1|h);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
- function qzPick(gid){const r=seedRand(gid),idx=QB.map((_,i)=>i);for(let i=idx.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]]}return idx.slice(0,5).map(i=>QB[i])}
+ function qzPick(gid,bank){bank=bank||QB;const r=seedRand(gid),idx=bank.map((_,i)=>i);for(let i=idx.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]]}return idx.slice(0,5).map(i=>bank[i])}
  function tttWin(b){for(const l of LINES){if(b[l[0]]!=='.'&&b[l[0]]===b[l[1]]&&b[l[1]]===b[l[2]])return l}return null}
 
  /* état d'un jeu vu par le joueur courant ; mine = c'est moi qui ai envoyé ce dernier message */
@@ -7912,13 +8022,24 @@ ${R('.avgz')}{animation:avrg 8s ease-in-out infinite}
    let res=null;if(over)res=wl?(bd[wl[0]]===my?'win':'lose'):'draw';
    return {bd,cnt,nxt,my,wl,over,res,turn:!mine&&!over};
   }
+  if(type==='c4'){
+   const mv=String(data).replace(/[^0-6]/g,''),cnt=mv.length,nxt=cnt%2?'O':'X',my=mine?(nxt==='X'?'O':'X'):nxt;
+   const bd=c4Board(mv),wl=c4Win(bd),over=!!wl||cnt>=42;
+   let res=null;if(over)res=wl?(bd[wl[0]]===my?'win':'lose'):'draw';
+   return {mv,cnt,nxt,my,bd,wl,over,res,turn:!mine&&!over};
+  }
   const p=String(data).split(':'),a=p[0]||'-',b=p[1]||'-';
+  if(type==='de'||type==='rx'){
+   const over=a!=='-'&&b!=='-';let res=null,my=null,th=null;
+   if(over){my=mine?+b:+a;th=mine?+a:+b;res=my===th?'draw':(type==='de'?my>th:my<th)?'win':'lose'}
+   return {a,b,over,res,my,th,pick:(a==='-'&&mine)||(a!=='-'&&b==='-'&&!mine),wait:(a==='-'&&!mine)||(a!=='-'&&b==='-'&&mine)};
+  }
   if(type==='rps'){
    const over=a!=='-'&&b!=='-';let res=null,my=null,th=null;
    if(over){my=mine?+b:+a;th=mine?+a:+b;const d=(my-th+3)%3;res=d===0?'draw':d===1?'win':'lose'}
    return {a,b,over,res,my,th,pick:(a==='-'&&mine)||(a!=='-'&&b==='-'&&!mine),wait:(a==='-'&&!mine)||(a!=='-'&&b==='-'&&mine)};
   }
-  if(type==='qz'){
+  if(type==='qz'||type==='qa'){
    const over=a!=='-'&&b!=='-';let res=null,my=null,th=null;
    if(over){my=mine?+b:+a;th=mine?+a:+b;res=my===th?'draw':my>th?'win':'lose'}
    return {a,b,over,res,my,th,pick:(a==='-'&&mine)||(a!=='-'&&b==='-'&&!mine),wait:(a==='-'&&!mine)||(a!=='-'&&b==='-'&&mine)};
@@ -7933,15 +8054,29 @@ ${R('.avgz')}{animation:avrg 8s ease-in-out infinite}
    const s=S0;
    h=`<div class="gt">❌⭕ Morpion</div><div class="gbd">${[...s.bd].map((c,i)=>`<button type="button" class="gmx ${s.wl&&s.wl.includes(i)?'w':''}" data-gm="ttt" data-g="${gid}" data-c="${i}" ${s.turn&&c==='.'?'':'disabled'}>${c==='X'?'❌':c==='O'?'⭕':''}</button>`).join('')}</div>`;
    h+=`<div class="gs">${s.over?RESTXT[s.res]:s.turn?'À toi de jouer ! Tu es '+(s.my==='X'?'❌':'⭕'):'En attente de l’adversaire… (tu es '+(s.my==='X'?'❌':'⭕')+')'}</div>`+(s.over?again:'');
+  }else if(type==='c4'){
+   const s=S0,sym=x=>x==='X'?'🔴':'🟡';
+   h=`<div class="gt">🔴🟡 Puissance 4</div><div class="c4g">${s.bd.map((c,i)=>{const col=i%7,full=s.bd[col]!=='.';return `<button type="button" class="c4x ${c==='X'?'x':c==='O'?'o':''} ${s.wl&&s.wl.includes(i)?'w':''}" data-gm="c4" data-g="${gid}" data-c="${col}" ${s.turn&&!full?'':'disabled'}></button>`}).join('')}</div>`;
+   h+=`<div class="gs">${s.over?RESTXT[s.res]:s.turn?'À toi de jouer ! Tu es '+sym(s.my):'En attente de l’adversaire… (tu es '+sym(s.my)+')'}</div>`+(s.over?again:'');
+  }else if(type==='de'){
+   const s=S0;h='<div class="gt">🎲 Duel de dés</div>';
+   if(s.over)h+=`<div class="gr"><span class="gv">${s.my}</span><span style="align-self:center">vs</span><span class="gv">${s.th}</span></div><div class="gs">${RESTXT[s.res]}</div>`+again;
+   else if(s.pick)h+=`<div class="gs">${s.a==='-'?'Lance tes deux dés !':'Score à battre : '+s.a}</div><button type="button" class="ga" data-gm="de" data-g="${gid}">🎲 Lancer</button>`;
+   else h+=`<div class="gs">${s.a==='-'?'Ton adversaire lance ses dés…':'Ton score : '+s.a+' · en attente de l’adversaire'}</div>`;
+  }else if(type==='rx'){
+   const s=S0,f=v=>+v>=9999?'trop tôt !':v+' ms';h='<div class="gt">⚡ Réflexe · le plus rapide gagne</div>';
+   if(s.over)h+=`<div class="gz">${f(s.my)} – ${f(s.th)}</div><div class="gs">${RESTXT[s.res]}</div>`+again;
+   else if(s.pick)h+=`<div class="gs">${s.a==='-'?'Touche dès que l’écran devient vert !':'Temps à battre : '+f(s.a)}</div><button type="button" class="ga" data-gm="rx" data-g="${gid}">${s.a==='-'?'Jouer':'Relever le défi'}</button>`;
+   else h+=`<div class="gs">${s.a==='-'?'Ton adversaire se prépare…':'Ton temps : '+f(s.a)+' · en attente de l’adversaire'}</div>`;
   }else if(type==='rps'){
    const s=S0;h='<div class="gt">✊ Pierre-feuille-ciseaux</div>';
    if(s.over)h+=`<div class="gr"><span class="gv">${RPS[s.my]}</span><span style="align-self:center">vs</span><span class="gv">${RPS[s.th]}</span></div><div class="gs">${RESTXT[s.res]}</div>`+again;
    else if(s.pick)h+=`<div class="gs">Choisis ton coup :</div><div class="gr">${RPS.map((e,i)=>`<button type="button" data-gm="rps" data-g="${gid}" data-c="${i}">${e}</button>`).join('')}</div>`;
    else h+=`<div class="gs">${s.a==='-'?'Ton adversaire prépare son coup…':'Coup joué ✔ · en attente de l’adversaire'}</div>`;
   }else{
-   const s=S0;h='<div class="gt">🧠 Quiz duel · 5 questions</div>';
+   const s=S0;h=`<div class="gt">${type==='qa'?'🎌 Quiz anime':'🧠 Quiz duel'} · 5 questions</div>`;
    if(s.over)h+=`<div class="gz">${s.my} – ${s.th}</div><div class="gs">${RESTXT[s.res]}</div>`+again;
-   else if(s.pick)h+=`<div class="gs">${s.a==='-'?'Lance le quiz !':'Score à battre : '+s.a+'/5'}</div><button type="button" class="ga" data-gm="qz" data-g="${gid}">${s.a==='-'?'Jouer':'Relever le défi'}</button>`;
+   else if(s.pick)h+=`<div class="gs">${s.a==='-'?'Lance le quiz !':'Score à battre : '+s.a+'/5'}</div><button type="button" class="ga" data-gm="${type}" data-g="${gid}">${s.a==='-'?'Jouer':'Relever le défi'}</button>`;
    else h+=`<div class="gs">${s.a==='-'?'Ton adversaire prépare son quiz…':'Ton score : '+s.a+'/5 · en attente de l’adversaire'}</div>`;
   }
   return h;
@@ -7966,16 +8101,28 @@ ${R('.avgz')}{animation:avrg 8s ease-in-out infinite}
   if(!cur||cur.type==='group'){toast('Les jeux se jouent dans une discussion à deux');return}
   const el=document.getElementById('stkp');if(el)el.classList.remove('on');
   const gid=newGid();
-  sendGm(type,gid,type==='ttt'?'.........':type==='rps'?'-:-':'-:-');
+  sendGm(type,gid,type==='ttt'?'.........':type==='c4'?'':'-:-');
  }
  window.gmPickerDraw=function(gEl){
   const dm=cur&&cur.type!=='group';
   gEl.classList.remove('emo');
-  gEl.innerHTML=dm?`<div class="gmp">${Object.keys(GN).map(k=>`<button type="button" data-gmnew="${k}"><i>${k==='ttt'?'❌':k==='rps'?'✊':'🧠'}</i>${GN[k]}</button>`).join('')}<div class="gmn">Défie ton ami en un clic · sans mise, juste pour le fun 🎮</div></div>`:'<div class="gmp"><div class="gmn">Les jeux sont disponibles dans les discussions à deux.</div></div>';
+  gEl.innerHTML=dm?`<div class="gmp">${Object.keys(GN).map(k=>`<button type="button" data-gmnew="${k}"><i>${GI[k]}</i>${GN[k]}</button>`).join('')}<div class="gmn">Défie ton ami en un clic · sans mise, juste pour le fun 🎮</div></div>`:'<div class="gmp"><div class="gmn">Les jeux sont disponibles dans les discussions à deux.</div></div>';
  };
- function qzPlay(gid,onDone){
-  const qs=qzPick(gid);let i=0,score=0;
-  const sh=openSheet('🧠 Quiz duel','<div id="qzB"></div>');
+ function rxPlay(onDone){
+  const sh=openSheet('⚡ Réflexe','<p class="avsub">Touche le grand bouton dès qu’il devient <b>vert</b>. Trop tôt = pénalité !</p><button type="button" class="rxa" id="rxA">Appuie pour commencer</button>');
+  let st=0,t0=0,tm=0,fin=false;
+  const A=()=>document.getElementById('rxA');
+  const finish=ms=>{fin=true;clearTimeout(tm);const a=A();if(a){a.className='rxa';a.textContent=ms>=9999?'Trop tôt ! 😬':ms+' ms'+(ms<250?' 🔥':'')}setTimeout(()=>{if(!A())return;closeSheet();onDone(ms)},1100)};
+  sh.onclick=e=>{
+   if(!e.target.closest('#rxA')||fin)return;const a=A();
+   if(st===0){st=1;a.textContent='Attends le vert…';a.className='rxa wait';tm=setTimeout(()=>{if(!A())return;st=2;t0=performance.now();a.textContent='MAINTENANT !';a.className='rxa go'},1500+Math.random()*2800)}
+   else if(st===1)finish(9999);
+   else finish(Math.max(1,Math.round(performance.now()-t0)));
+  };
+ }
+ function qzPlay(gid,onDone,bank,ttl){
+  const qs=qzPick(gid,bank);let i=0,score=0;
+  const sh=openSheet(ttl||'🧠 Quiz duel','<div id="qzB"></div>');
   let done=false;
   const draw=()=>{
    const q=qs[i],o=q[1].split('|');
@@ -8014,11 +8161,25 @@ ${R('.avgz')}{animation:avrg 8s ease-in-out infinite}
    b.parentNode.querySelectorAll('button').forEach(x=>x.disabled=true);window.sfx('move');
    const c=b.dataset.c,data=s.a==='-'?c+':-':s.a+':'+c;
    await sendGm('rps',gid,data);
-  }else if(type==='qz'){
+  }else if(type==='qz'||type==='qa'){
    if(!s.pick)return;
    b.disabled=true;
-   qzPlay(gid,async sc=>{const l2=lastOf(gid);const base=l2?gmState('qz',l2.g[3],l2.m.sender_id===me.id):s;
-    const data=base.a==='-'?sc+':-':base.a+':'+sc;await sendGm('qz',gid,data)});
+   qzPlay(gid,async sc=>{const l2=lastOf(gid);const base=l2?gmState(type,l2.g[3],l2.m.sender_id===me.id):s;
+    const data=base.a==='-'?sc+':-':base.a+':'+sc;await sendGm(type,gid,data)},type==='qa'?QA:QB,type==='qa'?'🎌 Quiz anime':'🧠 Quiz duel');
+  }else if(type==='c4'){
+   const c=+b.dataset.c;if(!s.turn||s.bd[c]!=='.')return;
+   b.disabled=true;window.sfx('move');
+   if(!(await sendGm('c4',gid,s.mv+c)))b.disabled=false;
+  }else if(type==='de'){
+   if(!s.pick)return;
+   b.disabled=true;window.sfx('move');
+   const v=2+Math.floor(Math.random()*6)+Math.floor(Math.random()*6);
+   await sendGm('de',gid,s.a==='-'?v+':-':s.a+':'+v);
+  }else if(type==='rx'){
+   if(!s.pick)return;
+   b.disabled=true;
+   rxPlay(async ms=>{const l2=lastOf(gid);const base=l2?gmState('rx',l2.g[3],l2.m.sender_id===me.id):s;
+    await sendGm('rx',gid,base.a==='-'?ms+':-':base.a+':'+ms)});
   }
  });
 
@@ -9235,6 +9396,46 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  const EMO=['🎬','🏴‍☠️','🦊','🐉','🧱','🗡️','🔮','🦸','⚔️','🌀','🌸','👹','🎮','🔥','⭐','🌙'];
  const RM={list:[],by:{},ts:0,cat:'all',busy:false,can:false,canTs:0,aj:{}};
  const ST=(typeof sb!=='undefined')?sb:null;
+ const okImg=u=>typeof u==='string'&&/^https:\/\//.test(u);
+ const imgTag=u=>`<img src="${esc(u)}" alt="" draggable="false" loading="lazy">`;
+ /* redimensionne une photo choisie et la publie dans le bucket public « vyro-banners » (réservé à l'admin) */
+ function fitBlob(file,w,h){
+  return new Promise((ok,ko)=>{
+   const u=URL.createObjectURL(file),im=new Image();
+   im.onload=()=>{try{
+    const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
+    const k=Math.max(w/im.width,h/im.height),dw=im.width*k,dh=im.height*k;
+    x.fillStyle='#111';x.fillRect(0,0,w,h);x.drawImage(im,(w-dw)/2,(h-dh)/2,dw,dh);
+    URL.revokeObjectURL(u);c.toBlob(b=>b?ok(b):ko(new Error('blob')),'image/jpeg',.85)}catch(e){ko(e)}};
+   im.onerror=()=>{URL.revokeObjectURL(u);ko(new Error('img'))};im.src=u;
+  });
+ }
+ async function upImg(file,kind){
+  const blob=await fitBlob(file,kind==='av'?320:1260,kind==='av'?320:540);
+  const path='rooms/'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)+'-'+kind+'.jpg';
+  const {error}=await sb.storage.from('vyro-banners').upload(path,blob,{contentType:'image/jpeg',upsert:false});
+  if(error)throw error;
+  return sb.storage.from('vyro-banners').getPublicUrl(path).data.publicUrl;
+ }
+ /* bloc « photo + bandeau » réutilisé dans la création et la modification */
+ function imgPickers(av0,bn0){
+  const st={av:av0||null,bn:bn0||null,fa:null,fb:null};
+  const html=`<div class="rcl">Photo et bandeau du salon (facultatif)</div>
+   <div class="rimg"><div class="rbn" id="rpB">${bn0?imgTag(bn0):'<span>Bandeau</span>'}</div>
+   <div class="rpa" id="rpA">${av0?imgTag(av0):'<span>📷</span>'}</div></div>
+   <div class="rimb"><button type="button" id="rpAb">📷 Photo</button><button type="button" id="rpBb">🖼️ Bandeau</button><button type="button" id="rpX" ${av0||bn0?'':'hidden'}>✕ Retirer</button></div>
+   <input type="file" id="rfA" accept="image/*" hidden><input type="file" id="rfB" accept="image/*" hidden>`;
+  const bind=s=>{
+   const pv=(box,f,key)=>{const file=f.files&&f.files[0];if(!file)return;st[key]=file;box.innerHTML='';const u=URL.createObjectURL(file);box.innerHTML=imgTag(u);s.querySelector('#rpX').hidden=false};
+   s.querySelector('#rpAb').onclick=()=>s.querySelector('#rfA').click();s.querySelector('#rpBb').onclick=()=>s.querySelector('#rfB').click();
+   s.querySelector('#rfA').onchange=e=>{st.av=null;pv(s.querySelector('#rpA'),e.target,'fa')};
+   s.querySelector('#rfB').onchange=e=>{st.bn=null;pv(s.querySelector('#rpB'),e.target,'fb')};
+   s.querySelector('#rpX').onclick=()=>{st.av=st.bn=null;st.fa=st.fb=null;s.querySelector('#rpA').innerHTML='<span>📷</span>';s.querySelector('#rpB').innerHTML='<span>Bandeau</span>';s.querySelector('#rpX').hidden=true};
+  };
+  /* envoie les nouveaux fichiers et rend les 2 URLs finales */
+  const done=async()=>({av:st.fa?await upImg(st.fa,'av'):st.av,bn:st.fb?await upImg(st.fb,'bn'):st.bn});
+  return {html,bind,done};
+ }
 
  /* ---------------- données ---------------- */
  async function loadRooms(force){
@@ -9256,7 +9457,7 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  /* ---------------- vue « Salons » ---------------- */
  function roomCard(r){
   const c=CN[r.category]||CN.general;
-  return `<div class="rmc" data-rid="${r.id}"><span class="rme">${esc(r.emoji||c[2])}</span><div class="rmt"><b>${esc(r.name)}${r.official?'<i class="rmo" title="Officiel">✔</i>':''}</b><small>${esc(r.descr||c[1])}</small><span class="rmm">👥 ${r.members}${r.watching?'<em class="rml">● Séance en cours</em>':''}<em>${esc(c[1])}</em></span></div><button type="button" class="rmj" data-rj="${r.id}">Rejoindre</button></div>`;
+  return `<div class="rmc${okImg(r.banner_url)?' hasbg':''}" data-rid="${r.id}"${okImg(r.banner_url)?` style="background-image:linear-gradient(90deg,rgba(8,4,20,.72),rgba(8,4,20,.3)),url('${esc(r.banner_url)}')"`:''}><span class="rme">${okImg(r.avatar_url)?imgTag(r.avatar_url):esc(r.emoji||c[2])}</span><div class="rmt"><b>${esc(r.name)}${r.official?'<i class="rmo" title="Officiel">✔</i>':''}</b><small>${esc(r.descr||c[1])}</small><span class="rmm">👥 ${r.members}${r.watching?'<em class="rml">● Séance en cours</em>':''}<em>${esc(c[1])}</em></span></div><button type="button" class="rmj" data-rj="${r.id}">Rejoindre</button></div>`;
  }
  function decorate(){
   const L=$('#chatList');if(!L||filter!=='group'||q)return;
@@ -9268,7 +9469,8 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
    if(cat!=='all'&&(!r||r.category!==cat)){row.remove();return}
    if(r){
     const a=row.querySelector('.av');
-    if(a){a.classList.add('rmav');a.innerHTML=`<span>${esc(r.emoji)}</span>`}
+    if(a){a.classList.add('rmav');a.innerHTML=okImg(r.avatar_url)?imgTag(r.avatar_url):`<span>${esc(r.emoji)}</span>`}
+    if(okImg(r.banner_url)&&!row.querySelector(':scope>.cbn')){row.classList.add('hasbn');row.insertAdjacentHTML('afterbegin','<div class="cbn bnart">'+imgTag(r.banner_url)+'</div>')}
     const lm=row.querySelector('.r1 b');
     if(lm&&!lm.querySelector('.rmtag'))lm.insertAdjacentHTML('beforeend',`<i class="rmtag">${esc((CN[r.category]||CN.general)[1])}</i>${r.watching?'<i class="rmtag live">● LIVE</i>':''}`);
    }
@@ -9385,14 +9587,16 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  function friendsList(){return (chats||[]).filter(c=>c.type!=='group'&&c.uid)}
  function createSheet(){
   let emo='🎬',pub=true;const inv=new Set();
-  const fr=friendsList();
+  const fr=friendsList(),IP=imgPickers(null,null);
   const s=openSheet('Créer un salon d’anime',`
    <label class="fld">Nom de l’anime<input id="rcN" maxlength="40" placeholder="ex : One Piece"></label>
    <label class="fld">Description (facultatif)<input id="rcD" maxlength="140" placeholder="ex : Regardons les épisodes ensemble"></label>
+   ${IP.html}
    <div class="rcl">Icône</div><div class="rcw" id="rcE">${EMO.map(e=>`<button type="button" data-e="${e}" class="${e===emo?'cur':''}">${e}</button>`).join('')}</div>
    <div class="rcl">Accès</div><div class="rcw" id="rcP"><button type="button" data-p="1" class="cur">🌍 Public</button><button type="button" data-p="0">🔒 Privé (sur invitation)</button></div>
    ${fr.length?`<div class="rcl">Inviter des amis</div><div class="rcf" id="rcF">${fr.map(f=>`<button type="button" data-u="${f.uid}">${esc(f.name)}</button>`).join('')}</div>`:''}
    <button class="cta" id="rcGo" style="margin-top:12px">Créer le salon</button>`);
+  IP.bind(s);
   const tg=(box,attr,fn)=>s.querySelector(box).onclick=e=>{const b=e.target.closest('['+attr+']');if(!b)return;fn(b);};
   tg('#rcE','data-e',b=>{emo=b.dataset.e;s.querySelectorAll('#rcE button').forEach(x=>x.classList.toggle('cur',x===b))});
   tg('#rcP','data-p',b=>{pub=b.dataset.p==='1';s.querySelectorAll('#rcP button').forEach(x=>x.classList.toggle('cur',x===b))});
@@ -9401,8 +9605,10 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
    const nm=s.querySelector('#rcN').value.trim();
    if(nm.length<2){toast('Donne un nom au salon');return}
    const go=ev.currentTarget;go.disabled=true;
-   const {data,error}=await sb.rpc('vyro_room_create',{p_name:nm,p_desc:s.querySelector('#rcD').value,p_cat:'anime',p_public:pub,p_emoji:emo});
-   if(error){go.disabled=false;toast(/not_allowed/.test(error.message||'')?'Seul l’administrateur peut créer des salons':'Création impossible');return}
+   let im={av:null,bn:null};
+   try{go.textContent='Envoi des images…';im=await IP.done()}catch(e){go.disabled=false;go.textContent='Créer le salon';toast('Image non envoyée, réessaie');return}
+   const {data,error}=await sb.rpc('vyro_room_create',{p_name:nm,p_desc:s.querySelector('#rcD').value,p_cat:'anime',p_public:pub,p_emoji:emo,p_avatar:im.av,p_banner:im.bn});
+   if(error){go.disabled=false;go.textContent='Créer le salon';toast(/not_allowed/.test(error.message||'')?'Seul l’administrateur peut créer des salons':'Création impossible');return}
    if(inv.size)try{await sb.rpc('vyro_room_invite',{p_id:data,p_users:[...inv]})}catch(e){}
    closeSheet();toast('Salon créé ✅');
    await loadChats();await loadRooms(true);
@@ -9414,11 +9620,14 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  function infoSheet(){
   if(!cur||!W.room)return;
   const r=W.room,rl=RM.by[cur.id]||{},c=CN[r.category]||CN.general,fr=friendsList();
+  const IP=imgPickers(rl.avatar_url||r.avatar_url,rl.banner_url||r.banner_url);
   const s=openSheet(`${esc(r.emoji)} ${esc(r.name)}`,`
    <p class="rmdesc">${esc(r.descr||'')||'Pas de description.'}</p>
    <p class="rmmeta">${esc(c[2])} ${esc(c[1])} · ${r.is_public?'🌍 Public':'🔒 Privé'}${rl.members?' · 👥 '+rl.members:''}</p>
    ${fr.length?`<div class="rcl">Inviter des amis</div><div class="rcf" id="ivF">${fr.map(f=>`<button type="button" data-u="${f.uid}">${esc(f.name)}</button>`).join('')}</div><button class="cta" id="ivGo" style="margin-top:10px">Inviter</button>`:''}
+   ${RM.can?`${IP.html}<button class="cta" id="imGo" style="margin-top:10px">Enregistrer les images</button>`:''}
    ${r.category==='general'?'':'<button class="rmquit" id="rmQ">Quitter le salon</button>'}`);
+  if(RM.can){IP.bind(s);const ig=s.querySelector('#imGo');ig.onclick=async()=>{ig.disabled=true;ig.textContent='Envoi…';try{const im=await IP.done();const {error}=await sb.rpc('vyro_room_images_set',{p_id:cur.id,p_avatar:im.av,p_banner:im.bn});if(error)throw error;toast('Images enregistrées ✅');closeSheet();await loadRooms(true);await roomOpen(cur.id);renderChats()}catch(e){ig.disabled=false;ig.textContent='Enregistrer les images';toast('Impossible d’enregistrer')}}}
   const pick=new Set(),F=s.querySelector('#ivF');
   if(F)F.onclick=e=>{const b=e.target.closest('[data-u]');if(!b)return;const u=b.dataset.u;pick.has(u)?pick.delete(u):pick.add(u);b.classList.toggle('cur',pick.has(u))};
   const g=s.querySelector('#ivGo');
@@ -9445,6 +9654,9 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
   <div class="wact" id="wAct" hidden><button type="button" id="wAEv">🗓️ Programmer</button><button type="button" id="wAPo">📊 Sondage</button></div>
   <div id="wEvs"></div><div id="wPoll"></div>`;
  $('#tMsgs').before(wp);
+ const wno=document.createElement('div');wno.className='wonote';wno.id='wNote';wno.innerHTML='<span>🎬</span><div class="wlt"><b>Ici on regarde ensemble</b><small>Pas de discussion ici. Rappel avant chaque séance.</small></div><button type="button" id="wNoteGo">Discuter</button>';
+ $('#tForm').before(wno);
+ wno.querySelector('#wNoteGo').onclick=()=>{const g=(RM.list||[]).find(r=>r.category==='general'&&r.official)||(RM.list||[]).find(r=>r.category==='general');if(!g){toast('Salon général introuvable');return}try{back()}catch(e){}setTimeout(()=>openThread(g.id),60)};
  const tw=document.createElement('button');tw.type='button';tw.className='ib';tw.id='tWatch';tw.hidden=true;tw.setAttribute('aria-label','Regarder ensemble');tw.textContent='🎬';
  $('#tMenu').before(tw);
 
@@ -9455,6 +9667,7 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  function ui(){
   const on=!!W.url,has=!!(W.room&&W.room.category==='anime');
   wp.hidden=!has;tw.hidden=!has;
+  try{$('#s-thread').classList.toggle('wonly',has)}catch(e){}
   $('#wIdle').hidden=!(has&&!on);$('#wAct').hidden=!has;
   $('#wLive').hidden=!(on&&!W.joined);
   $('#wBox').hidden=!(on&&W.joined);
@@ -9696,11 +9909,18 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  }
 
  /* --- ouverture / fermeture d'un fil --- */
+ function salonHead(r){
+  const el=document.querySelector('#tBan .bnart');
+  if(el&&okImg(r.banner_url)){el.dataset.bn='room:'+r.id;el.innerHTML=imgTag(r.banner_url)}
+  const a=document.getElementById('tAv');
+  if(a&&okImg(r.avatar_url))a.innerHTML='<div class="av rmav" style="width:44px;height:44px">'+imgTag(r.avatar_url)+'</div>';
+ }
  async function roomOpen(id){
   const {data}=await sb.rpc('vyro_room_get',{p_id:id});
   if(!cur||cur.id!==id)return;
   const r=data&&data[0];
   if(!r){W.room=null;ui();return}
+  try{salonHead(r)}catch(e){}
   W.room=r;W.url=r.watch_url||'';W.title=r.watch_title||'';W.host=r.watch_host||null;
   openChan(id);ui();loadEvents();loadPoll();clearInterval(W.tm);W.tm=setInterval(renderEvs,30000);
  }
@@ -9709,40 +9929,45 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
   const p=_ot.apply(this,arguments);
   try{
    wpReset();
-   if(cur&&cur.type==='group')roomOpen(cur.id);
+   if(cur&&cur.type==='group'){const rr=RM.by[cur.id];$('#s-thread').classList.toggle('wonly',!!(rr&&rr.category==='anime'));roomOpen(cur.id)}
   }catch(e){}
   return p;
  };
  function wpReset(){clearInterval(W.tm);W.evs=[];W.pl=null;W.nt={};renderEvs();renderPoll();stopPlayer();closeChan();W.room=null;W.url='';W.title='';W.host=null;W.joined=false;W.last=null;ui()}
+ const _sbd=sendBody;
+ sendBody=function(t,c){const x=c||cur;if(x&&x.type==='group'){const rr=RM.by[x.id];if((rr&&rr.category==='anime')||(W.room&&W.room.id===x.id&&W.room.category==='anime')){toast('Dans ce salon, on regarde ensemble : la discussion est dans Otaku Niger');return Promise.resolve(false)}}return _sbd.apply(this,arguments)};
  const _lt=leaveThread;
  leaveThread=function(){try{wpReset()}catch(e){}return _lt.apply(this,arguments)};
 
  /* ---------------- style ---------------- */
  const css=`
-.hprof{display:flex!important;gap:16px!important;padding:26px 14px 0!important;margin-top:0!important}
-.hhero{height:calc(env(safe-area-inset-top) + 284px)!important;overflow:visible}
-#hLogo img{width:158px!important}
+.hprof{display:flex!important;gap:13px!important;padding:20px 14px 0!important;margin-top:0!important}
+.hhero{height:calc(env(safe-area-inset-top) + 262px)!important;overflow:visible}
+#hLogo img{width:140px!important}
 .hbtop [data-go=settings]{display:none!important}
 .hbtop{padding-right:12px!important}
-#s-chat .hpn{font-size:21px!important}
-#s-chat .hpi .muted{font-size:12.5px!important}
+#s-chat .hpn{font-size:19px!important}
+#s-chat .hpi .muted{font-size:11.5px!important}
 #s-chat .hpn,#s-chat .hpn .ic{color:#fff!important;text-shadow:0 2px 8px rgba(0,0,0,.75)}
 #s-chat .hpi .muted{color:#e2d0ff!important;text-shadow:0 1px 6px rgba(0,0,0,.8)}
-#s-chat .hpw{width:96px;height:96px}
+#s-chat .hpw{width:84px;height:84px}
 #s-chat .hpw .pav{color:#fff}
-#s-chat .hpw .pav{width:96px;height:96px;font-size:40px}
-#s-chat .hbad button{width:34px;height:34px}
-#s-chat .hbad button svg{width:20px;height:20px}
-#s-chat .hshop{color:#fff!important;font-size:13.5px;padding:8px 7px 8px 7px;gap:5px}
-#s-chat .hshop .hsi{width:26px;height:26px}
+#s-chat .hpw .pav{width:84px;height:84px;font-size:36px}
+#s-chat .hbad button{width:30px;height:30px}
+#s-chat .hbad button svg{width:17px;height:17px}
+#s-chat .hshop{color:#fff!important;font-size:12.5px;padding:6px 6px 6px 6px;gap:4px}
+#s-chat .hshop .hsi{width:23px;height:23px}
 #pBnBtn svg.ic{width:24px;height:24px;color:#1f2023}
 /* contacts : un peu plus petits, comme sur la capture */
-#s-chat #chatList .chat{height:70px!important;min-height:70px!important;margin-bottom:14px!important;padding:0 12px!important;border-radius:23px!important}
-#s-chat #chatList .chat .av{width:62px!important;height:62px!important;font-size:26px!important}
-#s-chat #chatList .chat .r1 b{font-size:15.5px!important}
-#s-chat #chatList .chat .lm{font-size:13px!important}
-#s-chat #chatList .chat .tm{font-size:14px!important}
-#s-chat #chatList .chat .pmoon{width:20px!important;height:20px!important}
+#s-chat #chatList .chat{height:62px!important;min-height:62px!important;margin-bottom:11px!important;padding:0 11px!important;border-radius:21px!important}
+#s-chat #chatList .chat .av{width:52px!important;height:52px!important;font-size:22px!important}
+#s-chat #chatList .chat .r1 b{font-size:14px!important}
+#s-chat #chatList .chat .lm{font-size:12px!important}
+#s-chat #chatList .chat .tm{font-size:12px!important}
+#s-chat #chatList .chat .pmoon{width:17px!important;height:17px!important}
+#s-chat.rmsal .hprof{display:none!important}
+#s-chat.rmsal .hhero{height:calc(env(safe-area-inset-top) + 200px)!important}
+#s-chat #chatList .chat.hasbn .rmtag{background:rgba(255,255,255,.22)!important;color:#fff!important}
 #s-chat #chatList .chat.hasbn{position:relative;border-color:rgba(255,255,255,.5)!important;background:#1b1230!important}
 #s-chat #chatList .chat .cbn{position:absolute;inset:0;z-index:0;-webkit-mask-image:none;mask-image:none;border-radius:inherit;pointer-events:none}
 #s-chat #chatList .chat .cbn::after{background:linear-gradient(90deg,rgba(8,4,20,.68) 0%,rgba(8,4,20,.42) 55%,rgba(8,4,20,.08) 100%)!important}
@@ -9795,6 +10020,17 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
  .rmempty{margin:6px 16px 4px;font-size:14px;color:var(--muted)}
  .rmav{display:flex!important;align-items:center;justify-content:center;background:linear-gradient(135deg,#e8eefc,#f3e8fc)!important}
  .rmav span{font-size:28px;line-height:1}
+ .rmav img,.rme img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
+ .rmav{overflow:hidden}.rme{overflow:hidden}
+ .rmc.hasbg{background-size:cover;background-position:center;color:#fff!important;border-color:rgba(255,255,255,.4)!important}
+ .rmc.hasbg b,.rmc.hasbg small,.rmc.hasbg .rmm,.rmc.hasbg .rmm em{color:#fff!important;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+ .rimg{position:relative;margin:6px 0 4px;height:120px}
+ .rbn{height:100px;border-radius:16px;overflow:hidden;background:#ececf2;display:flex;align-items:center;justify-content:center;color:#8b8e96;font-weight:700}
+ .rbn img{width:100%;height:100%;object-fit:cover}
+ .rpa{position:absolute;left:14px;bottom:0;width:60px;height:60px;border-radius:50%;overflow:hidden;background:#dcdce6;border:3px solid var(--sheet,#fff);display:flex;align-items:center;justify-content:center;font-size:24px}
+ .rpa img{width:100%;height:100%;object-fit:cover}
+ .rimb{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px}
+ .rimb button{border:1px solid var(--line,#dcdce2);background:var(--card,#f0f0f4);color:var(--text,#1f2023);border-radius:12px;padding:8px 12px;font-weight:700;font-size:13px}
  .rmtag{font-style:normal;font-size:10.5px;font-weight:700;margin-left:7px;padding:2px 7px;border-radius:999px;background:rgba(47,109,246,.12);color:#2f6df6;vertical-align:middle}
  .rmtag.live{background:rgba(239,68,68,.12);color:#e23b3b}
  .rmc{display:flex;align-items:center;gap:12px;margin:6px 12px;padding:11px 12px;border:1px solid var(--line);border-radius:16px;background:var(--card);cursor:pointer}
@@ -9844,6 +10080,68 @@ html .hdeco .hcat{mix-blend-mode:normal!important;-webkit-mask-image:none!import
 
  /* premier rendu si on est déjà sur l'onglet Salons */
  try{if(filter==='group'&&curScreen==='chat')loadRooms(true)}catch(e){}
+})();
+/* v74 : envoi instantané + hors ligne */
+(()=>{
+ const st=document.createElement('style');
+ st.textContent='.tk.pd{opacity:.75;font-style:normal;font-size:10px}.tk.er{color:#e5484d;font-style:normal}.rtry{display:block;margin:4px 0 0 auto;background:none;border:0;padding:2px 0;color:#e5484d;font-weight:700;font-size:12px;cursor:pointer}#offB{max-width:94%;text-align:center;font-size:12.5px!important}';
+ document.head.appendChild(st);
+})();
+/* v75 : l'accueil reste sombre (comme la capture), le reste de l'appli suit le thème choisi ; bandeau de l'ami en haut de la discussion */
+(()=>{
+ const root=document.documentElement;
+ const homeDark=()=>curScreen==='chat'&&filter!=='group';
+ function syncHT(){
+  try{
+   if(homeDark()){
+    if(root.dataset.theme!=='dark'){root.dataset.theme='dark';const m=document.querySelector('meta[name=theme-color]');if(m)m.content='#07030f'}
+    root.dataset.forced='1';
+   }else if(root.dataset.forced){delete root.dataset.forced;applyTheme()}
+  }catch(e){}
+ }
+ const _sh=show;show=function(){const r=_sh.apply(this,arguments);syncHT();return r};
+ const _at=applyTheme;applyTheme=function(){const r=_at.apply(this,arguments);if(homeDark()){root.dataset.forced='1';root.dataset.theme='dark'}return r};
+ const _rc2=renderChats;renderChats=function(){const r=_rc2.apply(this,arguments);syncHT();return r};
+ syncHT();
+ /* bandeau de la personne en haut de la discussion (inclut les bandeaux de la boutique) */
+ const TB={};
+ async function tbFix(){
+  const c=cur;if(!c||c.type==='group'||!c.uid)return;
+  const X=window.BNX;if(!X)return;
+  const uid=c.uid;
+  if(TB[uid]===undefined){
+   try{const {data}=await sb.from('vyro_profiles').select('banner_id').eq('id',uid).maybeSingle();TB[uid]=(data&&data.banner_id)||''}catch(e){TB[uid]=''}
+  }
+  if(!X.BN.loaded)try{await X.load()}catch(e){}
+  if(!cur||cur.uid!==uid)return;
+  const el=document.querySelector('#tBan .bnart');if(!el)return;
+  const id=TB[uid]||'gardien';
+  el.innerHTML=X.bnHTML(id);el.dataset.bn=id;
+ }
+ const _ot2=openThread;openThread=function(){const p=_ot2.apply(this,arguments);try{tbFix()}catch(e){}return p};
+ const st=document.createElement('style');
+ st.textContent=`html[data-forced="1"] #s-chat #chatList .chat:not(.hasbn){background:linear-gradient(135deg,rgba(26,12,52,.92),rgba(14,6,30,.96))!important;border:1px solid rgba(150,90,255,.42)!important;overflow:hidden}
+html[data-forced="1"] #s-chat #chatList .chat:not(.hasbn)::after{content:"";position:absolute;right:26px;top:50%;width:70px;height:46px;transform:translateY(-50%);opacity:.32;pointer-events:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 70 46'%3E%3Cpath d='M16 38c-8 0-13-5-13-11s5-11 12-11c1-8 8-13 16-13 7 0 12 4 14 9 2-1 4-2 6-2 7 0 12 5 12 11s-5 17-13 17z' fill='none' stroke='%23a070ff' stroke-width='2.2'/%3E%3Cpath d='M24 30c3 4 9 4 12 0M42 24c2-3 7-3 9 0' fill='none' stroke='%23a070ff' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat}`;
+ document.head.appendChild(st);
+})();
+/* v76 : salons animes = regarder seulement */
+(()=>{
+ const st=document.createElement('style');
+ st.textContent='#s-thread.wonly #tForm,#s-thread.wonly #stkp,#s-thread.wonly #replyBar,#s-thread.wonly .empty{display:none!important}.wonote{display:none;align-items:center;gap:10px;margin:6px 12px calc(env(safe-area-inset-bottom) + 10px);padding:10px 12px;border-radius:16px;background:var(--card,#fff);border:1px solid rgba(120,100,160,.25);color:var(--text,#111)}#s-thread.wonly .wonote{display:flex}.wonote>span{font-size:22px}.wonote .wlt{flex:1;min-width:0}.wonote b{display:block;font-size:14px}.wonote small{display:block;font-size:12px;opacity:.7;line-height:1.3}.wonote button{border:0;border-radius:14px;padding:9px 14px;font-weight:700;font-size:13px;background:#2f6bff;color:#fff}';
+ document.head.appendChild(st);
+})();
+/* v77 : accueil plus fluide (moins d'animations/masques dans la liste), barre du bas opaque, textes lisibles sur les bandeaux */
+(()=>{
+ const st=document.createElement('style');
+ st.textContent=`#chatList .chat{content-visibility:auto;contain-intrinsic-size:auto 62px}
+#chatList .cbn,#chatList .cbn *{animation:none!important}
+#chatList .cbn.bnart{-webkit-mask-image:none!important;mask-image:none!important}
+#s-chat .hhero .bnart,#s-chat .hhero .bnart *{animation:none!important}
+html[data-forced="1"] #nav{background:#0c061c!important;border:1px solid rgba(168,85,247,.55)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+#chatList .hasbn .cbn::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,2,16,.82) 0%,rgba(6,2,16,.5) 55%,rgba(6,2,16,.12) 100%)!important}
+html[data-forced="1"] #chatList .chat .r1 b,html[data-forced="1"] #chatList .chat .lm,html[data-forced="1"] #chatList .chat .tm{text-shadow:0 1px 3px rgba(0,0,0,.85)}
+#s-chat #chatList{padding-bottom:calc(env(safe-area-inset-bottom) + 96px)}`;
+ document.head.appendChild(st);
 })();
 /*@@MOD-END*/
 /* ---------- démarrage ---------- */
